@@ -1,0 +1,81 @@
+name: lockvet
+description: >-
+  Explain lockfile changes on pull requests: version bumps classified
+  major/minor/patch, plus vulnerabilities introduced and fixed (via OSV.dev).
+  Posts a summary comment on the PR.
+author: Matteo Sung
+branding:
+  icon: lock
+  color: orange
+
+inputs:
+  fail-on:
+    description: 'Fail the check on: "major", "vuln", "downgrade" (comma list). Empty = never fail.'
+    required: false
+    default: ''
+  comment:
+    description: Post/update a PR comment with the report (true/false).
+    required: false
+    default: 'true'
+  github-token:
+    description: Token used to post the PR comment.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+        cache: false
+
+    - name: Install lockvet
+      shell: bash
+      run: go install github.com/matteo-sung/lockvet@${{ github.action_ref || 'main' }}
+
+    - name: Run lockvet
+      id: run
+      shell: bash
+      env:
+        BASE: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -o pipefail
+        rc=0
+        lockvet -md ${{ inputs.fail-on != '' && format('-fail-on {0}', inputs.fail-on) || '' }} \
+          "$BASE" HEAD > lockvet-report.md 2> lockvet-stderr.log || rc=$?
+        cat lockvet-stderr.log >&2 || true
+        # rc=1 → fail-on condition hit (report still valid); rc=2 → hard error
+        if [ "$rc" = "2" ]; then exit 2; fi
+        echo "rc=$rc" >> "$GITHUB_OUTPUT"
+        if [ -s lockvet-report.md ]; then
+          echo "has_report=true" >> "$GITHUB_OUTPUT"
+          cat lockvet-report.md >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "has_report=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Comment on PR
+      if: inputs.comment == 'true' && steps.run.outputs.has_report == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        printf '<!-- lockvet-report -->\n\n' > body.md
+        cat lockvet-report.md >> body.md
+        existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+          --jq '.[] | select(.body | startswith("<!-- lockvet-report -->")) | .id' | head -1)
+        if [ -n "$existing" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$existing" -F body=@body.md > /dev/null
+        else
+          gh api "repos/$REPO/issues/$PR/comments" -F body=@body.md > /dev/null
+        fi
+
+    - name: Enforce fail-on
+      if: steps.run.outputs.rc == '1'
+      shell: bash
+      run: |
+        echo "::error::lockvet: fail-on condition met (${{ inputs.fail-on }})"
+        exit 1
