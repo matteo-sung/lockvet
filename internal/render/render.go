@@ -79,6 +79,21 @@ func ageSuffix(s styler, c diffx.Change) string {
 	return "  " + s.dim("("+age(c.AgeDays)+" old)")
 }
 
+// originSuffix explains why a package moved: it's a dependency you declared
+// ("direct"), or it was dragged along by one ("via <direct dep>").
+func originSuffix(s styler, c diffx.Change) string {
+	switch c.Origin {
+	case "direct":
+		return "  " + s.cyan("(direct)")
+	case "transitive":
+		if len(c.Via) > 0 {
+			return "  " + s.dim("via "+c.Via[0])
+		}
+		return "  " + s.dim("(transitive)")
+	}
+	return ""
+}
+
 // Terminal writes a colored human report.
 func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool, vulnsChecked, metaChecked bool, freshDays int) {
 	s := styler{on: color}
@@ -94,7 +109,7 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			fromW = max(fromW, len(join(c.Old)))
 		}
 		for _, c := range fd.Changes {
-			fmt.Fprintln(w, "  "+line(s, c, nameW, fromW)+ageSuffix(s, c))
+			fmt.Fprintln(w, "  "+line(s, c, nameW, fromW)+originSuffix(s, c)+ageSuffix(s, c))
 			if c.Deprecated {
 				reason := c.DeprecatedReason
 				if reason == "" {
@@ -177,6 +192,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 	if sum.Downgraded > 0 {
 		parts = append(parts, s.bred(fmt.Sprintf("%d downgraded", sum.Downgraded)))
 	}
+	if sum.Direct+sum.Transitive > 0 {
+		parts = append(parts, fmt.Sprintf("%d direct", sum.Direct), s.dim(fmt.Sprintf("%d transitive", sum.Transitive)))
+	}
 	out := strings.Join(parts, " · ")
 	if vulnsChecked {
 		vi := fmt.Sprintf("%d introduced", sum.VulnsIntroduced)
@@ -222,6 +240,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	}
 	if sum.Removed > 0 {
 		bits = append(bits, fmt.Sprintf("%d removed", sum.Removed))
+	}
+	if sum.Direct+sum.Transitive > 0 {
+		bits = append(bits, fmt.Sprintf("%d direct", sum.Direct), fmt.Sprintf("%d transitive", sum.Transitive))
 	}
 	if len(bits) > 0 {
 		fmt.Fprintf(w, ": %s", strings.Join(bits, ", "))
@@ -275,7 +296,18 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			if metaChecked {
 				padCell = " |"
 			}
-			fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |%s\n", icon, c.Name, join(c.Old), join(c.New), lvl, extra)
+			pkgCell := "`" + c.Name + "`"
+			switch c.Origin {
+			case "direct":
+				pkgCell += " <sub>**direct**</sub>"
+			case "transitive":
+				if len(c.Via) > 0 {
+					pkgCell += " <sub>via " + esc(strings.Join(c.Via, " › ")) + "</sub>"
+				} else {
+					pkgCell += " <sub>transitive</sub>"
+				}
+			}
+			fmt.Fprintf(w, "| %s | %s | %s | %s | %s |%s\n", icon, pkgCell, join(c.Old), join(c.New), lvl, extra)
 			if c.Deprecated {
 				reason := esc(c.DeprecatedReason)
 				if reason == "" {

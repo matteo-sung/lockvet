@@ -30,6 +30,13 @@ type Change struct {
 	Level       vers.Level `json:"-"`
 	LevelString string     `json:"level,omitempty"`
 
+	// Why the package is in the tree, when the lockfile records its
+	// dependency graph. Origin is "direct", "transitive" or "" (unknown).
+	// Via is the chain of dependencies from a direct dependency down to
+	// (but excluding) this package, e.g. ["react-scripts", "webpack"].
+	Origin string   `json:"origin,omitempty"`
+	Via    []string `json:"via,omitempty"`
+
 	// Filled in by the OSV layer.
 	IntroducedVulns []Vuln `json:"introduced_vulns,omitempty"` // affect new, not old
 	FixedVulns      []Vuln `json:"fixed_vulns,omitempty"`      // affected old, not new
@@ -116,6 +123,8 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		fd.Changes = append(fd.Changes, c)
 	}
 
+	annotateOrigins(fd.Changes, oldF, newF)
+
 	sort.Slice(fd.Changes, func(i, j int) bool {
 		a, b := fd.Changes[i], fd.Changes[j]
 		if a.Level != b.Level {
@@ -169,11 +178,115 @@ func equal(a, b []string) bool {
 	return true
 }
 
+// graphInfo is a per-lockfile view of the dependency graph used to
+// classify changes as direct or transitive.
+type graphInfo struct {
+	roots  map[string]bool
+	parent map[string]string // BFS tree: package -> the package that pulled it in
+}
+
+// buildGraph derives roots and shortest pull-in chains from a lockfile.
+// Returns nil when the format records no graph information.
+func buildGraph(f *lock.File) *graphInfo {
+	if f == nil || (!f.RootsKnown && len(f.Deps) == 0) {
+		return nil
+	}
+	g := &graphInfo{roots: map[string]bool{}, parent: map[string]string{}}
+	var queue []string
+	if f.RootsKnown {
+		for _, r := range f.Roots {
+			g.roots[r] = true
+		}
+	} else {
+		// No recorded roots (yarn classic, poetry, composer): treat
+		// packages nothing depends on as the likely direct set.
+		hasParent := map[string]bool{}
+		for _, deps := range f.Deps {
+			for _, d := range deps {
+				hasParent[d] = true
+			}
+		}
+		for name := range f.Packages {
+			if !hasParent[name] {
+				g.roots[name] = true
+			}
+		}
+	}
+	for r := range g.roots {
+		queue = append(queue, r)
+	}
+	sort.Strings(queue) // deterministic BFS => deterministic chains
+	seen := map[string]bool{}
+	for _, r := range queue {
+		seen[r] = true
+	}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		deps := append([]string(nil), f.Deps[cur]...)
+		sort.Strings(deps)
+		for _, d := range deps {
+			if seen[d] {
+				continue
+			}
+			seen[d] = true
+			g.parent[d] = cur
+			queue = append(queue, d)
+		}
+	}
+	return g
+}
+
+// classify returns ("direct"|"transitive"|"", chain). The chain runs from a
+// direct dependency down to the package's immediate dependent.
+func (g *graphInfo) classify(name string) (string, []string) {
+	if g == nil {
+		return "", nil
+	}
+	if g.roots[name] {
+		return "direct", nil
+	}
+	if _, ok := g.parent[name]; !ok {
+		// Graph info exists but no path found (go.mod has no edges;
+		// cycles; optional peers): still known to be non-direct.
+		return "transitive", nil
+	}
+	var chain []string
+	for cur := g.parent[name]; ; cur = g.parent[cur] {
+		chain = append(chain, cur)
+		if _, ok := g.parent[cur]; !ok {
+			break
+		}
+		if len(chain) > 32 { // safety against unexpected cycles
+			break
+		}
+	}
+	// reverse: root first
+	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+		chain[i], chain[j] = chain[j], chain[i]
+	}
+	return "transitive", chain
+}
+
+// annotateOrigins fills Origin/Via on each change, using the new lockfile's
+// graph (the old one for removed packages).
+func annotateOrigins(changes []Change, oldF, newF *lock.File) {
+	gNew, gOld := buildGraph(newF), buildGraph(oldF)
+	for i := range changes {
+		g := gNew
+		if changes[i].Kind == Removed {
+			g = gOld
+		}
+		changes[i].Origin, changes[i].Via = g.classify(changes[i].Name)
+	}
+}
+
 // Summary aggregates counts across file diffs.
 type Summary struct {
 	Total, Major, Minor, Patch, Added, Removed, Downgraded int
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
 	Fresh, Deprecated                                      int
+	Direct, Transitive                                     int // 0/0 when the formats record no graph
 }
 
 // Summarize computes totals for a set of file diffs.
@@ -208,6 +321,12 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.Deprecated {
 				s.Deprecated++
+			}
+			switch c.Origin {
+			case "direct":
+				s.Direct++
+			case "transitive":
+				s.Transitive++
 			}
 		}
 	}

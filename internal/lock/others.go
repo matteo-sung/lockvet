@@ -16,22 +16,96 @@ import (
 
 var tomlKVRe = regexp.MustCompile(`^(name|version)\s*=\s*"([^"]*)"\s*$`)
 
+// tomlNameRe matches uv.lock dep entries: { name = "requests" [, ...] }
+var tomlNameRe = regexp.MustCompile(`name\s*=\s*"([^"]+)"`)
+
+// tomlBareKeyRe matches poetry [package.dependencies] keys: foo = ">=1.0"
+var tomlBareKeyRe = regexp.MustCompile(`^["']?([A-Za-z0-9._-]+)["']?\s*=`)
+
+// tomlDepItem extracts the dependency name from one element of a
+// `dependencies = [...]` array.
+//
+//	Cargo: "bar" or "bar 1.0.0 (registry+...)"
+//	uv:    { name = "bar" },
+func tomlDepItem(item string) string {
+	item = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(item), ","))
+	if strings.HasPrefix(item, "{") {
+		if m := tomlNameRe.FindStringSubmatch(item); m != nil {
+			return m[1]
+		}
+		return ""
+	}
+	item = strings.Trim(item, `"`)
+	if i := strings.IndexByte(item, ' '); i > 0 { // "bar 1.0.0 (...)"
+		item = item[:i]
+	}
+	return item
+}
+
 func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, error) {
 	return func(p string, data []byte) (*File, error) {
 		f := newFile(p, kind, eco)
 		var name, version string
+		var deps []string
+		hasSource, rootSource := false, false
 		inPackage := false
+		mode := "" // "", "deps-array", "poetry-deps"
 		flush := func() {
 			if inPackage {
 				f.add(name, version)
+				// Which packages count as the project root differs:
+				// Cargo.lock: workspace members have no `source` key.
+				// uv.lock: the project has source = { editable/virtual = "." }.
+				// poetry.lock: the root is not recorded at all.
+				isRoot := (kind == "Cargo.lock" && !hasSource) ||
+					(kind == "uv.lock" && rootSource)
+				for _, d := range deps {
+					if isRoot {
+						f.addRoot(d)
+					} else if name != "" {
+						f.addEdge(name, d)
+					}
+				}
 			}
-			name, version = "", ""
+			name, version, deps = "", "", nil
+			hasSource, rootSource = false, false
 		}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "[") { // any new table/array-of-tables
-				flush()
-				inPackage = line == "[[package]]"
+			switch mode {
+			case "deps-array":
+				if line == "]" {
+					mode = ""
+					continue
+				}
+				if d := tomlDepItem(line); d != "" {
+					deps = append(deps, d)
+				}
+				continue
+			case "poetry-deps":
+				if strings.HasPrefix(line, "[") {
+					mode = "" // fall through to table handling below
+				} else {
+					if m := tomlBareKeyRe.FindStringSubmatch(line); m != nil {
+						deps = append(deps, m[1])
+					}
+					continue
+				}
+			}
+			if strings.HasPrefix(line, "[") { // new table/array-of-tables
+				switch {
+				case line == "[[package]]":
+					flush()
+					inPackage = true
+				case strings.HasPrefix(line, "[package."):
+					// sub-table of the current package: keep context
+					if inPackage && line == "[package.dependencies]" {
+						mode = "poetry-deps"
+					}
+				default:
+					flush()
+					inPackage = false
+				}
 				continue
 			}
 			if !inPackage {
@@ -43,11 +117,59 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				} else {
 					version = m[2]
 				}
+				continue
+			}
+			if strings.HasPrefix(line, "source =") {
+				hasSource = true
+				if strings.Contains(line, "editable") || strings.Contains(line, "virtual") {
+					rootSource = true
+				}
+				continue
+			}
+			if strings.HasPrefix(line, "dependencies = [") {
+				rest := strings.TrimPrefix(line, "dependencies = [")
+				if i := strings.LastIndexByte(rest, ']'); i >= 0 { // inline array
+					for _, item := range splitTopLevel(rest[:i]) {
+						if d := tomlDepItem(item); d != "" {
+							deps = append(deps, d)
+						}
+					}
+				} else {
+					mode = "deps-array"
+				}
 			}
 		}
 		flush()
 		return f, nil
 	}
+}
+
+// splitTopLevel splits an inline TOML array body on commas that are not
+// inside braces or quotes: `"a", { name = "b", extra = ["c"] }`.
+func splitTopLevel(s string) []string {
+	var out []string
+	depth, start, inStr := 0, 0, false
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '"':
+			inStr = !inStr
+		case '{', '[':
+			if !inStr {
+				depth++
+			}
+		case '}', ']':
+			if !inStr {
+				depth--
+			}
+		case ',':
+			if !inStr && depth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, s[start:])
+	return out
 }
 
 // ---- requirements.txt (only exact `==` pins) ----
@@ -82,9 +204,12 @@ func normalizePyPI(name string) string {
 
 func parseGoMod(p string, data []byte) (*File, error) {
 	f := newFile(p, "go.mod", Go)
+	f.RootsKnown = true // go.mod annotates transitive deps with "// indirect"
 	inRequire := false
 	for _, line := range strings.Split(string(data), "\n") {
+		indirect := false
 		if i := strings.Index(line, "//"); i >= 0 {
+			indirect = strings.Contains(line[i:], "indirect")
 			line = line[:i]
 		}
 		line = strings.TrimSpace(line)
@@ -99,8 +224,14 @@ func parseGoMod(p string, data []byte) (*File, error) {
 		fields := strings.Fields(line)
 		if inRequire && len(fields) == 2 {
 			f.add(fields[0], strings.TrimPrefix(fields[1], "v"))
+			if !indirect {
+				f.addRoot(fields[0])
+			}
 		} else if len(fields) == 3 && fields[0] == "require" {
 			f.add(fields[1], strings.TrimPrefix(fields[2], "v"))
+			if !indirect {
+				f.addRoot(fields[1])
+			}
 		}
 	}
 	return f, nil
@@ -110,34 +241,61 @@ func parseGoMod(p string, data []byte) (*File, error) {
 
 func parseComposerLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "composer.lock", Packagist)
+	type composerPkg struct {
+		Name    string            `json:"name"`
+		Version string            `json:"version"`
+		Require map[string]string `json:"require"`
+	}
 	var doc struct {
-		Packages    []struct{ Name, Version string } `json:"packages"`
-		PackagesDev []struct{ Name, Version string } `json:"packages-dev"`
+		Packages    []composerPkg `json:"packages"`
+		PackagesDev []composerPkg `json:"packages-dev"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, err
 	}
 	for _, pkg := range append(doc.Packages, doc.PackagesDev...) {
 		f.add(pkg.Name, strings.TrimPrefix(pkg.Version, "v"))
+		for dep := range pkg.Require {
+			// skip platform requirements: php, ext-*, lib-*, composer-*
+			if !strings.Contains(dep, "/") {
+				continue
+			}
+			f.addEdge(pkg.Name, dep)
+		}
 	}
 	return f, nil
 }
 
 // ---- Gemfile.lock ----
 
-var gemSpecRe = regexp.MustCompile(`^    ([A-Za-z0-9._-]+) \(([0-9][^)]*)\)\s*$`)
+var (
+	gemSpecRe = regexp.MustCompile(`^    ([A-Za-z0-9._-]+) \(([0-9][^)]*)\)\s*$`)
+	gemDepRe  = regexp.MustCompile(`^      ([A-Za-z0-9._-]+)(?: \([^)]*\))?\s*$`)
+	gemRootRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+)(?:!)?(?: \([^)]*\))?!?\s*$`)
+)
 
 func parseGemfileLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "Gemfile.lock", RubyGems)
-	inSpecs := false
+	inSpecs, inDependencies := false, false
+	currentSpec := ""
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
 		switch {
 		case strings.TrimSpace(line) == "specs:":
 			inSpecs = true
 			continue
+		case line == "DEPENDENCIES":
+			inSpecs, inDependencies = false, true
+			continue
 		case line != "" && line[0] != ' ': // new top-level section (GEM, PLATFORMS, ...)
-			inSpecs = false
+			inSpecs, inDependencies = false, false
+			continue
+		}
+		if inDependencies {
+			// two-space entries list the Gemfile's direct dependencies
+			if m := gemRootRe.FindStringSubmatch(line); m != nil {
+				f.addRoot(strings.TrimSuffix(m[1], "!"))
+			}
 			continue
 		}
 		if !inSpecs {
@@ -145,6 +303,11 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 		}
 		if m := gemSpecRe.FindStringSubmatch(line); m != nil {
 			f.add(m[1], m[2])
+			currentSpec = m[1]
+			continue
+		}
+		if m := gemDepRe.FindStringSubmatch(line); m != nil && currentSpec != "" {
+			f.addEdge(currentSpec, m[1])
 		}
 	}
 	return f, nil

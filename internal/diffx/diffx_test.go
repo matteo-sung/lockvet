@@ -75,3 +75,74 @@ func TestSummarize(t *testing.T) {
 		t.Errorf("summary: %+v", s)
 	}
 }
+
+func TestOriginAnnotation(t *testing.T) {
+	oldF := mk(map[string][]string{
+		"express": {"4.17.0"}, "debug": {"2.6.8"}, "ms": {"1.0.0"}, "gone": {"1.0.0"},
+	})
+	newF := mk(map[string][]string{
+		"express": {"4.17.1"}, "debug": {"2.6.9"}, "ms": {"2.0.0"},
+	})
+	newF.RootsKnown = true
+	newF.Roots = []string{"express"}
+	newF.Deps = map[string][]string{"express": {"debug"}, "debug": {"ms"}}
+	oldF.RootsKnown = true
+	oldF.Roots = []string{"express"}
+	oldF.Deps = map[string][]string{"express": {"debug", "gone"}, "debug": {"ms"}}
+
+	fd := Diff(oldF, newF)
+
+	if c := find(fd, "express"); c == nil || c.Origin != "direct" || len(c.Via) != 0 {
+		t.Errorf("express: got %+v, want direct", c)
+	}
+	if c := find(fd, "debug"); c == nil || c.Origin != "transitive" ||
+		len(c.Via) != 1 || c.Via[0] != "express" {
+		t.Errorf("debug: got %+v, want transitive via [express]", c)
+	}
+	if c := find(fd, "ms"); c == nil || c.Origin != "transitive" ||
+		len(c.Via) != 2 || c.Via[0] != "express" || c.Via[1] != "debug" {
+		t.Errorf("ms: got %+v, want transitive via [express debug]", c)
+	}
+	// removed packages classify against the OLD graph
+	if c := find(fd, "gone"); c == nil || c.Origin != "transitive" ||
+		len(c.Via) != 1 || c.Via[0] != "express" {
+		t.Errorf("gone: got %+v, want transitive via [express] (old graph)", c)
+	}
+}
+
+func TestOriginHeuristicRoots(t *testing.T) {
+	// No recorded roots (yarn classic): packages nothing depends on
+	// count as the direct set.
+	oldF := mk(map[string][]string{"top": {"1.0.0"}, "leaf": {"1.0.0"}})
+	newF := mk(map[string][]string{"top": {"1.1.0"}, "leaf": {"1.2.0"}})
+	newF.Deps = map[string][]string{"top": {"leaf"}}
+
+	fd := Diff(oldF, newF)
+	if c := find(fd, "top"); c == nil || c.Origin != "direct" {
+		t.Errorf("top: got %+v, want direct (no in-edges)", c)
+	}
+	if c := find(fd, "leaf"); c == nil || c.Origin != "transitive" || len(c.Via) != 1 {
+		t.Errorf("leaf: got %+v, want transitive via [top]", c)
+	}
+}
+
+func TestOriginUnknownWithoutGraph(t *testing.T) {
+	oldF := mk(map[string][]string{"a": {"1.0.0"}})
+	newF := mk(map[string][]string{"a": {"2.0.0"}})
+	fd := Diff(oldF, newF)
+	if c := find(fd, "a"); c == nil || c.Origin != "" {
+		t.Errorf("a: got %+v, want empty origin when format has no graph", c)
+	}
+}
+
+func TestOriginGoModNoEdges(t *testing.T) {
+	// go.mod: roots known, no edges — non-roots are transitive, no via.
+	oldF := mk(map[string][]string{"golang.org/x/sys": {"0.19.0"}})
+	newF := mk(map[string][]string{"golang.org/x/sys": {"0.20.0"}})
+	newF.RootsKnown = true
+	newF.Roots = []string{"github.com/direct/dep"}
+	fd := Diff(oldF, newF)
+	if c := find(fd, "golang.org/x/sys"); c == nil || c.Origin != "transitive" || len(c.Via) != 0 {
+		t.Errorf("x/sys: got %+v, want transitive with no via", c)
+	}
+}

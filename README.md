@@ -14,6 +14,9 @@ what really happened:
 
 - **what bumped** — every added / removed / upgraded / downgraded package,
   classified as major / minor / patch, worst first
+- **why it moved** — each change is labeled `(direct)` or `via <the dependency
+  that dragged it in>`, so a 40-package diff collapses into "one direct bump
+  plus its baggage"
 - **what's risky** — vulnerabilities *introduced* by the new versions,
   vulnerabilities the bump *fixes*, and advisories that affect both
   (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC aliases)
@@ -36,24 +39,25 @@ what really happened:
 $ lockvet HEAD~1        # what did that "upgrade express" commit really do?
 
 package-lock.json (npm)
-  ↑ express             4.17.1  → 5.1.0   MAJOR  (15mo old)
+  ↑ express             4.17.1  → 5.1.0   MAJOR  (direct)  (15mo old)
       ▼ fixes GHSA-rv95-896h-c2vc (moderate) Express.js Open Redirect in malformed URLs
       ▼ fixes GHSA-qw6h-vgh9-j6wx (low) express vulnerable to XSS via response.redirect()
-  ↑ body-parser         1.19.0  → 2.3.0   MAJOR  ⏱ published 5 days ago
+  ↑ body-parser         1.19.0  → 2.3.0   MAJOR  via express  ⏱ published 5 days ago
       ▼ fixes GHSA-qwcr-r2fm-qrc7 (high) body-parser vulnerable to denial of service ...
-  ↑ path-to-regexp      0.1.7   → 8.4.2   MAJOR  (3mo old)
+  ↑ path-to-regexp      0.1.7   → 8.4.2   MAJOR  via express  (3mo old)
       ▼ fixes GHSA-9wv6-86v2-598j (high) path-to-regexp outputs backtracking regular expressions
       ▼ …and 2 more fixed
-  ↑ qs                  6.7.0   → 6.15.3  minor  (27d old)
+  ↑ qs                  6.7.0   → 6.15.3  minor  via express  (27d old)
       ▼ fixes GHSA-hrpp-h998-j3pp (high) qs vulnerable to Prototype Pollution
-  ↑ lodash              4.17.20 → 4.17.21 patch  (5y old)
+  ↑ lodash              4.17.20 → 4.17.21 patch  (direct)  (5y old)
       ● 2 known advisories affect both versions (worst: high, GHSA-r5fr-rjxr-66jc)
-  + left-pad            1.3.0   (added)  (8y old)
+  + left-pad            1.3.0   (added)  (direct)  (8y old)
       ● deprecated upstream: use String.prototype.padStart()
-  - minimist            1.2.5   (removed)
+  - minimist            1.2.5   (removed)  via mkdirp
 
 64 packages changed · 21 major · 9 minor · 4 patch · 23 added · 7 removed
-  · vulnerabilities: 0 introduced, 15 fixed, 3 unresolved · 1 fresh (<7d old) · 1 deprecated
+  · 3 direct · 61 transitive · vulnerabilities: 0 introduced, 15 fixed, 3 unresolved
+  · 1 fresh (<7d old) · 1 deprecated
 ```
 
 ## Install
@@ -149,7 +153,12 @@ jobs:
 | iOS / CocoaPods | `Podfile.lock` |
 | Nix | `flake.lock` |
 
-Notes: Deno's `jsr:` packages, CocoaPods, and Nix flakes have no OSV.dev
+Notes: direct/`via …` origin labels appear where the lockfile records its
+dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler, and
+Go modules (go.mod's `// indirect` markers give direct/transitive, without
+chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
+Gradle, …) skip the label.
+Deno's `jsr:` packages, CocoaPods, and Nix flakes have no OSV.dev
 ecosystem (yet), so those diffs are explained without vulnerability data.
 Release ages / deprecations come from deps.dev, which covers npm, crates.io,
 PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply skip that check.
@@ -168,6 +177,9 @@ parsers are ~50 lines each.
 3. The two snapshots are diffed and each change is classified with a lenient
    version parser that copes with semver, Python post-releases, and Go
    pseudo-versions.
+   Where the lockfile also records dependency edges and root deps, lockvet
+   BFS-walks the graph to label every change `(direct)` or `via <chain>` —
+   no manifest files or network needed.
 4. Old and new versions are checked against OSV.dev's batch API. A vulnerability
    that matches the new version but not the old one is **introduced**; the
    reverse is **fixed**; both is **unresolved**. Aliased advisories

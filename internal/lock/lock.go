@@ -48,10 +48,52 @@ type File struct {
 	Kind      string // e.g. "package-lock.json"
 	Ecosystem Ecosystem
 	Packages  map[string][]string
+
+	// Dependency-graph info, filled in only when the lockfile format
+	// records it. Deps maps package name -> names it depends on.
+	// Roots are the project's *direct* dependencies when the lockfile
+	// itself says so (npm root entry, pnpm importers, Gemfile.lock
+	// DEPENDENCIES, go.mod without "// indirect", ...).
+	// RootsKnown distinguishes "no roots recorded" from "empty roots".
+	Deps       map[string][]string
+	Roots      []string
+	RootsKnown bool
 }
 
 func newFile(p, kind string, eco Ecosystem) *File {
 	return &File{Path: p, Kind: kind, Ecosystem: eco, Packages: map[string][]string{}}
+}
+
+// addEdge records "from depends on to". Self-edges and empty names are dropped.
+func (f *File) addEdge(from, to string) {
+	from, to = Sanitize(from), Sanitize(to)
+	if from == "" || to == "" || from == to {
+		return
+	}
+	if f.Deps == nil {
+		f.Deps = map[string][]string{}
+	}
+	for _, d := range f.Deps[from] {
+		if d == to {
+			return
+		}
+	}
+	f.Deps[from] = append(f.Deps[from], to)
+}
+
+// addRoot records a known direct dependency.
+func (f *File) addRoot(name string) {
+	f.RootsKnown = true
+	name = Sanitize(name)
+	if name == "" {
+		return
+	}
+	for _, r := range f.Roots {
+		if r == name {
+			return
+		}
+	}
+	f.Roots = append(f.Roots, name)
 }
 
 // Sanitize makes untrusted strings (lockfile- or registry-derived) safe to
