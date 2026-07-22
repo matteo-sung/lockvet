@@ -56,7 +56,7 @@ func main() {
 		showVer = flag.Bool("version", false, "")
 	)
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
-	flag.Parse()
+	flag.CommandLine.Parse(reorderArgs(os.Args[1:]))
 
 	if *showVer {
 		fmt.Println("lockvet", version)
@@ -167,6 +167,27 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 		}
 	}
 	return 0
+}
+
+// reorderArgs moves flags before positionals so that
+// "lockvet HEAD~1 HEAD -no-vulns" works (Go's flag package stops at the
+// first positional argument otherwise).
+func reorderArgs(args []string) []string {
+	var flags, pos []string
+	takesValue := map[string]bool{"-fail-on": true, "-C": true, "--fail-on": true, "--C": true}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "-") && a != "-" && a != "--" {
+			flags = append(flags, a)
+			if takesValue[a] && i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+			continue
+		}
+		pos = append(pos, a)
+	}
+	return append(flags, pos...)
 }
 
 func parseOrNil(parser *lock.Parser, p string, data []byte) *lock.File {
