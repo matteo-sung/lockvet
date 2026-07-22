@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/lock"
 	"net/http"
 	"sort"
 	"strings"
@@ -43,6 +44,9 @@ func Annotate(diffs []diffx.FileDiff) error {
 	for i := range diffs {
 		for j := range diffs[i].Changes {
 			c := &diffs[i].Changes[j]
+			if !lock.Ecosystem(c.Ecosystem).HasOSV() {
+				continue // e.g. Nix: no OSV.dev ecosystem
+			}
 			for _, v := range c.Old {
 				queries = append(queries, mkQuery(c.Name, c.Ecosystem, v))
 				slots = append(slots, slot{i, j, "old"})

@@ -24,7 +24,21 @@ const (
 	Maven     Ecosystem = "Maven"
 	NuGet     Ecosystem = "NuGet"
 	SwiftURL  Ecosystem = "SwiftURL"
+	CocoaPods Ecosystem = "CocoaPods"
+
+	// Nix has no OSV.dev ecosystem and no semver: flake inputs pin git
+	// revisions. lockvet still explains what moved and by how much time.
+	Nix Ecosystem = "Nix"
 )
+
+// HasOSV reports whether the ecosystem can be queried on OSV.dev.
+// CocoaPods and Nix have no OSV.dev ecosystem (verified live: OSV returns
+// "invalid ecosystem"), so lockvet explains those diffs without vuln data.
+func (e Ecosystem) HasOSV() bool { return e != Nix && e != CocoaPods }
+
+// HasSemver reports whether version-jump levels (major/minor/patch) are
+// meaningful for the ecosystem.
+func (e Ecosystem) HasSemver() bool { return e != Nix }
 
 // File is a parsed lockfile: package name -> set of pinned versions.
 // A lockfile may legitimately contain multiple versions of one package
@@ -40,10 +54,10 @@ func newFile(p, kind string, eco Ecosystem) *File {
 	return &File{Path: p, Kind: kind, Ecosystem: eco, Packages: map[string][]string{}}
 }
 
-// sanitize makes untrusted lockfile-derived strings safe to render:
-// it enforces valid UTF-8 and strips control characters (so a hostile
-// lockfile cannot smuggle ANSI escape sequences into terminal output).
-func sanitize(s string) string {
+// Sanitize makes untrusted strings (lockfile- or registry-derived) safe to
+// render: it enforces valid UTF-8 and strips control characters (so hostile
+// input cannot smuggle ANSI escape sequences into terminal output).
+func Sanitize(s string) string {
 	if s == "" {
 		return s
 	}
@@ -70,7 +84,7 @@ func sanitize(s string) string {
 }
 
 func (f *File) add(name, version string) {
-	name, version = sanitize(name), sanitize(version)
+	name, version = Sanitize(name), Sanitize(version)
 	if name == "" || version == "" {
 		return
 	}
@@ -127,6 +141,12 @@ func ByBasename(p string) *Parser {
 		return &Parser{"packages.lock.json", NuGet, parseNuGetLock}
 	case "Package.resolved":
 		return &Parser{"Package.resolved", SwiftURL, parseSwiftResolved}
+	case "Podfile.lock":
+		return &Parser{"Podfile.lock", CocoaPods, parsePodfileLock}
+	case "deno.lock":
+		return &Parser{"deno.lock", NPM, parseDenoLock}
+	case "flake.lock":
+		return &Parser{"flake.lock", Nix, parseFlakeLock}
 	}
 	return nil
 }
@@ -138,5 +158,6 @@ func KnownBasenames() []string {
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
+		"Podfile.lock", "deno.lock", "flake.lock",
 	}
 }

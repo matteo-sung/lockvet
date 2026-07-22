@@ -115,8 +115,20 @@ func main() {
 		return
 	}
 
+	// If nothing in the diff belongs to an OSV-covered ecosystem
+	// (e.g. only flake.lock / Podfile.lock changed), don't claim
+	// "vulnerabilities: 0" — there was nothing to check.
+	anyOSV := false
+	for _, fd := range diffs {
+		for _, c := range fd.Changes {
+			if lock.Ecosystem(c.Ecosystem).HasOSV() {
+				anyOSV = true
+			}
+		}
+	}
+
 	vulnsChecked := false
-	if !*noVulns {
+	if !*noVulns && anyOSV {
 		if err := osv.Annotate(diffs); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: vulnerability check skipped: %v\n", err)
 		} else {

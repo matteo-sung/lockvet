@@ -17,10 +17,10 @@ what really happened:
 - **what's risky** — vulnerabilities *introduced* by the new versions,
   vulnerabilities the bump *fixes*, and advisories that affect both
   (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC aliases)
-- **across every ecosystem, in one static binary** — 17 lockfile formats:
-  npm, pnpm, yarn (classic & berry), bun, Cargo, uv, poetry, pipenv,
+- **across every ecosystem, in one static binary** — 20 lockfile formats:
+  npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
-  Gradle, NuGet, Swift Package Manager
+  Gradle, NuGet, Swift Package Manager, CocoaPods, Nix flakes
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -127,7 +127,7 @@ jobs:
 
 | Ecosystem | Files |
 |---|---|
-| JavaScript | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` (v1 & berry), `bun.lock` |
+| JavaScript | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` (v1 & berry), `bun.lock`, `deno.lock` |
 | Rust | `Cargo.lock` |
 | Python | `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements.txt` (`==` pins) |
 | Go | `go.mod` |
@@ -138,6 +138,13 @@ jobs:
 | Java / JVM | `gradle.lockfile` |
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
+| iOS / CocoaPods | `Podfile.lock` |
+| Nix | `flake.lock` |
+
+Notes: Deno's `jsr:` packages, CocoaPods, and Nix flakes have no OSV.dev
+ecosystem (yet), so those diffs are explained without vulnerability data.
+Nix flake inputs pin git revisions, not versions — lockvet shows them as
+`<commit-date>.<short-rev>` so the diff still reads chronologically.
 
 Missing one you care about? [Open an issue](https://github.com/matteo-sung/lockvet/issues) —
 parsers are ~50 lines each.

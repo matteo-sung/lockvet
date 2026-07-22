@@ -99,6 +99,12 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			c.Level = maxDelta(o, n)
 			c.LevelString = c.Level.String()
 		}
+		if !ref.Ecosystem.HasSemver() {
+			// e.g. Nix flake inputs: pinned git revs, not versions —
+			// major/minor/patch labels would be noise.
+			c.Level = vers.None
+			c.LevelString = ""
+		}
 		fd.Changes = append(fd.Changes, c)
 	}
 
