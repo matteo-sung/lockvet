@@ -4,6 +4,9 @@ package lock
 import (
 	"path"
 	"sort"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Ecosystem is an OSV.dev ecosystem identifier.
@@ -37,7 +40,37 @@ func newFile(p, kind string, eco Ecosystem) *File {
 	return &File{Path: p, Kind: kind, Ecosystem: eco, Packages: map[string][]string{}}
 }
 
+// sanitize makes untrusted lockfile-derived strings safe to render:
+// it enforces valid UTF-8 and strips control characters (so a hostile
+// lockfile cannot smuggle ANSI escape sequences into terminal output).
+func sanitize(s string) string {
+	if s == "" {
+		return s
+	}
+	clean := true
+	for _, r := range s {
+		if r == utf8.RuneError || unicode.IsControl(r) {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == utf8.RuneError || unicode.IsControl(r) {
+			b.WriteRune('\uFFFD')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 func (f *File) add(name, version string) {
+	name, version = sanitize(name), sanitize(version)
 	if name == "" || version == "" {
 		return
 	}
