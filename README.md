@@ -17,9 +17,10 @@ what really happened:
 - **what's risky** — vulnerabilities *introduced* by the new versions,
   vulnerabilities the bump *fixes*, and advisories that affect both
   (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC aliases)
-- **across every ecosystem, in one static binary** — npm, pnpm, yarn (classic
-  & berry), bun, Cargo, uv, poetry, `requirements.txt`, Go modules, Composer,
-  Bundler
+- **across every ecosystem, in one static binary** — 17 lockfile formats:
+  npm, pnpm, yarn (classic & berry), bun, Cargo, uv, poetry, pipenv,
+  `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
+  Gradle, NuGet, Swift Package Manager
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -128,10 +129,15 @@ jobs:
 |---|---|
 | JavaScript | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` (v1 & berry), `bun.lock` |
 | Rust | `Cargo.lock` |
-| Python | `uv.lock`, `poetry.lock`, `requirements.txt` (`==` pins) |
+| Python | `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements.txt` (`==` pins) |
 | Go | `go.mod` |
 | PHP | `composer.lock` |
 | Ruby | `Gemfile.lock` |
+| Elixir | `mix.lock` |
+| Dart / Flutter | `pubspec.lock` |
+| Java / JVM | `gradle.lockfile` |
+| .NET | `packages.lock.json` |
+| Swift | `Package.resolved` |
 
 Missing one you care about? [Open an issue](https://github.com/matteo-sung/lockvet/issues) —
 parsers are ~50 lines each.
