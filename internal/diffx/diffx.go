@@ -34,6 +34,14 @@ type Change struct {
 	IntroducedVulns []Vuln `json:"introduced_vulns,omitempty"` // affect new, not old
 	FixedVulns      []Vuln `json:"fixed_vulns,omitempty"`      // affected old, not new
 	ExistingVulns   []Vuln `json:"existing_vulns,omitempty"`   // affect both
+
+	// Filled in by the deps.dev layer (registry metadata for the
+	// version this change introduces).
+	PublishedAt      string `json:"published_at,omitempty"` // RFC3339, UTC
+	AgeDays          int    `json:"age_days,omitempty"`
+	Fresh            bool   `json:"fresh,omitempty"` // younger than the cooldown window
+	Deprecated       bool   `json:"deprecated,omitempty"`
+	DeprecatedReason string `json:"deprecated_reason,omitempty"`
 }
 
 // Vuln is a known vulnerability reference.
@@ -165,6 +173,7 @@ func equal(a, b []string) bool {
 type Summary struct {
 	Total, Major, Minor, Patch, Added, Removed, Downgraded int
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
+	Fresh, Deprecated                                      int
 }
 
 // Summarize computes totals for a set of file diffs.
@@ -194,6 +203,12 @@ func Summarize(diffs []FileDiff) Summary {
 			s.VulnsIntroduced += len(c.IntroducedVulns)
 			s.VulnsFixed += len(c.FixedVulns)
 			s.VulnsExisting += len(c.ExistingVulns)
+			if c.Fresh {
+				s.Fresh++
+			}
+			if c.Deprecated {
+				s.Deprecated++
+			}
 		}
 	}
 	return s

@@ -17,6 +17,10 @@ what really happened:
 - **what's risky** — vulnerabilities *introduced* by the new versions,
   vulnerabilities the bump *fixes*, and advisories that affect both
   (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC aliases)
+- **what's suspicious** — how old every incoming version is, with a ⏱ flag
+  on anything published in the last 7 days (most hijacked releases are caught
+  within days — a cooldown is cheap insurance), plus upstream deprecation
+  notices (via [deps.dev](https://deps.dev))
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -32,23 +36,24 @@ what really happened:
 $ lockvet HEAD~1        # what did that "upgrade express" commit really do?
 
 package-lock.json (npm)
-  ↑ express             4.17.1  → 5.1.0   MAJOR
+  ↑ express             4.17.1  → 5.1.0   MAJOR  (15mo old)
       ▼ fixes GHSA-rv95-896h-c2vc (moderate) Express.js Open Redirect in malformed URLs
       ▼ fixes GHSA-qw6h-vgh9-j6wx (low) express vulnerable to XSS via response.redirect()
-  ↑ body-parser         1.19.0  → 2.3.0   MAJOR
+  ↑ body-parser         1.19.0  → 2.3.0   MAJOR  ⏱ published 5 days ago
       ▼ fixes GHSA-qwcr-r2fm-qrc7 (high) body-parser vulnerable to denial of service ...
-  ↑ path-to-regexp      0.1.7   → 8.4.2   MAJOR
+  ↑ path-to-regexp      0.1.7   → 8.4.2   MAJOR  (3mo old)
       ▼ fixes GHSA-9wv6-86v2-598j (high) path-to-regexp outputs backtracking regular expressions
       ▼ …and 2 more fixed
-  ↑ qs                  6.7.0   → 6.15.3  minor
+  ↑ qs                  6.7.0   → 6.15.3  minor  (27d old)
       ▼ fixes GHSA-hrpp-h998-j3pp (high) qs vulnerable to Prototype Pollution
-  ↑ lodash              4.17.20 → 4.17.21 patch
+  ↑ lodash              4.17.20 → 4.17.21 patch  (5y old)
       ● 2 known advisories affect both versions (worst: high, GHSA-r5fr-rjxr-66jc)
-  + left-pad            1.3.0   (added)
+  + left-pad            1.3.0   (added)  (8y old)
+      ● deprecated upstream: use String.prototype.padStart()
   - minimist            1.2.5   (removed)
 
 64 packages changed · 21 major · 9 minor · 4 patch · 23 added · 7 removed
-  · vulnerabilities: 0 introduced, 15 fixed, 3 unresolved
+  · vulnerabilities: 0 introduced, 15 fixed, 3 unresolved · 1 fresh (<7d old) · 1 deprecated
 ```
 
 ## Install
@@ -75,9 +80,11 @@ lockvet main..my-branch    # range syntax works too
 
 lockvet -md                # markdown, ready to paste into a PR comment
 lockvet -json              # machine-readable, full vuln ID lists
-lockvet -no-vulns          # skip the OSV lookup (fully offline)
+lockvet -offline           # no network calls (skips vuln + metadata lookups)
 
+lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
+lockvet -fail-on fresh        # CI gate: enforce a release cooldown
 ```
 
 Run it inside any git repository. `lockvet` finds every changed lockfile
@@ -120,7 +127,8 @@ jobs:
       - uses: matteo-sung/lockvet@main
         # optional:
         # with:
-        #   fail-on: vuln        # or "major,vuln,downgrade"
+        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
+        #   fresh-days: '7'      # cooldown window for the fresh flag
 ```
 
 ## Supported lockfiles
@@ -143,6 +151,8 @@ jobs:
 
 Notes: Deno's `jsr:` packages, CocoaPods, and Nix flakes have no OSV.dev
 ecosystem (yet), so those diffs are explained without vulnerability data.
+Release ages / deprecations come from deps.dev, which covers npm, crates.io,
+PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply skip that check.
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
 
@@ -162,9 +172,15 @@ parsers are ~50 lines each.
    that matches the new version but not the old one is **introduced**; the
    reverse is **fixed**; both is **unresolved**. Aliased advisories
    (GHSA/CVE/PYSEC/RUSTSEC for the same issue) are collapsed.
+5. Every *incoming* version is looked up on deps.dev's batch API for its
+   publish date and deprecation status (npm, crates.io, PyPI, Go, Maven,
+   NuGet, RubyGems). Versions younger than `-fresh-days` (default 7) get a
+   ⏱ flag — supply-chain attacks are usually discovered and yanked within
+   days of publication, so a short cooldown filters most of them out.
 
-**Privacy:** the only network traffic is the OSV.dev query (package names +
-versions). `-no-vulns` makes lockvet fully offline. No telemetry, ever.
+**Privacy:** the only network traffic is the OSV.dev and deps.dev batch
+queries (package names + versions). `-offline` disables both; `-no-vulns` /
+`-no-meta` disable them individually. No telemetry, ever.
 
 **Dependencies:** none. Pure Go standard library.
 

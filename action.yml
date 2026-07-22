@@ -1,8 +1,9 @@
 name: lockvet
 description: >-
   Explain lockfile changes on pull requests: version bumps classified
-  major/minor/patch, plus vulnerabilities introduced and fixed (via OSV.dev).
-  Posts a summary comment on the PR.
+  major/minor/patch, vulnerabilities introduced and fixed (via OSV.dev),
+  release ages and deprecations (via deps.dev). Posts a summary comment
+  on the PR.
 author: Matteo Sung
 branding:
   icon: lock
@@ -10,9 +11,13 @@ branding:
 
 inputs:
   fail-on:
-    description: 'Fail the check on: "major", "vuln", "downgrade" (comma list). Empty = never fail.'
+    description: 'Fail the check on: "major", "vuln", "downgrade", "fresh", "deprecated" (comma list). Empty = never fail.'
     required: false
     default: ''
+  fresh-days:
+    description: Flag versions published fewer than N days ago (0 shows ages but never flags).
+    required: false
+    default: '7'
   comment:
     description: Post/update a PR comment with the report (true/false).
     required: false
@@ -42,7 +47,8 @@ runs:
       run: |
         set -o pipefail
         rc=0
-        lockvet -md ${{ inputs.fail-on != '' && format('-fail-on {0}', inputs.fail-on) || '' }} \
+        lockvet -md -fresh-days "${{ inputs.fresh-days }}" \
+          ${{ inputs.fail-on != '' && format('-fail-on {0}', inputs.fail-on) || '' }} \
           "$BASE" HEAD > lockvet-report.md 2> lockvet-stderr.log || rc=$?
         cat lockvet-stderr.log >&2 || true
         # rc=1 → fail-on condition hit (report still valid); rc=2 → hard error

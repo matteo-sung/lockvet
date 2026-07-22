@@ -49,8 +49,38 @@ func (s styler) dim(x string) string    { return s.c("2", x) }
 func (s styler) bold(x string) string   { return s.c("1", x) }
 func (s styler) cyan(x string) string   { return s.c("36", x) }
 
+// age renders AgeDays compactly: "today", "3d", "4mo", "2y".
+func age(days int) string {
+	switch {
+	case days < 1:
+		return "today"
+	case days < 60:
+		return fmt.Sprintf("%dd", days)
+	case days < 730:
+		return fmt.Sprintf("%dmo", days/30)
+	default:
+		return fmt.Sprintf("%dy", days/365)
+	}
+}
+
+// ageSuffix is what gets appended to a change line when release metadata
+// is available: loud for fresh versions, quiet otherwise.
+func ageSuffix(s styler, c diffx.Change) string {
+	if c.PublishedAt == "" {
+		return ""
+	}
+	if c.Fresh {
+		when := "today"
+		if c.AgeDays > 0 {
+			when = pluralVerb(c.AgeDays, "day", "days") + " ago"
+		}
+		return "  " + s.yellow("⏱ published "+when)
+	}
+	return "  " + s.dim("("+age(c.AgeDays)+" old)")
+}
+
 // Terminal writes a colored human report.
-func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool, vulnsChecked bool) {
+func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool, vulnsChecked, metaChecked bool, freshDays int) {
 	s := styler{on: color}
 	for _, fd := range diffs {
 		fmt.Fprintf(w, "\n%s %s\n", s.bold(fd.Path), s.dim("("+fd.Ecosystem+")"))
@@ -64,7 +94,14 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			fromW = max(fromW, len(join(c.Old)))
 		}
 		for _, c := range fd.Changes {
-			fmt.Fprintln(w, "  "+line(s, c, nameW, fromW))
+			fmt.Fprintln(w, "  "+line(s, c, nameW, fromW)+ageSuffix(s, c))
+			if c.Deprecated {
+				reason := c.DeprecatedReason
+				if reason == "" {
+					reason = "no reason given"
+				}
+				fmt.Fprintf(w, "      %s %s\n", s.yellow("● deprecated upstream:"), s.dim(reason))
+			}
 			for _, v := range c.IntroducedVulns {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ introduces "+v.ID+sev(v)), s.dim(v.Summary))
 			}
@@ -81,7 +118,7 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 		}
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, summaryLine(s, sum, vulnsChecked))
+	fmt.Fprintln(w, summaryLine(s, sum, vulnsChecked, metaChecked, freshDays))
 }
 
 func sev(v diffx.Vuln) string {
@@ -120,7 +157,7 @@ func line(s styler, c diffx.Change, nameW, fromW int) string {
 	return fmt.Sprintf("%s %s %s → %s  %s", s.cyan(arrow), name, pad(from, fromW), to, lvl)
 }
 
-func summaryLine(s styler, sum diffx.Summary, vulnsChecked bool) string {
+func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, freshDays int) string {
 	parts := []string{fmt.Sprintf("%s changed", plural(sum.Total, "package"))}
 	if sum.Major > 0 {
 		parts = append(parts, s.bred(fmt.Sprintf("%d major", sum.Major)))
@@ -155,11 +192,19 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked bool) string {
 			out += ", " + s.yellow(fmt.Sprintf("%d unresolved", sum.VulnsExisting))
 		}
 	}
+	if metaChecked {
+		if sum.Fresh > 0 {
+			out += " · " + s.yellow(fmt.Sprintf("%d fresh (<%dd old)", sum.Fresh, freshDays))
+		}
+		if sum.Deprecated > 0 {
+			out += " · " + s.yellow(fmt.Sprintf("%d deprecated", sum.Deprecated))
+		}
+	}
 	return out
 }
 
 // Markdown writes a report suited for PR comments.
-func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsChecked bool) {
+func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsChecked, metaChecked bool, freshDays int) {
 	fmt.Fprintf(w, "### 🔍 lockvet report\n\n")
 	fmt.Fprintf(w, "**%s changed**", plural(sum.Total, "package"))
 	var bits []string
@@ -185,10 +230,24 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	if vulnsChecked {
 		fmt.Fprintf(w, "\nVulnerabilities: **%d introduced**, %d fixed, %d unresolved (via [OSV.dev](https://osv.dev))\n", sum.VulnsIntroduced, sum.VulnsFixed, sum.VulnsExisting)
 	}
+	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0) {
+		var bits []string
+		if sum.Fresh > 0 {
+			bits = append(bits, fmt.Sprintf("**%s published <%dd ago** ⏱", plural(sum.Fresh, "version"), freshDays))
+		}
+		if sum.Deprecated > 0 {
+			bits = append(bits, fmt.Sprintf("**%d deprecated**", sum.Deprecated))
+		}
+		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev))\n", strings.Join(bits, ", "))
+	}
+	ageCol := ""
+	if metaChecked {
+		ageCol = " Age |"
+	}
 	for _, fd := range diffs {
 		fmt.Fprintf(w, "\n<details%s>\n<summary><code>%s</code> — %s</summary>\n\n", openAttr(fd), fd.Path, plural(len(fd.Changes), "change"))
-		fmt.Fprintln(w, "| | Package | From | To | Level |")
-		fmt.Fprintln(w, "|---|---|---|---|---|")
+		fmt.Fprintln(w, "| | Package | From | To | Level |"+ageCol)
+		fmt.Fprintln(w, "|---|---|---|---|---|"+strings.Repeat("---|", strings.Count(ageCol, "|")))
 		for _, c := range fd.Changes {
 			icon, lvl := "🔼", string(c.LevelString)
 			switch {
@@ -201,19 +260,41 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			case c.Level == vers.Major:
 				lvl = "**MAJOR**"
 			}
-			fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |\n", icon, c.Name, join(c.Old), join(c.New), lvl)
+			extra := ""
+			if metaChecked {
+				switch {
+				case c.Fresh:
+					extra = fmt.Sprintf(" **%s** ⏱ |", age(c.AgeDays))
+				case c.PublishedAt != "":
+					extra = " " + age(c.AgeDays) + " |"
+				default:
+					extra = " |"
+				}
+			}
+			padCell := ""
+			if metaChecked {
+				padCell = " |"
+			}
+			fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |%s\n", icon, c.Name, join(c.Old), join(c.New), lvl, extra)
+			if c.Deprecated {
+				reason := esc(c.DeprecatedReason)
+				if reason == "" {
+					reason = "no reason given"
+				}
+				fmt.Fprintf(w, "| 🟠 | ↳ deprecated upstream | | | %s |%s\n", reason, padCell)
+			}
 			for _, v := range c.IntroducedVulns {
-				fmt.Fprintf(w, "| ⚠️ | ↳ introduces [%s](%s)%s | | | %s |\n", v.ID, v.URL, sev(v), esc(v.Summary))
+				fmt.Fprintf(w, "| ⚠️ | ↳ introduces [%s](%s)%s | | | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
 			}
 			for k, v := range c.FixedVulns {
 				if k == maxFixedShown {
-					fmt.Fprintf(w, "| ✅ | ↳ …and %d more fixed | | | |\n", len(c.FixedVulns)-maxFixedShown)
+					fmt.Fprintf(w, "| ✅ | ↳ …and %d more fixed | | | |%s\n", len(c.FixedVulns)-maxFixedShown, padCell)
 					break
 				}
-				fmt.Fprintf(w, "| ✅ | ↳ fixes [%s](%s)%s | | | %s |\n", v.ID, v.URL, sev(v), esc(v.Summary))
+				fmt.Fprintf(w, "| ✅ | ↳ fixes [%s](%s)%s | | | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
 			}
 			if n := len(c.ExistingVulns); n > 0 {
-				fmt.Fprintf(w, "| 🟡 | ↳ %s both versions | | | worst: %s |\n", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns))
+				fmt.Fprintf(w, "| 🟡 | ↳ %s both versions | | | worst: %s |%s\n", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns), padCell)
 			}
 		}
 		fmt.Fprintln(w, "\n</details>")
@@ -223,7 +304,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 
 func openAttr(fd diffx.FileDiff) string {
 	for _, c := range fd.Changes {
-		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major {
+		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated {
 			return " open"
 		}
 	}

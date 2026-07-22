@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/lock"
@@ -32,9 +33,14 @@ USAGE
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
-  -no-vulns      skip the OSV.dev vulnerability check (also: offline mode)
-  -fail-on X     exit 1 if the diff contains X: "major", "vuln", or "downgrade"
-                 (repeatable as comma list: -fail-on major,vuln)
+  -no-vulns      skip the OSV.dev vulnerability check
+  -no-meta       skip the deps.dev metadata check (release age, deprecations)
+  -offline       no network calls at all (= -no-vulns -no-meta)
+  -fresh-days N  flag versions published fewer than N days ago (default 7;
+                 0 shows ages but never flags)
+  -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
+                 "fresh", or "deprecated"
+                 (repeatable as comma list: -fail-on major,vuln,fresh)
   -C dir         run as if started in dir
   -no-color      disable colors (also respects NO_COLOR)
   -version       print version
@@ -42,18 +48,22 @@ FLAGS
 SUPPORTED LOCKFILES
   ` + strings.Join(lock.KnownBasenames(), ", ") + `
 
-Every ecosystem in one binary. Vulnerability data: https://osv.dev
+Every ecosystem in one binary.
+Data: https://osv.dev (vulnerabilities) · https://deps.dev (release metadata)
 `
 
 func main() {
 	var (
-		md      = flag.Bool("md", false, "")
-		jsonOut = flag.Bool("json", false, "")
-		noVulns = flag.Bool("no-vulns", false, "")
-		failOn  = flag.String("fail-on", "", "")
-		dir     = flag.String("C", ".", "")
-		noColor = flag.Bool("no-color", false, "")
-		showVer = flag.Bool("version", false, "")
+		md        = flag.Bool("md", false, "")
+		jsonOut   = flag.Bool("json", false, "")
+		noVulns   = flag.Bool("no-vulns", false, "")
+		noMeta    = flag.Bool("no-meta", false, "")
+		offline   = flag.Bool("offline", false, "")
+		freshDays = flag.Int("fresh-days", 7, "")
+		failOn    = flag.String("fail-on", "", "")
+		dir       = flag.String("C", ".", "")
+		noColor   = flag.Bool("no-color", false, "")
+		showVer   = flag.Bool("version", false, "")
 	)
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	flag.CommandLine.Parse(reorderArgs(os.Args[1:]))
@@ -61,6 +71,10 @@ func main() {
 	if *showVer {
 		fmt.Println("lockvet", version)
 		return
+	}
+	if *offline {
+		*noVulns = true
+		*noMeta = true
 	}
 
 	base, target := "HEAD", ""
@@ -118,11 +132,14 @@ func main() {
 	// If nothing in the diff belongs to an OSV-covered ecosystem
 	// (e.g. only flake.lock / Podfile.lock changed), don't claim
 	// "vulnerabilities: 0" — there was nothing to check.
-	anyOSV := false
+	anyOSV, anyMeta := false, false
 	for _, fd := range diffs {
 		for _, c := range fd.Changes {
 			if lock.Ecosystem(c.Ecosystem).HasOSV() {
 				anyOSV = true
+			}
+			if depsdev.Covers(c.Ecosystem) {
+				anyMeta = true
 			}
 		}
 	}
@@ -136,6 +153,15 @@ func main() {
 		}
 	}
 
+	metaChecked := false
+	if !*noMeta && anyMeta {
+		if err := depsdev.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: release-metadata check skipped: %v\n", err)
+		} else {
+			metaChecked = true
+		}
+	}
+
 	sum := diffx.Summarize(diffs)
 
 	switch {
@@ -144,13 +170,15 @@ func main() {
 		enc.SetIndent("", "  ")
 		check(enc.Encode(map[string]any{
 			"base": base, "target": displayTarget(target),
-			"files": diffs, "summary": sum, "vulns_checked": vulnsChecked,
+			"files": diffs, "summary": sum,
+			"vulns_checked": vulnsChecked,
+			"meta_checked":  metaChecked, "fresh_days": *freshDays,
 		}))
 	case *md:
-		render.Markdown(os.Stdout, diffs, sum, vulnsChecked)
+		render.Markdown(os.Stdout, diffs, sum, vulnsChecked, metaChecked, *freshDays)
 	default:
 		color := !*noColor && os.Getenv("NO_COLOR") == "" && isTTY()
-		render.Terminal(os.Stdout, diffs, sum, color, vulnsChecked)
+		render.Terminal(os.Stdout, diffs, sum, color, vulnsChecked, metaChecked, *freshDays)
 	}
 
 	if code := failCode(*failOn, diffs, sum); code != 0 {
@@ -174,8 +202,16 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 			if sum.Downgraded > 0 {
 				return 1
 			}
+		case "fresh":
+			if sum.Fresh > 0 {
+				return 1
+			}
+		case "deprecated":
+			if sum.Deprecated > 0 {
+				return 1
+			}
 		default:
-			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, or downgrade)", cond))
+			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, or deprecated)", cond))
 		}
 	}
 	return 0
@@ -186,7 +222,10 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 // first positional argument otherwise).
 func reorderArgs(args []string) []string {
 	var flags, pos []string
-	takesValue := map[string]bool{"-fail-on": true, "-C": true, "--fail-on": true, "--C": true}
+	takesValue := map[string]bool{
+		"-fail-on": true, "-C": true, "-fresh-days": true,
+		"--fail-on": true, "--C": true, "--fresh-days": true,
+	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if strings.HasPrefix(a, "-") && a != "-" && a != "--" {
