@@ -16,6 +16,11 @@ const (
 	Go        Ecosystem = "Go"
 	Packagist Ecosystem = "Packagist"
 	RubyGems  Ecosystem = "RubyGems"
+	Hex       Ecosystem = "Hex"
+	Pub       Ecosystem = "Pub"
+	Maven     Ecosystem = "Maven"
+	NuGet     Ecosystem = "NuGet"
+	SwiftURL  Ecosystem = "SwiftURL"
 )
 
 // File is a parsed lockfile: package name -> set of pinned versions.
@@ -77,6 +82,18 @@ func ByBasename(p string) *Parser {
 		return &Parser{"composer.lock", Packagist, parseComposerLock}
 	case "Gemfile.lock":
 		return &Parser{"Gemfile.lock", RubyGems, parseGemfileLock}
+	case "Pipfile.lock":
+		return &Parser{"Pipfile.lock", PyPI, parsePipfileLock}
+	case "mix.lock":
+		return &Parser{"mix.lock", Hex, parseMixLock}
+	case "pubspec.lock":
+		return &Parser{"pubspec.lock", Pub, parsePubspecLock}
+	case "gradle.lockfile":
+		return &Parser{"gradle.lockfile", Maven, parseGradleLockfile}
+	case "packages.lock.json":
+		return &Parser{"packages.lock.json", NuGet, parseNuGetLock}
+	case "Package.resolved":
+		return &Parser{"Package.resolved", SwiftURL, parseSwiftResolved}
 	}
 	return nil
 }
@@ -86,6 +103,7 @@ func KnownBasenames() []string {
 	return []string{
 		"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
-		"go.mod", "composer.lock", "Gemfile.lock",
+		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
+		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
 	}
 }
