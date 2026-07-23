@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime/debug"
 	"strings"
 
 	"github.com/matteo-sung/lockvet/internal/depsdev"
@@ -20,6 +21,18 @@ import (
 )
 
 var version = "dev" // set via -ldflags at release time
+
+// effectiveVersion falls back to the module version recorded by `go install`
+// when the binary wasn't built with release ldflags.
+func effectiveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
 
 var usage = `lockvet — explain any lockfile change before you merge it.
 
@@ -73,7 +86,7 @@ func main() {
 	flag.CommandLine.Parse(reorderArgs(os.Args[1:]))
 
 	if *showVer {
-		fmt.Println("lockvet", version)
+		fmt.Println("lockvet", effectiveVersion())
 		return
 	}
 	if *offline {
