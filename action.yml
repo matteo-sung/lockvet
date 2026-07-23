@@ -37,7 +37,13 @@ runs:
 
     - name: Install lockvet
       shell: bash
-      run: go install github.com/matteo-sung/lockvet@${{ github.action_ref || 'main' }}
+      working-directory: ${{ github.action_path }}
+      # Build from the action's own checkout: exactly the version the user
+      # pinned, no module-proxy round trip.
+      run: |
+        mkdir -p "$RUNNER_TEMP/lockvet-bin"
+        go build -o "$RUNNER_TEMP/lockvet-bin/lockvet" .
+        echo "$RUNNER_TEMP/lockvet-bin" >> "$GITHUB_PATH"
 
     - name: Run lockvet
       id: run
