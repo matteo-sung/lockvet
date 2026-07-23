@@ -86,6 +86,10 @@ lockvet -md                # markdown, ready to paste into a PR comment
 lockvet -json              # machine-readable, full vuln ID lists
 lockvet -offline           # no network calls (skips vuln + metadata lookups)
 
+lockvet -only jiff         # one package's story: jiff itself plus everything
+                           # it dragged in (matches names AND via-chains;
+                           # globs ok: -only "@babel/*" or -only "*sys*")
+
 lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
 lockvet -fail-on fresh        # CI gate: enforce a release cooldown

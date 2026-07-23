@@ -1,6 +1,8 @@
 package diffx
 
 import (
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/matteo-sung/lockvet/internal/lock"
@@ -144,5 +146,70 @@ func TestOriginGoModNoEdges(t *testing.T) {
 	fd := Diff(oldF, newF)
 	if c := find(fd, "golang.org/x/sys"); c == nil || c.Origin != "transitive" || len(c.Via) != 0 {
 		t.Errorf("x/sys: got %+v, want transitive with no via", c)
+	}
+}
+
+func TestFilter(t *testing.T) {
+	oldF := mk(map[string][]string{
+		"express": {"4.17.0"}, "debug": {"2.6.8"}, "ms": {"1.0.0"},
+		"@babel/core": {"7.0.0"}, "golang.org/x/sys": {"0.1.0"},
+	})
+	newF := mk(map[string][]string{
+		"express": {"4.17.1"}, "debug": {"2.6.9"}, "ms": {"2.0.0"},
+		"@babel/core": {"7.1.0"}, "golang.org/x/sys": {"0.2.0"},
+	})
+	newF.RootsKnown = true
+	newF.Roots = []string{"express", "@babel/core", "golang.org/x/sys"}
+	newF.Deps = map[string][]string{"express": {"debug"}, "debug": {"ms"}}
+	diffs := []FileDiff{Diff(oldF, newF)}
+
+	names := func(out []FileDiff) []string {
+		var ns []string
+		for _, fd := range out {
+			for _, c := range fd.Changes {
+				ns = append(ns, c.Name)
+			}
+		}
+		sort.Strings(ns)
+		return ns
+	}
+
+	// exact name, case-insensitive
+	if got := names(Filter(diffs, "EXPRESS")); !reflect.DeepEqual(got, []string{"debug", "express", "ms"}) {
+		t.Errorf("EXPRESS: via-chain matches missing, got %v", got)
+	}
+	// filtering on a transitive dep shows only it (nothing is via ms)
+	if got := names(Filter(diffs, "ms")); !reflect.DeepEqual(got, []string{"ms"}) {
+		t.Errorf("ms: got %v", got)
+	}
+	// glob crosses '/' and matches scoped/module names
+	if got := names(Filter(diffs, "@babel/*")); !reflect.DeepEqual(got, []string{"@babel/core"}) {
+		t.Errorf("@babel/*: got %v", got)
+	}
+	if got := names(Filter(diffs, "*sys*")); !reflect.DeepEqual(got, []string{"golang.org/x/sys"}) {
+		t.Errorf("*sys*: got %v", got)
+	}
+	// comma list, whitespace tolerated
+	if got := names(Filter(diffs, " ms , @babel/core ")); !reflect.DeepEqual(got, []string{"@babel/core", "ms"}) {
+		t.Errorf("comma list: got %v", got)
+	}
+	// no match -> empty (file dropped entirely)
+	if got := Filter(diffs, "nope"); len(got) != 0 {
+		t.Errorf("nope: got %v", got)
+	}
+	// empty / blank patterns -> unchanged
+	if got := Filter(diffs, " , "); len(names(got)) != 5 {
+		t.Errorf("blank patterns should not filter, got %v", names(got))
+	}
+	// original diffs must not be mutated by filtering
+	if len(diffs[0].Changes) != 5 {
+		t.Errorf("Filter mutated input: %d changes left", len(diffs[0].Changes))
+	}
+	// '?' single char, no regex metacharacter leakage
+	if got := names(Filter(diffs, "m?")); !reflect.DeepEqual(got, []string{"ms"}) {
+		t.Errorf("m?: got %v", got)
+	}
+	if got := Filter(diffs, "m."); len(got) != 0 {
+		t.Errorf("'.' must be literal, got %v", names(got))
 	}
 }

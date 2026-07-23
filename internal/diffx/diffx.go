@@ -2,6 +2,7 @@
 package diffx
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 
@@ -279,6 +280,77 @@ func annotateOrigins(changes []Change, oldF, newF *lock.File) {
 		}
 		changes[i].Origin, changes[i].Via = g.classify(changes[i].Name)
 	}
+}
+
+// Filter keeps only the changes whose package name — or any package in
+// their via chain — matches one of the comma-separated glob patterns.
+// Matching is case-insensitive; '*' matches any run of characters
+// (including '/', so "*sys*" matches "golang.org/x/sys") and '?' matches
+// one character. Matching via chains means "-only jiff" also shows every
+// transitive change that jiff dragged in.
+func Filter(diffs []FileDiff, patterns string) []FileDiff {
+	res := compilePatterns(patterns)
+	if len(res) == 0 {
+		return diffs
+	}
+	var out []FileDiff
+	for _, fd := range diffs {
+		var kept []Change
+		for _, c := range fd.Changes {
+			if matchAny(res, c.Name) || matchAnyOf(res, c.Via) {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) > 0 {
+			fd.Changes = kept
+			out = append(out, fd)
+		}
+	}
+	return out
+}
+
+func compilePatterns(patterns string) []*regexp.Regexp {
+	var res []*regexp.Regexp
+	for _, p := range strings.Split(patterns, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		var b strings.Builder
+		b.WriteString("(?i)^")
+		for _, r := range p {
+			switch r {
+			case '*':
+				b.WriteString(".*")
+			case '?':
+				b.WriteString(".")
+			default:
+				b.WriteString(regexp.QuoteMeta(string(r)))
+			}
+		}
+		b.WriteString("$")
+		// The pattern is fully escaped above, so this cannot fail.
+		res = append(res, regexp.MustCompile(b.String()))
+	}
+	return res
+}
+
+func matchAny(res []*regexp.Regexp, name string) bool {
+	for _, re := range res {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchAnyOf(res []*regexp.Regexp, names []string) bool {
+	for _, n := range names {
+		if matchAny(res, n) {
+			return true
+		}
+	}
+	return false
 }
 
 // Summary aggregates counts across file diffs.

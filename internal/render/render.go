@@ -87,11 +87,24 @@ func originSuffix(s styler, c diffx.Change) string {
 		return "  " + s.cyan("(direct)")
 	case "transitive":
 		if len(c.Via) > 0 {
-			return "  " + s.dim("via "+c.Via[0])
+			return "  " + s.dim("via "+viaChain(c.Via))
 		}
 		return "  " + s.dim("(transitive)")
 	}
 	return ""
+}
+
+// viaChain renders the pull-in chain compactly: "a", "a › b",
+// and "a › … › z" when it is deeper than two hops.
+func viaChain(via []string) string {
+	switch len(via) {
+	case 1:
+		return via[0]
+	case 2:
+		return via[0] + " › " + via[1]
+	default:
+		return via[0] + " › … › " + via[len(via)-1]
+	}
 }
 
 // Terminal writes a colored human report.

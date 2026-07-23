@@ -38,6 +38,9 @@ FLAGS
   -offline       no network calls at all (= -no-vulns -no-meta)
   -fresh-days N  flag versions published fewer than N days ago (default 7;
                  0 shows ages but never flags)
+  -only PAT      show one package's story: only changes whose name — or any
+                 package in their "via" chain — matches PAT. Glob, case-
+                 insensitive, comma list ok: -only jiff, -only "@babel/*"
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
                  "fresh", or "deprecated"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
@@ -60,6 +63,7 @@ func main() {
 		noMeta    = flag.Bool("no-meta", false, "")
 		offline   = flag.Bool("offline", false, "")
 		freshDays = flag.Int("fresh-days", 7, "")
+		only      = flag.String("only", "", "")
 		failOn    = flag.String("fail-on", "", "")
 		dir       = flag.String("C", ".", "")
 		noColor   = flag.Bool("no-color", false, "")
@@ -127,6 +131,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes %s\n", where)
 		fmt.Fprintf(os.Stderr, "hint: try a range, e.g.  lockvet HEAD~10  or  lockvet main my-branch\n")
 		return
+	}
+
+	if *only != "" {
+		total := 0
+		for _, fd := range diffs {
+			total += len(fd.Changes)
+		}
+		diffs = diffx.Filter(diffs, *only)
+		if len(diffs) == 0 {
+			fmt.Fprintf(os.Stderr, "lockvet: no changes matching -only %q (%s changed in total)\n",
+				*only, plural(total, "package"))
+			return
+		}
 	}
 
 	// If nothing in the diff belongs to an OSV-covered ecosystem
@@ -223,8 +240,8 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 func reorderArgs(args []string) []string {
 	var flags, pos []string
 	takesValue := map[string]bool{
-		"-fail-on": true, "-C": true, "-fresh-days": true,
-		"--fail-on": true, "--C": true, "--fresh-days": true,
+		"-fail-on": true, "-C": true, "-fresh-days": true, "-only": true,
+		"--fail-on": true, "--C": true, "--fresh-days": true, "--only": true,
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -251,6 +268,13 @@ func parseOrNil(parser *lock.Parser, p string, data []byte) *lock.File {
 		return nil
 	}
 	return f
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 func displayTarget(target string) string {
