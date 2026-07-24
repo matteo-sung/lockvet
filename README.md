@@ -142,12 +142,53 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.1.2
+      - uses: matteo-sung/lockvet@v0.1.3
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
         #   fresh-days: '7'      # cooldown window for the fresh flag
 ```
+
+On GitLab (or any other CI), the single binary works the same way — compare
+the MR against its target branch and gate on whatever you care about:
+
+```yaml
+# .gitlab-ci.yml
+lockvet:
+  image: alpine:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
+  script:
+    - apk add --no-cache curl git
+    - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
+    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - lockvet "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" -fail-on vuln
+```
+
+## As a pre-commit hook
+
+Catch a risky bump before it's even committed — lockvet's default mode
+(working tree vs `HEAD`) is exactly "what this commit changes", and the hook
+only fires when a lockfile is part of the commit:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/matteo-sung/lockvet
+    rev: v0.1.3
+    hooks:
+      - id: lockvet
+        # optional: block the commit instead of just explaining it
+        # args: [-fail-on, "vuln,fresh"]
+        # optional: skip network lookups for instant commits
+        # args: [-offline]
+```
+
+By default the hook is informational — it prints the explanation and lets the
+commit through. Add `-fail-on` to turn it into a gate. Requires nothing but
+[pre-commit](https://pre-commit.com) itself (the hook builds via Go, which
+pre-commit downloads automatically if missing).
 
 ## Supported lockfiles
 
