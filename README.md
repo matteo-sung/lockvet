@@ -92,6 +92,12 @@ or grab a prebuilt binary from the
 curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh
 ```
 
+Docker (linux/amd64 & arm64, git included — handy in CI):
+
+```sh
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.11 lockvet
+```
+
 ## Usage
 
 ```sh
@@ -247,13 +253,11 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: alpine:latest
+  image: ghcr.io/matteo-sung/lockvet:0.1.11
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
   script:
-    - apk add --no-cache curl
-    - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
     - lockvet mr "$CI_MERGE_REQUEST_PROJECT_URL/-/merge_requests/$CI_MERGE_REQUEST_IID" -comment -fail-on vuln
 ```
 
@@ -274,8 +278,8 @@ pipelines:
     '**':
       - step:
           name: lockvet
+          image: ghcr.io/matteo-sung/lockvet:0.1.11
           script:
-            - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
 
@@ -292,13 +296,11 @@ when:
 
 steps:
   - name: lockvet
-    image: alpine:latest
+    image: ghcr.io/matteo-sung/lockvet:0.1.11
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
     commands:
-      - apk add --no-cache curl
-      - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
       - lockvet pr "$CI_REPO_URL/pulls/$CI_COMMIT_PULL_REQUEST" -comment -fail-on vuln
 ```
 
