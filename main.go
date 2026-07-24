@@ -10,6 +10,7 @@ import (
 	"path"
 	"runtime/debug"
 	"strings"
+	"sync"
 
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
@@ -63,6 +64,12 @@ USAGE
   lockvet <compare url>               GitLab, Bitbucket, or Gitea/Forgejo
   lockvet <commit url>                repo, or a single commit, w/o cloning.
 
+  lockvet queue <owner>               triage EVERY open Dependabot/Renovate
+  lockvet queue <owner>/<repo>        PR of a GitHub user, org, or repo in
+                                      one table: which introduce
+                                      vulnerabilities, which are major or
+                                      brand-new bumps, which look routine.
+
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
@@ -85,6 +92,10 @@ FLAGS
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
                  "fresh", or "deprecated"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
+  -author LIST   (queue mode) bot accounts to search for, comma list
+                 (default "app/dependabot,app/renovate"; "any" = every
+                 open PR that touches a lockfile)
+  -limit N       (queue mode) vet at most N pull requests (default 30)
   -C dir         run as if started in dir
   -no-color      disable colors (also respects NO_COLOR)
   -version       print version
@@ -106,6 +117,8 @@ func main() {
 		offline   = flag.Bool("offline", false, "")
 		freshDays = flag.Int("fresh-days", 7, "")
 		only      = flag.String("only", "", "")
+		author    = flag.String("author", "", "")
+		limit     = flag.Int("limit", 30, "")
 		comment   = flag.Bool("comment", false, "")
 		failOn    = flag.String("fail-on", "", "")
 		dir       = flag.String("C", ".", "")
@@ -174,6 +187,23 @@ func main() {
 		remoteWhat = ref.String()
 	}
 	switch {
+	case len(args) > 0 && args[0] == "queue":
+		if len(args) != 2 {
+			fatal("usage: lockvet queue <owner | owner/repo>   (e.g. lockvet queue grafana)")
+		}
+		if *comment {
+			fatal("-comment is not available in queue mode — it needs a single PR (lockvet pr … -comment)")
+		}
+		if *sarifOut {
+			fatal("-sarif is not available in queue mode — run lockvet pr <url> -sarif per PR")
+		}
+		runQueue(args[1], queueOpts{
+			author: *author, limit: *limit,
+			md: *md, jsonOut: *jsonOut,
+			noVulns: *noVulns, noMeta: *noMeta, freshDays: *freshDays,
+			only: *only, failOn: *failOn, noColor: *noColor,
+		})
+		return
 	case len(args) > 0 && (args[0] == "pr" || args[0] == "mr"):
 		if len(args) != 2 {
 			fatal("usage: lockvet " + args[0] + " <owner/repo#N | group/project!N | PR or MR url>")
@@ -453,6 +483,198 @@ func main() {
 	}
 }
 
+type queueOpts struct {
+	author          string
+	limit           int
+	md, jsonOut     bool
+	noVulns, noMeta bool
+	freshDays       int
+	only, failOn    string
+	noColor         bool
+}
+
+// runQueue implements `lockvet queue <owner|owner/repo>`: find every open
+// dependency-update PR in scope, vet each one, and print a triage table.
+func runQueue(scope string, o queueOpts) {
+	authors := ghpr.DefaultQueueAuthors
+	authorLabel := "dependabot + renovate"
+	switch a := strings.TrimSpace(o.author); {
+	case a == "any" || a == "all" || a == "*":
+		authors, authorLabel = nil, "any author"
+	case a != "":
+		authors = nil
+		for _, part := range strings.Split(a, ",") {
+			if part = strings.TrimSpace(part); part != "" {
+				authors = append(authors, part)
+			}
+		}
+		authorLabel = strings.Join(authors, ", ")
+	}
+	if o.limit <= 0 {
+		o.limit = 30
+	}
+
+	items, qual, err := ghpr.ListQueue(scope, authors, o.limit)
+	check(err)
+	if len(items) > 5 && !ghpr.HasToken() {
+		fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated GitHub API — vetting %d PRs may hit the rate limit; set GITHUB_TOKEN\n", len(items))
+	}
+
+	// Fetch and diff every PR (a few at a time).
+	type slot struct {
+		diffs []diffx.FileDiff
+		err   error
+	}
+	slots := make([]slot, len(items))
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for i, it := range items {
+		wg.Add(1)
+		go func(i int, it ghpr.QueueItem) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			res, err := ghpr.Fetch(it.Ref, func(p string) bool { return lock.ByBasename(p) != nil })
+			if err != nil {
+				slots[i].err = err
+				return
+			}
+			for _, cf := range res.Files {
+				parser := lock.ByBasename(cf.Path)
+				oldF := parseOrNil(parser, cf.Path, cf.Old)
+				newF := parseOrNil(parser, cf.Path, cf.New)
+				if oldF == nil && newF == nil {
+					continue
+				}
+				if fd := diffx.Diff(oldF, newF); len(fd.Changes) > 0 {
+					slots[i].diffs = append(slots[i].diffs, fd)
+				}
+			}
+			if o.only != "" {
+				slots[i].diffs = diffx.Filter(slots[i].diffs, o.only)
+			}
+		}(i, it)
+	}
+	wg.Wait()
+
+	// Annotate all PRs' diffs in one pass (one OSV batch, one deps.dev
+	// batch — instead of one per PR).
+	var combined []diffx.FileDiff
+	spans := make([][2]int, len(items))
+	for i := range slots {
+		spans[i][0] = len(combined)
+		combined = append(combined, slots[i].diffs...)
+		spans[i][1] = len(combined)
+	}
+	anyOSV, anyMeta := false, false
+	for _, fd := range combined {
+		for _, c := range fd.Changes {
+			if lock.Ecosystem(c.Ecosystem).HasOSV() {
+				anyOSV = true
+			}
+			if depsdev.Covers(c.Ecosystem) {
+				anyMeta = true
+			}
+		}
+	}
+	vulnsChecked := false
+	if !o.noVulns && anyOSV {
+		if err := osv.Annotate(combined); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: vulnerability check skipped: %v\n", err)
+		} else {
+			vulnsChecked = true
+		}
+	}
+	metaChecked := false
+	if !o.noMeta && anyMeta {
+		if err := depsdev.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: release-metadata check skipped: %v\n", err)
+		} else {
+			metaChecked = true
+		}
+	}
+
+	// Build, sort, and render the rows.
+	singleRepo := strings.Contains(scope, "/")
+	rows := make([]render.QueueRow, len(items))
+	failed := false
+	for i, it := range items {
+		diffs := combined[spans[i][0]:spans[i][1]]
+		label := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.Number)
+		if singleRepo {
+			label = fmt.Sprintf("#%d", it.Ref.Number)
+		}
+		rows[i] = render.QueueRow{
+			Label: label, URL: it.URL, Title: it.Title, Author: it.Author,
+			Sum: diffx.Summarize(diffs), NoChanges: len(diffs) == 0,
+		}
+		if rows[i].NoChanges && o.only != "" {
+			rows[i].NoChangesMsg = fmt.Sprintf("no changes matching -only %q", o.only)
+		}
+		if slots[i].err != nil {
+			rows[i].Err = slots[i].err.Error()
+		}
+		if failCode(o.failOn, diffs, rows[i].Sum) != 0 {
+			failed = true
+		}
+	}
+	render.SortQueue(rows)
+
+	heading := fmt.Sprintf("open dependency PRs — %s · %s", qual, authorLabel)
+	if o.only != "" {
+		heading += fmt.Sprintf(" · only %q", o.only)
+	}
+	switch {
+	case o.jsonOut:
+		type jsonRow struct {
+			PR        string        `json:"pr"`
+			URL       string        `json:"url"`
+			Title     string        `json:"title"`
+			Author    string        `json:"author"`
+			UpdatedAt string        `json:"updated_at"`
+			NoChanges bool          `json:"no_lockfile_changes"`
+			Error     string        `json:"error,omitempty"`
+			Summary   diffx.Summary `json:"summary"`
+		}
+		out := struct {
+			Scope        string    `json:"scope"`
+			Authors      []string  `json:"authors"`
+			VulnsChecked bool      `json:"vulns_checked"`
+			MetaChecked  bool      `json:"meta_checked"`
+			FreshDays    int       `json:"fresh_days"`
+			PRs          []jsonRow `json:"prs"`
+		}{Scope: qual, Authors: authors, VulnsChecked: vulnsChecked, MetaChecked: metaChecked, FreshDays: o.freshDays}
+		byLabel := map[string]ghpr.QueueItem{}
+		for _, it := range items {
+			l := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.Number)
+			if singleRepo {
+				l = fmt.Sprintf("#%d", it.Ref.Number)
+			}
+			byLabel[l] = it
+		}
+		for _, r := range rows {
+			it := byLabel[r.Label]
+			out.PRs = append(out.PRs, jsonRow{
+				PR: it.Ref.String(), URL: r.URL, Title: r.Title, Author: r.Author,
+				UpdatedAt: it.Updated.Format("2006-01-02T15:04:05Z07:00"),
+				NoChanges: r.NoChanges, Error: r.Err, Summary: r.Sum,
+			})
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		check(enc.Encode(out))
+	case o.md:
+		render.QueueMarkdown(os.Stdout, heading, rows, vulnsChecked, metaChecked, o.freshDays)
+	default:
+		color := !o.noColor && os.Getenv("NO_COLOR") == "" && isTTY()
+		render.QueueTerminal(os.Stdout, heading, rows, color, vulnsChecked, metaChecked, o.freshDays)
+	}
+
+	if failed {
+		os.Exit(1)
+	}
+}
+
 func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 	for _, cond := range strings.Split(failOn, ",") {
 		switch strings.TrimSpace(cond) {
@@ -492,6 +714,7 @@ func reorderArgs(args []string) []string {
 	takesValue := map[string]bool{
 		"-fail-on": true, "-C": true, "-fresh-days": true, "-only": true,
 		"--fail-on": true, "--C": true, "--fresh-days": true, "--only": true,
+		"-author": true, "--author": true, "-limit": true, "--limit": true,
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]

@@ -34,6 +34,10 @@ what really happened:
   owner/repo v1...v2`, or just paste a GitHub / GitLab / Bitbucket /
   Gitea / Codeberg URL (self-hosted GitLab, Gitea & Forgejo included):
   it vets straight from the API
+- **your whole Dependabot queue at once** — `lockvet queue <org>` triages
+  every open Dependabot/Renovate PR of a repo, user, or org into one table:
+  which introduce vulnerabilities, which are major or brand-new bumps, and
+  which look routine
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -116,6 +120,9 @@ lockvet -offline           # no network calls (skips vuln + metadata lookups)
 lockvet -only jiff         # one package's story: jiff itself plus everything
                            # it dragged in (matches names AND via-chains;
                            # globs ok: -only "@babel/*" or -only "*sys*")
+
+lockvet queue myorg           # triage EVERY open Dependabot/Renovate PR
+lockvet queue owner/repo      # of an org, user, or single repo (see below)
 
 lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
@@ -203,6 +210,44 @@ lockvet https://codeberg.org/forgejo/forgejo/compare/v11.0.0...v11.0.1
 
 Compare URLs (including fork syntax like `main...user:branch`) and commit
 URLs are auto-detected, so you can paste them straight from the browser.
+
+### Triage your whole Dependabot queue at once
+
+Reviewing bot PRs one by one is backwards — the question is *which of these
+thirty PRs actually needs a human*. `lockvet queue` vets **every open
+Dependabot/Renovate PR** of a repo, user, or whole org and sorts the result
+most-alarming first:
+
+```sh
+lockvet queue mastodon/mastodon        # one repo
+lockvet queue grafana                  # a whole org (or user)
+```
+
+```text
+open dependency PRs — repo:mastodon/mastodon · dependabot + renovate
+
+    PR      CHANGES  MAJOR    VULNS  FRESH  DEPR  TITLE
+  ! #37774  16       8      ·        ·      ·     Update eslint monorepo to v10
+  ! #39883  49       3      +0/−1    8      ·     Update dependency @unhead/react to v3.2.3
+  ! #39797  40       1      ·        13     ·     Update eslint (non-major)
+  ✓ #39937  2        ·      ·        ·      ·     Update dependency annotaterb to v4.24.0
+  – #39944  no lockfile changes — Update dependency msw-storybook-addon to v3
+
+11 open PRs · 3 need a look (major/downgrade/fresh <7d/deprecated) · 7 look routine · 1 without lockfile changes
+full report for any of them:  lockvet pr <owner/repo#N>
+```
+
+Every count comes from actually diffing each PR's lockfiles (one OSV /
+deps.dev batch for the lot, so an org-wide queue takes seconds). `-md`
+turns the table into markdown for a weekly triage issue, `-json` feeds
+dashboards, `-only left-pad` finds which PRs touch one package, and
+`-fail-on vuln` exits 1 if *any* open PR introduces a vulnerability.
+
+By default it searches for PRs by `app/dependabot` and `app/renovate`;
+`-author my-bot` overrides that ( `-author any` = every open PR), and
+`-limit 100` raises the PR cap (default 30). Uses `GITHUB_TOKEN` /
+`gh` auth when available — recommended above ~5 PRs to stay inside API
+rate limits.
 
 ## In CI (review Dependabot/Renovate PRs automatically)
 
@@ -438,6 +483,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
+| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |

@@ -280,3 +280,6 @@ func (c *client) rawContents(repo, sha, path string) ([]byte, error) {
 	defer resp.Body.Close()
 	return io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 }
+
+// HasToken reports whether a GitHub token is available (env or gh CLI).
+func HasToken() bool { return findToken() != "" }
