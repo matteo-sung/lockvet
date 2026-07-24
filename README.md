@@ -26,8 +26,8 @@ what really happened:
   notices (via [deps.dev](https://deps.dev))
 - **on any PR, MR, compare, or commit — without cloning** — `lockvet pr
   owner/repo#123`, `lockvet mr group/project!123`, `lockvet compare
-  owner/repo v1...v2`, or just paste a GitHub / GitLab URL (self-hosted
-  GitLab included): it vets straight from the API
+  owner/repo v1...v2`, or just paste a GitHub / GitLab / Bitbucket URL
+  (self-hosted GitLab included): it vets straight from the API
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -112,7 +112,7 @@ Run it inside any git repository. `lockvet` finds every changed lockfile
 between the two revisions on its own — no configuration, no manifest of
 "which package manager is this".
 
-### Vet any GitHub PR or GitLab MR — no clone needed
+### Vet any GitHub PR, GitLab MR, or Bitbucket PR — no clone needed
 
 Point `lockvet` at a pull request and it fetches both sides of every
 changed lockfile through the GitHub API:
@@ -135,6 +135,7 @@ new ones:
 ```sh
 lockvet pr sharkdp/fd#1723 -comment              # needs a token that can
 lockvet mr my-group/app!42 -comment              # write comments
+lockvet pr https://bitbucket.org/ws/repo/pull-requests/7 -comment
 ```
 
 **GitLab merge requests** work the same way — on gitlab.com or any
@@ -150,7 +151,17 @@ Fork MRs and subgroups are fine. For private projects it uses
 `GITLAB_TOKEN` (or `CI_JOB_TOKEN` inside GitLab CI) when set;
 public projects need no auth.
 
-The same works for **any two revisions** of a GitHub or GitLab repo —
+**Bitbucket Cloud pull requests** too — paste the URL:
+
+```sh
+lockvet https://bitbucket.org/atlassian/aui/pull-requests/5394
+```
+
+Fork PRs work; private repos use `BITBUCKET_TOKEN` (an access token) or
+`BITBUCKET_USERNAME` + `BITBUCKET_APP_PASSWORD` when set.
+
+The same works for **any two revisions** of a GitHub, GitLab, or
+Bitbucket repo —
 e.g. "what changed dependency-wise between two releases?" — or a
 **single commit**:
 
@@ -159,6 +170,7 @@ lockvet compare sharkdp/fd v10.1.0...v10.2.0                # two releases
 lockvet https://github.com/sharkdp/fd/compare/v10.1.0...v10.2.0
 lockvet https://github.com/npm/cli/commit/f055ce68          # one commit
 lockvet https://gitlab.com/veloren/veloren/-/compare/v0.17.0...v0.18.0
+lockvet https://bitbucket.org/atlassian/aui/commits/8c4205a86de7
 ```
 
 Compare URLs (including fork syntax like `main...user:branch`) and commit
@@ -328,7 +340,7 @@ queries (package names + versions). `-offline` disables both; `-no-vulns` /
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
-| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab, self-hosted incl.) |
+| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket, self-hosted GitLab incl.) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown |
 | Changelogs / release notes for updates | ✗ | ✓ | ✗ |

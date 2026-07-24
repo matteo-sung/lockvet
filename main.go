@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
@@ -53,9 +54,12 @@ USAGE
   lockvet <gitlab MR url>             or self-hosted; e.g. a Renovate MR).
                                       Uses GITLAB_TOKEN / CI_JOB_TOKEN.
 
-  lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub or
-  lockvet <compare url>               GitLab repo, or a single commit,
-  lockvet <commit url>                without cloning (e.g. two releases).
+  lockvet pr <bitbucket PR url>       vet a Bitbucket Cloud pull request.
+                                      Uses BITBUCKET_TOKEN or app passwords.
+
+  lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub,
+  lockvet <compare url>               GitLab, or Bitbucket repo, or a single
+  lockvet <commit url>                commit, without cloning.
 
 FLAGS
   -md            markdown output (for PR comments)
@@ -70,7 +74,8 @@ FLAGS
                  insensitive, comma list ok: -only jiff, -only "@babel/*"
   -comment       (pr / mr modes) post the report as a comment on the pull or
                  merge request — reruns update the same comment in place.
-                 Needs GITHUB_TOKEN / gh login, or GITLAB_TOKEN (api scope).
+                 Needs GITHUB_TOKEN / gh login, GITLAB_TOKEN (api scope), or
+                 BITBUCKET_TOKEN / app password (pullrequest:write).
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
                  "fresh", or "deprecated"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
@@ -139,17 +144,28 @@ func main() {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return glmr.FetchCompare(ref, f) }
 		remoteWhat = ref.String()
 	}
+	setBB := func(ref bbpr.Ref) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return bbpr.Fetch(ref, f) }
+		remoteWhat = ref.String()
+		remotePost = func(body string) (string, bool, error) { return bbpr.PostComment(ref, body) }
+	}
+	setBBCmp := func(ref bbpr.CmpRef) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return bbpr.FetchCompare(ref, f) }
+		remoteWhat = ref.String()
+	}
 	switch {
 	case len(args) > 0 && (args[0] == "pr" || args[0] == "mr"):
 		if len(args) != 2 {
 			fatal("usage: lockvet " + args[0] + " <owner/repo#N | group/project!N | PR or MR url>")
 		}
-		if ref, ok := ghpr.Parse(args[1]); ok {
+		if ref, ok := bbpr.Parse(args[1]); ok {
+			setBB(ref)
+		} else if ref, ok := ghpr.Parse(args[1]); ok {
 			setPR(ref)
 		} else if ref, ok := glmr.ParseMR(args[1]); ok {
 			setMR(ref)
 		} else {
-			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab url)", args[1]))
+			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab/Bitbucket url)", args[1]))
 		}
 	case len(args) > 0 && args[0] == "compare":
 		switch len(args) {
@@ -166,8 +182,14 @@ func main() {
 				ref, err := glmr.ResolveCommit(h, p, sha)
 				check(err)
 				setGLCmp(ref)
+			} else if ref, ok := bbpr.ParseCompare(args[1]); ok {
+				setBBCmp(ref)
+			} else if w, r, sha, ok := bbpr.ParseCommit(args[1]); ok {
+				ref, err := bbpr.ResolveCommit(w, r, sha)
+				check(err)
+				setBBCmp(ref)
 			} else {
-				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
+				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
 			}
 		case 3: // lockvet compare owner/repo base...head
 			owner, repo, okRepo := strings.Cut(args[1], "/")
@@ -188,6 +210,16 @@ func main() {
 			ref, err := ghpr.ResolveCommit(o, r, sha)
 			check(err)
 			setCmp(ref)
+		}
+	case len(args) == 1 && strings.Contains(args[0], "bitbucket.org/"):
+		if ref, ok := bbpr.Parse(args[0]); ok {
+			setBB(ref)
+		} else if ref, ok := bbpr.ParseCompare(args[0]); ok {
+			setBBCmp(ref)
+		} else if w, r, sha, ok := bbpr.ParseCommit(args[0]); ok {
+			ref, err := bbpr.ResolveCommit(w, r, sha)
+			check(err)
+			setBBCmp(ref)
 		}
 	case len(args) == 1 && strings.Contains(args[0], "/-/"):
 		// GitLab web URLs (gitlab.com or self-hosted) all use the /-/
