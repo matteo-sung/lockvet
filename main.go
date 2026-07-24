@@ -13,6 +13,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
@@ -42,6 +43,10 @@ USAGE
   lockvet                 working tree vs HEAD
   lockvet HEAD~5          working tree vs HEAD~5
   lockvet main my-branch  branch vs branch (or any two revisions)
+
+  lockvet pr <owner>/<repo>#<n>       vet a GitHub pull request — no clone
+  lockvet <github PR url>             needed (e.g. a Dependabot PR). Uses
+                                      GITHUB_TOKEN / gh auth if available.
 
 FLAGS
   -md            markdown output (for PR comments)
@@ -94,56 +99,101 @@ func main() {
 		*noMeta = true
 	}
 
-	base, target := "HEAD", ""
-	switch args := flag.Args(); len(args) {
-	case 0:
-	case 1:
-		base = args[0]
-	case 2:
-		base, target = args[0], args[1]
-	default:
-		fatal("too many arguments (want at most: <base> <target>)")
-	}
-	if i := strings.Index(base, ".."); i >= 0 && target == "" {
-		base, target = base[:i], strings.TrimPrefix(base[i+2:], ".")
-	}
+	args := flag.Args()
 
-	repo, err := gitx.Open(*dir)
-	check(err)
-	check(repo.ResolveRev(base))
-	if target != "" {
-		check(repo.ResolveRev(target))
-	}
-
-	changed, err := repo.ChangedFiles(base, target)
-	check(err)
-
-	var diffs []diffx.FileDiff
-	for _, p := range changed {
-		parser := lock.ByBasename(p)
-		if parser == nil {
-			continue
+	// GitHub PR mode: `lockvet pr owner/repo#123` or a bare PR URL.
+	prMode := false
+	var prRef ghpr.Ref
+	if len(args) > 0 && args[0] == "pr" {
+		if len(args) != 2 {
+			fatal("usage: lockvet pr <owner/repo#N | github PR url>")
 		}
-		oldData, err := repo.Show(base, p)
+		ref, ok := ghpr.Parse(args[1])
+		if !ok {
+			fatal(fmt.Sprintf("cannot parse %q as a pull request (want owner/repo#N or a github.com PR url)", args[1]))
+		}
+		prRef, prMode = ref, true
+	} else if len(args) == 1 && strings.Contains(args[0], "github.com/") {
+		if ref, ok := ghpr.Parse(args[0]); ok {
+			prRef, prMode = ref, true
+		}
+	}
+
+	var (
+		diffs        []diffx.FileDiff
+		base, target string
+	)
+	if prMode {
+		res, err := ghpr.Fetch(prRef, func(p string) bool { return lock.ByBasename(p) != nil })
 		check(err)
-		newData, err := repo.Show(target, p)
-		check(err)
-		oldF := parseOrNil(parser, p, oldData)
-		newF := parseOrNil(parser, p, newData)
-		if oldF == nil && newF == nil {
-			continue
+		base, target = res.BaseLabel, res.HeadLabel
+		for _, cf := range res.Files {
+			parser := lock.ByBasename(cf.Path)
+			oldF := parseOrNil(parser, cf.Path, cf.Old)
+			newF := parseOrNil(parser, cf.Path, cf.New)
+			if oldF == nil && newF == nil {
+				continue
+			}
+			fd := diffx.Diff(oldF, newF)
+			if len(fd.Changes) > 0 {
+				diffs = append(diffs, fd)
+			}
 		}
-		fd := diffx.Diff(oldF, newF)
-		if len(fd.Changes) > 0 {
-			diffs = append(diffs, fd)
+		if len(diffs) == 0 {
+			fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes in %s (%q)\n", prRef, res.Title)
+			return
 		}
-	}
+	} else {
+		base, target = "HEAD", ""
+		switch len(args) {
+		case 0:
+		case 1:
+			base = args[0]
+		case 2:
+			base, target = args[0], args[1]
+		default:
+			fatal("too many arguments (want at most: <base> <target>)")
+		}
+		if i := strings.Index(base, ".."); i >= 0 && target == "" {
+			base, target = base[:i], strings.TrimPrefix(base[i+2:], ".")
+		}
 
-	if len(diffs) == 0 {
-		where := "between " + base + " and " + displayTarget(target)
-		fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes %s\n", where)
-		fmt.Fprintf(os.Stderr, "hint: try a range, e.g.  lockvet HEAD~10  or  lockvet main my-branch\n")
-		return
+		repo, err := gitx.Open(*dir)
+		check(err)
+		check(repo.ResolveRev(base))
+		if target != "" {
+			check(repo.ResolveRev(target))
+		}
+
+		changed, err := repo.ChangedFiles(base, target)
+		check(err)
+
+		for _, p := range changed {
+			parser := lock.ByBasename(p)
+			if parser == nil {
+				continue
+			}
+			oldData, err := repo.Show(base, p)
+			check(err)
+			newData, err := repo.Show(target, p)
+			check(err)
+			oldF := parseOrNil(parser, p, oldData)
+			newF := parseOrNil(parser, p, newData)
+			if oldF == nil && newF == nil {
+				continue
+			}
+			fd := diffx.Diff(oldF, newF)
+			if len(fd.Changes) > 0 {
+				diffs = append(diffs, fd)
+			}
+		}
+
+		if len(diffs) == 0 {
+			where := "between " + base + " and " + displayTarget(target)
+			fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes %s\n", where)
+			fmt.Fprintf(os.Stderr, "hint: try a range, e.g.  lockvet HEAD~10  or  lockvet main my-branch\n")
+			return
+		}
 	}
 
 	if *only != "" {

@@ -24,6 +24,8 @@ what really happened:
   on anything published in the last 7 days (most hijacked releases are caught
   within days — a cooldown is cheap insurance), plus upstream deprecation
   notices (via [deps.dev](https://deps.dev))
+- **on any PR, without cloning** — `lockvet pr owner/repo#123` (or paste the
+  GitHub PR URL) vets a Dependabot PR straight from the API
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -107,6 +109,22 @@ lockvet -fail-on fresh        # CI gate: enforce a release cooldown
 Run it inside any git repository. `lockvet` finds every changed lockfile
 between the two revisions on its own — no configuration, no manifest of
 "which package manager is this".
+
+### Vet any GitHub PR — no clone needed
+
+Point `lockvet` at a pull request and it fetches both sides of every
+changed lockfile through the GitHub API:
+
+```sh
+lockvet pr sharkdp/fd#1723                       # owner/repo#number
+lockvet https://github.com/npm/cli/pull/9793     # or just paste the URL
+```
+
+That's the fastest way to review a Dependabot/Renovate PR: no checkout,
+works on any public repo, all flags (`-md`, `-json`, `-only`, `-fail-on`)
+apply. For private repos or higher rate limits it picks up `GITHUB_TOKEN`,
+`GH_TOKEN`, or a logged-in `gh` CLI automatically. Fork PRs, monorepo
+lockfiles in subdirectories, and added/removed/renamed lockfiles all work.
 
 ## In CI (review Dependabot/Renovate PRs automatically)
 
