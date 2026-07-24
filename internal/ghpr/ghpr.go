@@ -55,12 +55,13 @@ type ChangedFile struct {
 	New  []byte
 }
 
-// Result is everything needed to diff and label a PR.
+// Result is everything needed to diff and label a PR or comparison.
 type Result struct {
 	Files     []ChangedFile
 	BaseLabel string // e.g. "main"
 	HeadLabel string // e.g. "PR #123 (dependabot/cargo/jiff-0.1.14)"
 	Title     string
+	Warnings  []string
 }
 
 type client struct {
@@ -68,12 +69,16 @@ type client struct {
 	token string
 }
 
+func newClient() *client {
+	return &client{http: &http.Client{Timeout: 30 * time.Second}, token: findToken()}
+}
+
 // Fetch downloads the PR metadata and the before/after contents of every
 // changed file whose basename isLockfile accepts. It authenticates with
 // GITHUB_TOKEN / GH_TOKEN when set (or a logged-in `gh` CLI), and works
 // unauthenticated on public repos otherwise.
 func Fetch(ref Ref, isLockfile func(path string) bool) (*Result, error) {
-	c := &client{http: &http.Client{Timeout: 30 * time.Second}, token: findToken()}
+	c := newClient()
 
 	// 1. PR metadata: head/base SHAs and repos.
 	var pr struct {

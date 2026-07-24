@@ -48,6 +48,10 @@ USAGE
   lockvet <github PR url>             needed (e.g. a Dependabot PR). Uses
                                       GITHUB_TOKEN / gh auth if available.
 
+  lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub
+  lockvet <github compare url>        repo, or a single commit, without
+  lockvet <github commit url>         cloning (e.g. between two releases).
+
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
@@ -101,10 +105,22 @@ func main() {
 
 	args := flag.Args()
 
-	// GitHub PR mode: `lockvet pr owner/repo#123` or a bare PR URL.
-	prMode := false
-	var prRef ghpr.Ref
-	if len(args) > 0 && args[0] == "pr" {
+	// GitHub remote modes: `lockvet pr owner/repo#123`, `lockvet compare
+	// owner/repo base...head`, or a bare PR / compare / commit URL.
+	var (
+		remoteFetch func(func(string) bool) (*ghpr.Result, error)
+		remoteWhat  string // for the "no lockfile changes" message
+	)
+	setPR := func(ref ghpr.Ref) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return ghpr.Fetch(ref, f) }
+		remoteWhat = ref.String()
+	}
+	setCmp := func(ref ghpr.CmpRef) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return ghpr.FetchCompare(ref, f) }
+		remoteWhat = ref.String()
+	}
+	switch {
+	case len(args) > 0 && args[0] == "pr":
 		if len(args) != 2 {
 			fatal("usage: lockvet pr <owner/repo#N | github PR url>")
 		}
@@ -112,10 +128,38 @@ func main() {
 		if !ok {
 			fatal(fmt.Sprintf("cannot parse %q as a pull request (want owner/repo#N or a github.com PR url)", args[1]))
 		}
-		prRef, prMode = ref, true
-	} else if len(args) == 1 && strings.Contains(args[0], "github.com/") {
+		setPR(ref)
+	case len(args) > 0 && args[0] == "compare":
+		switch len(args) {
+		case 2: // lockvet compare <compare-or-commit url>
+			if ref, ok := ghpr.ParseCompare(args[1]); ok {
+				setCmp(ref)
+			} else if o, r, sha, ok := ghpr.ParseCommit(args[1]); ok {
+				ref, err := ghpr.ResolveCommit(o, r, sha)
+				check(err)
+				setCmp(ref)
+			} else {
+				fatal(fmt.Sprintf("cannot parse %q (want a github.com compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
+			}
+		case 3: // lockvet compare owner/repo base...head
+			owner, repo, okRepo := strings.Cut(args[1], "/")
+			b, h, okRange := ghpr.SplitBasehead(args[2])
+			if !okRepo || owner == "" || repo == "" || !okRange {
+				fatal(fmt.Sprintf("cannot parse %q %q (want: lockvet compare owner/repo base...head)", args[1], args[2]))
+			}
+			setCmp(ghpr.CmpRef{Owner: owner, Repo: repo, Base: b, Head: h})
+		default:
+			fatal("usage: lockvet compare <owner/repo base...head | github compare/commit url>")
+		}
+	case len(args) == 1 && strings.Contains(args[0], "github.com/"):
 		if ref, ok := ghpr.Parse(args[0]); ok {
-			prRef, prMode = ref, true
+			setPR(ref)
+		} else if ref, ok := ghpr.ParseCompare(args[0]); ok {
+			setCmp(ref)
+		} else if o, r, sha, ok := ghpr.ParseCommit(args[0]); ok {
+			ref, err := ghpr.ResolveCommit(o, r, sha)
+			check(err)
+			setCmp(ref)
 		}
 	}
 
@@ -123,9 +167,12 @@ func main() {
 		diffs        []diffx.FileDiff
 		base, target string
 	)
-	if prMode {
-		res, err := ghpr.Fetch(prRef, func(p string) bool { return lock.ByBasename(p) != nil })
+	if remoteFetch != nil {
+		res, err := remoteFetch(func(p string) bool { return lock.ByBasename(p) != nil })
 		check(err)
+		for _, w := range res.Warnings {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: %s\n", w)
+		}
 		base, target = res.BaseLabel, res.HeadLabel
 		for _, cf := range res.Files {
 			parser := lock.ByBasename(cf.Path)
@@ -140,7 +187,11 @@ func main() {
 			}
 		}
 		if len(diffs) == 0 {
-			fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes in %s (%q)\n", prRef, res.Title)
+			msg := remoteWhat
+			if res.Title != "" {
+				msg = fmt.Sprintf("%s (%q)", remoteWhat, res.Title)
+			}
+			fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes in %s\n", msg)
 			return
 		}
 	} else {

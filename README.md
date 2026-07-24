@@ -24,8 +24,9 @@ what really happened:
   on anything published in the last 7 days (most hijacked releases are caught
   within days — a cooldown is cheap insurance), plus upstream deprecation
   notices (via [deps.dev](https://deps.dev))
-- **on any PR, without cloning** — `lockvet pr owner/repo#123` (or paste the
-  GitHub PR URL) vets a Dependabot PR straight from the API
+- **on any PR, compare, or commit — without cloning** — `lockvet pr
+  owner/repo#123`, `lockvet compare owner/repo v1...v2`, or just paste a
+  GitHub PR / compare / commit URL: it vets straight from the API
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -125,6 +126,18 @@ works on any public repo, all flags (`-md`, `-json`, `-only`, `-fail-on`)
 apply. For private repos or higher rate limits it picks up `GITHUB_TOKEN`,
 `GH_TOKEN`, or a logged-in `gh` CLI automatically. Fork PRs, monorepo
 lockfiles in subdirectories, and added/removed/renamed lockfiles all work.
+
+The same works for **any two revisions** of a GitHub repo — e.g. "what
+changed dependency-wise between two releases?" — or a **single commit**:
+
+```sh
+lockvet compare sharkdp/fd v10.1.0...v10.2.0                # two releases
+lockvet https://github.com/sharkdp/fd/compare/v10.1.0...v10.2.0
+lockvet https://github.com/npm/cli/commit/f055ce68          # one commit
+```
+
+Compare URLs (including fork syntax like `main...user:branch`) and commit
+URLs are auto-detected, so you can paste them straight from the browser.
 
 ## In CI (review Dependabot/Renovate PRs automatically)
 
