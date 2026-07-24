@@ -312,9 +312,20 @@ func FetchCompare(ref CmpRef, isLockfile func(path string) bool) (*ghpr.Result, 
 }
 
 func (c *client) do(path string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", c.base+path, nil)
+	return c.doReq("GET", path, nil)
+}
+
+func (c *client) doReq(method, path string, body []byte) (*http.Response, error) {
+	var rd io.Reader
+	if body != nil {
+		rd = strings.NewReader(string(body))
+	}
+	req, err := http.NewRequest(method, c.base+path, rd)
 	if err != nil {
 		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("User-Agent", "lockvet (+https://github.com/matteo-sung/lockvet)")
 	switch {
@@ -328,7 +339,7 @@ func (c *client) do(path string) (*http.Response, error) {
 		return nil, err
 	}
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case http.StatusOK, http.StatusCreated:
 		return resp, nil
 	case http.StatusNotFound, http.StatusUnauthorized:
 		resp.Body.Close()
@@ -348,6 +359,19 @@ func (c *client) do(path string) (*http.Response, error) {
 		resp.Body.Close()
 		return nil, fmt.Errorf("GitLab API: %s: %s", resp.Status, path)
 	}
+}
+
+// sendJSON issues a mutating request with a JSON body and decodes the reply.
+func (c *client) sendJSON(method, path string, body []byte, v any) error {
+	resp, err := c.doReq(method, path, body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if v == nil {
+		return nil
+	}
+	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(v)
 }
 
 func (c *client) getJSON(path string, v any) error {

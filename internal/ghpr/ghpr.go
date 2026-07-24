@@ -66,11 +66,16 @@ type Result struct {
 
 type client struct {
 	http  *http.Client
+	api   string // "https://api.github.com/" (overridable in tests)
 	token string
 }
 
 func newClient() *client {
-	return &client{http: &http.Client{Timeout: 30 * time.Second}, token: findToken()}
+	return &client{
+		http:  &http.Client{Timeout: 30 * time.Second},
+		api:   "https://api.github.com/",
+		token: findToken(),
+	}
 }
 
 // Fetch downloads the PR metadata and the before/after contents of every
@@ -191,9 +196,20 @@ func findToken() string {
 }
 
 func (c *client) do(path, accept string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", "https://api.github.com/"+path, nil)
+	return c.doReq("GET", path, accept, nil)
+}
+
+func (c *client) doReq(method, path, accept string, body []byte) (*http.Response, error) {
+	var rd io.Reader
+	if body != nil {
+		rd = strings.NewReader(string(body))
+	}
+	req, err := http.NewRequest(method, c.api+path, rd)
 	if err != nil {
 		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", accept)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
@@ -206,7 +222,7 @@ func (c *client) do(path, accept string) (*http.Response, error) {
 		return nil, err
 	}
 	switch resp.StatusCode {
-	case http.StatusOK:
+	case http.StatusOK, http.StatusCreated:
 		return resp, nil
 	case http.StatusNotFound, http.StatusUnauthorized:
 		resp.Body.Close()
@@ -234,6 +250,19 @@ func (c *client) getJSON(path string, v any) error {
 		return err
 	}
 	defer resp.Body.Close()
+	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(v)
+}
+
+// sendJSON issues a mutating request with a JSON body and decodes the reply.
+func (c *client) sendJSON(method, path string, body []byte, v any) error {
+	resp, err := c.doReq(method, path, "application/vnd.github+json", body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if v == nil {
+		return nil
+	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(v)
 }
 

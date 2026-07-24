@@ -128,6 +128,15 @@ apply. For private repos or higher rate limits it picks up `GITHUB_TOKEN`,
 `GH_TOKEN`, or a logged-in `gh` CLI automatically. Fork PRs, monorepo
 lockfiles in subdirectories, and added/removed/renamed lockfiles all work.
 
+Add `-comment` and lockvet posts the report **as a comment on the PR or MR
+itself** — reruns update the same comment in place instead of stacking
+new ones:
+
+```sh
+lockvet pr sharkdp/fd#1723 -comment              # needs a token that can
+lockvet mr my-group/app!42 -comment              # write comments
+```
+
 **GitLab merge requests** work the same way — on gitlab.com or any
 self-hosted instance (the host comes straight from the URL):
 
@@ -196,10 +205,12 @@ jobs:
         #   fresh-days: '7'      # cooldown window for the fresh flag
 ```
 
-On GitLab (or any other CI), the single binary works the same way — compare
-the MR against its target branch and gate on whatever you care about
-(or, on public projects, skip the fetch entirely with
-`lockvet "$CI_MERGE_REQUEST_PROJECT_URL/-/merge_requests/$CI_MERGE_REQUEST_IID"`):
+(Not on GitHub Actions? `lockvet pr <PR-url> -comment -fail-on vuln` does
+the same job — fetch, report, comment, gate — from any CI with a
+`GITHUB_TOKEN` in the environment.)
+
+On GitLab, one line vets the MR and posts the report as an MR note —
+reruns update the note in place:
 
 ```yaml
 # .gitlab-ci.yml
@@ -209,11 +220,18 @@ lockvet:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
   script:
-    - apk add --no-cache curl git
+    - apk add --no-cache curl
     - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
-    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - lockvet "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" -fail-on vuln
+    - lockvet mr "$CI_MERGE_REQUEST_PROJECT_URL/-/merge_requests/$CI_MERGE_REQUEST_IID" -comment -fail-on vuln
 ```
+
+The `-comment` needs a `GITLAB_TOKEN` CI/CD variable (a project access token
+with `api` scope — `CI_JOB_TOKEN` can't post notes). Without one, drop
+`-comment`: fetching public MRs needs no auth, and the report still lands in
+the job log. Self-hosted instances work — the host comes from the URL.
+Prefer diffing the checkout instead of the API? `git fetch origin
+"$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" && lockvet
+"origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"` does the same locally.
 
 ## As a pre-commit hook
 

@@ -68,6 +68,9 @@ FLAGS
   -only PAT      show one package's story: only changes whose name — or any
                  package in their "via" chain — matches PAT. Glob, case-
                  insensitive, comma list ok: -only jiff, -only "@babel/*"
+  -comment       (pr / mr modes) post the report as a comment on the pull or
+                 merge request — reruns update the same comment in place.
+                 Needs GITHUB_TOKEN / gh login, or GITLAB_TOKEN (api scope).
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
                  "fresh", or "deprecated"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
@@ -91,6 +94,7 @@ func main() {
 		offline   = flag.Bool("offline", false, "")
 		freshDays = flag.Int("fresh-days", 7, "")
 		only      = flag.String("only", "", "")
+		comment   = flag.Bool("comment", false, "")
 		failOn    = flag.String("fail-on", "", "")
 		dir       = flag.String("C", ".", "")
 		noColor   = flag.Bool("no-color", false, "")
@@ -114,11 +118,13 @@ func main() {
 	// owner/repo base...head`, or a bare PR / compare / commit URL.
 	var (
 		remoteFetch func(func(string) bool) (*ghpr.Result, error)
-		remoteWhat  string // for the "no lockfile changes" message
+		remoteWhat  string                                  // for the "no lockfile changes" message
+		remotePost  func(body string) (string, bool, error) // -comment target (pr/mr only)
 	)
 	setPR := func(ref ghpr.Ref) {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return ghpr.Fetch(ref, f) }
 		remoteWhat = ref.String()
+		remotePost = func(body string) (string, bool, error) { return ghpr.PostComment(ref, body) }
 	}
 	setCmp := func(ref ghpr.CmpRef) {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return ghpr.FetchCompare(ref, f) }
@@ -127,6 +133,7 @@ func main() {
 	setMR := func(ref glmr.Ref) {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return glmr.Fetch(ref, f) }
 		remoteWhat = ref.String()
+		remotePost = func(body string) (string, bool, error) { return glmr.PostComment(ref, body) }
 	}
 	setGLCmp := func(ref glmr.CmpRef) {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return glmr.FetchCompare(ref, f) }
@@ -194,6 +201,10 @@ func main() {
 			check(err)
 			setGLCmp(ref)
 		}
+	}
+
+	if *comment && remotePost == nil {
+		fatal("-comment needs a pull or merge request to comment on — use it with `lockvet pr …` or `lockvet mr …`")
 	}
 
 	var (
@@ -343,6 +354,20 @@ func main() {
 	default:
 		color := !*noColor && os.Getenv("NO_COLOR") == "" && isTTY()
 		render.Terminal(os.Stdout, diffs, sum, color, vulnsChecked, metaChecked, *freshDays)
+	}
+
+	if *comment {
+		var buf strings.Builder
+		render.Markdown(&buf, diffs, sum, vulnsChecked, metaChecked, *freshDays)
+		url, updated, err := remotePost(buf.String())
+		if err != nil {
+			fatal(fmt.Sprintf("could not post comment: %v", err))
+		}
+		verb := "posted"
+		if updated {
+			verb = "updated"
+		}
+		fmt.Fprintf(os.Stderr, "lockvet: comment %s: %s\n", verb, url)
 	}
 
 	if code := failCode(*failOn, diffs, sum); code != 0 {
