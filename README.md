@@ -26,8 +26,9 @@ what really happened:
   notices (via [deps.dev](https://deps.dev))
 - **on any PR, MR, compare, or commit — without cloning** — `lockvet pr
   owner/repo#123`, `lockvet mr group/project!123`, `lockvet compare
-  owner/repo v1...v2`, or just paste a GitHub / GitLab / Bitbucket URL
-  (self-hosted GitLab included): it vets straight from the API
+  owner/repo v1...v2`, or just paste a GitHub / GitLab / Bitbucket /
+  Gitea / Codeberg URL (self-hosted GitLab, Gitea & Forgejo included):
+  it vets straight from the API
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -112,7 +113,7 @@ Run it inside any git repository. `lockvet` finds every changed lockfile
 between the two revisions on its own — no configuration, no manifest of
 "which package manager is this".
 
-### Vet any GitHub PR, GitLab MR, or Bitbucket PR — no clone needed
+### Vet any GitHub, GitLab, Bitbucket, Gitea, or Codeberg PR — no clone needed
 
 Point `lockvet` at a pull request and it fetches both sides of every
 changed lockfile through the GitHub API:
@@ -159,6 +160,19 @@ lockvet https://bitbucket.org/atlassian/aui/pull-requests/5394
 
 Fork PRs work; private repos use `BITBUCKET_TOKEN` (an access token) or
 `BITBUCKET_USERNAME` + `BITBUCKET_APP_PASSWORD` when set.
+
+**Gitea and Forgejo pull requests** — codeberg.org, gitea.com, or any
+self-hosted instance (the host comes from the URL) — and commit URLs:
+
+```sh
+lockvet https://codeberg.org/forgejo/forgejo/pulls/13594
+lockvet https://gitea.com/gitea/tea/pulls/1057
+lockvet https://codeberg.org/forgejo/forgejo/commit/714ddd0044f3
+```
+
+Fork PRs work, `-comment` posts/updates the report on the PR
+(`GITEA_TOKEN`, `FORGEJO_TOKEN`, or `CODEBERG_TOKEN`); public repos need
+no auth.
 
 The same works for **any two revisions** of a GitHub, GitLab, or
 Bitbucket repo —
@@ -244,6 +258,24 @@ the job log. Self-hosted instances work — the host comes from the URL.
 Prefer diffing the checkout instead of the API? `git fetch origin
 "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" && lockvet
 "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"` does the same locally.
+
+On Bitbucket, the same one-liner runs in Pipelines:
+
+```yaml
+# bitbucket-pipelines.yml
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: lockvet
+          script:
+            - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
+            - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
+```
+
+For `-comment`, set a `BITBUCKET_TOKEN` repository variable (a repository
+access token with *pull request: write* scope). Without it, drop `-comment`
+and the report lands in the pipeline log.
 
 ## As a pre-commit hook
 
@@ -340,7 +372,7 @@ queries (package names + versions). `-offline` disables both; `-no-vulns` /
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
-| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket, self-hosted GitLab incl.) |
+| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown |
 | Changelogs / release notes for updates | ✗ | ✓ | ✗ |

@@ -17,6 +17,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
+	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -153,6 +154,15 @@ func main() {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return bbpr.FetchCompare(ref, f) }
 		remoteWhat = ref.String()
 	}
+	setGT := func(ref gtpr.Ref) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return gtpr.Fetch(ref, f) }
+		remoteWhat = ref.String()
+		remotePost = func(body string) (string, bool, error) { return gtpr.PostComment(ref, body) }
+	}
+	setGTCommit := func(ref gtpr.CommitRef) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return gtpr.FetchCommit(ref, f) }
+		remoteWhat = ref.String()
+	}
 	switch {
 	case len(args) > 0 && (args[0] == "pr" || args[0] == "mr"):
 		if len(args) != 2 {
@@ -164,8 +174,10 @@ func main() {
 			setPR(ref)
 		} else if ref, ok := glmr.ParseMR(args[1]); ok {
 			setMR(ref)
+		} else if ref, ok := gtpr.Parse(args[1]); ok {
+			setGT(ref)
 		} else {
-			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab/Bitbucket url)", args[1]))
+			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab/Bitbucket/Gitea url)", args[1]))
 		}
 	case len(args) > 0 && args[0] == "compare":
 		switch len(args) {
@@ -188,8 +200,10 @@ func main() {
 				ref, err := bbpr.ResolveCommit(w, r, sha)
 				check(err)
 				setBBCmp(ref)
+			} else if ref, ok := gtpr.ParseCommit(args[1]); ok {
+				setGTCommit(ref)
 			} else {
-				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
+				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket compare/commit url, a Gitea/Forgejo commit url, or: lockvet compare owner/repo base...head)", args[1]))
 			}
 		case 3: // lockvet compare owner/repo base...head
 			owner, repo, okRepo := strings.Cut(args[1], "/")
@@ -232,6 +246,14 @@ func main() {
 			ref, err := glmr.ResolveCommit(h, p, sha)
 			check(err)
 			setGLCmp(ref)
+		}
+	case len(args) == 1:
+		// Gitea/Forgejo web URLs (codeberg.org or self-hosted): the
+		// /pulls/N path shape is unique to them, so any host works.
+		if ref, ok := gtpr.Parse(args[0]); ok {
+			setGT(ref)
+		} else if ref, ok := gtpr.ParseCommit(args[0]); ok {
+			setGTCommit(ref)
 		}
 	}
 
