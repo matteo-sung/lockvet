@@ -24,6 +24,11 @@ what really happened:
   on anything published in the last 7 days (most hijacked releases are caught
   within days — a cooldown is cheap insurance), plus upstream deprecation
   notices (via [deps.dev](https://deps.dev))
+- **what actually changed upstream** — every new version links to the exact
+  tag-to-tag diff in its source repository (`…/compare/v1.2.3...v1.3.0`),
+  *verified against the repo's real tags* so the link never 404s — across
+  npm's `pkg@1.2.3` monorepo tags, release-please `name-v1.2.3` tags, Go
+  submodule `dir/v1.2.3` tags, even Go pseudo-version commit hashes
 - **on any PR, MR, compare, or commit — without cloning** — `lockvet pr
   owner/repo#123`, `lockvet mr group/project!123`, `lockvet compare
   owner/repo v1...v2`, or just paste a GitHub / GitLab / Bitbucket /
@@ -374,10 +379,17 @@ parsers are ~50 lines each.
    NuGet, RubyGems). Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
    days of publication, so a short cooldown filters most of them out.
+6. Each changed package's source repository (from deps.dev) has its tag list
+   fetched over git's smart-HTTP protocol — one anonymous GET per repo, the
+   same request `git ls-remote` makes. Old and new versions are matched
+   against the *real* tags (trying `v1.2.3`, `1.2.3`, `pkg@1.2.3`,
+   `pkg-v1.2.3`, Go `dir/v1.2.3`, and pseudo-version commit hashes), and only
+   verified matches become compare / release links — so every link works.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
-queries (package names + versions). `-offline` disables both; `-no-vulns` /
-`-no-meta` disable them individually. No telemetry, ever.
+queries (package names + versions) and the anonymous git tag listings above.
+`-offline` disables all of it; `-no-vulns` / `-no-meta` disable
+vulnerability and metadata+links lookups individually. No telemetry, ever.
 
 **Dependencies:** none. Pure Go standard library.
 
@@ -394,7 +406,7 @@ queries (package names + versions). `-offline` disables both; `-no-vulns` /
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown |
-| Changelogs / release notes for updates | ✗ | ✓ | ✗ |
+| See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |
 | Interactive TUI, MCP server | ✗ | ✓ | ✗ |
 | Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |
 
@@ -408,8 +420,9 @@ whatever language your repos are in, with security data inline, in CI.
   audits your *entire* dependency tree. lockvet explains a *change*.
 - Not an updater — Dependabot/Renovate open the PRs; lockvet tells you
   whether to merge them.
-- No changelog fetching or interactive TUI (see whatsdiff above) — lockvet
-  stays a one-shot command whose output drops straight into a PR comment.
+- No changelog *fetching* or interactive TUI (see whatsdiff above) — lockvet
+  links each bump to the verified upstream diff instead, and stays a
+  one-shot command whose output drops straight into a PR comment.
 
 ## License
 

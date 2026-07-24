@@ -21,6 +21,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/render"
+	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/vers"
 )
 
@@ -67,6 +68,7 @@ FLAGS
   -json          JSON output
   -no-vulns      skip the OSV.dev vulnerability check
   -no-meta       skip the deps.dev metadata check (release age, deprecations)
+                 and upstream changelog/diff links
   -offline       no network calls at all (= -no-vulns -no-meta)
   -fresh-days N  flag versions published fewer than N days ago (default 7;
                  0 shows ages but never flags)
@@ -388,6 +390,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: release-metadata check skipped: %v\n", err)
 		} else {
 			metaChecked = true
+			taglink.Annotate(diffs) // verified changelog/compare links
 		}
 	}
 

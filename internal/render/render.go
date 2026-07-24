@@ -49,6 +49,16 @@ func (s styler) dim(x string) string    { return s.c("2", x) }
 func (s styler) bold(x string) string   { return s.c("1", x) }
 func (s styler) cyan(x string) string   { return s.c("36", x) }
 
+// href wraps text in an OSC 8 terminal hyperlink (modern terminals make it
+// clickable; others ignore the escapes). Only emitted when color is on,
+// which implies a real TTY.
+func (s styler) href(url, text string) string {
+	if !s.on || url == "" || text == "" {
+		return text
+	}
+	return "\x1b]8;;" + url + "\x1b\\" + text + "\x1b]8;;\x1b\\"
+}
+
 // age renders AgeDays compactly: "today", "3d", "4mo", "2y".
 func age(days int) string {
 	switch {
@@ -159,9 +169,10 @@ func sev(v diffx.Vuln) string {
 func line(s styler, c diffx.Change, nameW, fromW int) string {
 	name := pad(c.Name, nameW)
 	from, to := join(c.Old), join(c.New)
+	to = s.href(changesLink(c), to) // clickable upstream diff on TTYs
 	switch c.Kind {
 	case diffx.Added:
-		return fmt.Sprintf("%s %s %s", s.green("+"), name, s.green(to+"  (added)"))
+		return fmt.Sprintf("%s %s %s", s.green("+"), name, s.green(to)+s.green("  (added)"))
 	case diffx.Removed:
 		return fmt.Sprintf("%s %s %s", s.dim("-"), name, s.dim(from+"  (removed)"))
 	}
@@ -323,7 +334,13 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					pkgCell += " <sub>transitive</sub>"
 				}
 			}
-			fmt.Fprintf(w, "| %s | %s | %s | %s | %s |%s\n", icon, pkgCell, join(c.Old), join(c.New), lvl, extra)
+			toCell := join(c.New)
+			// Link the new version to the verified upstream diff (or
+			// its release page): "what actually changed", one click.
+			if u := changesLink(c); u != "" && toCell != "" {
+				toCell = "[" + toCell + "](" + u + ")"
+			}
+			fmt.Fprintf(w, "| %s | %s | %s | %s | %s |%s\n", icon, pkgCell, join(c.Old), toCell, lvl, extra)
 			if c.Deprecated {
 				reason := esc(c.DeprecatedReason)
 				if reason == "" {
@@ -360,6 +377,16 @@ func openAttr(fd diffx.FileDiff) string {
 }
 
 func esc(s string) string { return strings.ReplaceAll(s, "|", "\\|") }
+
+// changesLink is the best "what changed upstream" URL for a change: the
+// verified tag-to-tag diff when both versions matched real tags, else the
+// release/tag page for the incoming version.
+func changesLink(c diffx.Change) string {
+	if c.CompareURL != "" {
+		return c.CompareURL
+	}
+	return c.ReleaseURL
+}
 
 func join(vs []string) string { return strings.Join(vs, ", ") }
 

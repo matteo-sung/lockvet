@@ -50,6 +50,13 @@ type Change struct {
 	Fresh            bool   `json:"fresh,omitempty"` // younger than the cooldown window
 	Deprecated       bool   `json:"deprecated,omitempty"`
 	DeprecatedReason string `json:"deprecated_reason,omitempty"`
+
+	// Filled in by the changelog layer: the upstream repository and, when
+	// both versions match real tags there, links that are verified not
+	// to 404.
+	SourceRepo string `json:"source_repo,omitempty"`
+	CompareURL string `json:"compare_url,omitempty"` // upstream diff old → new
+	ReleaseURL string `json:"release_url,omitempty"` // release/tag page for new
 }
 
 // Vuln is a known vulnerability reference.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/taglink"
 )
 
 // BatchURL is a var so tests can point it at a fake server.
@@ -62,6 +63,20 @@ type versionInfo struct {
 	PublishedAt      string `json:"publishedAt"`
 	IsDeprecated     bool   `json:"isDeprecated"`
 	DeprecatedReason string `json:"deprecatedReason"`
+	Links            []struct {
+		Label string `json:"label"`
+		URL   string `json:"url"`
+	} `json:"links"`
+}
+
+// sourceRepo picks the SOURCE_REPO link, canonicalised, or "".
+func sourceRepo(info *versionInfo) string {
+	for _, l := range info.Links {
+		if l.Label == "SOURCE_REPO" {
+			return taglink.NormalizeRepoURL(l.URL)
+		}
+	}
+	return ""
 }
 
 // Annotate fills PublishedAt / AgeDays / Fresh / Deprecated on every change
@@ -117,6 +132,9 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 			}
 			s := slots[start+k]
 			c := &diffs[s.fd].Changes[s.ci]
+			if c.SourceRepo == "" {
+				c.SourceRepo = sourceRepo(info)
+			}
 			if info.IsDeprecated {
 				c.Deprecated = true
 				if c.DeprecatedReason == "" {
