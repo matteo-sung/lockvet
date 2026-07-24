@@ -98,7 +98,7 @@ func dot(s styler, n int, paint func(string) string) string {
 
 // QueueTerminal renders the queue overview table. noun is "PR" or "MR",
 // matching the forge the queue came from.
-func QueueTerminal(w io.Writer, heading, noun string, rows []QueueRow, color, vulnsChecked, metaChecked bool, freshDays int) {
+func QueueTerminal(w io.Writer, heading, noun, refHint string, rows []QueueRow, color, vulnsChecked, metaChecked bool, freshDays int) {
 	s := styler{on: color}
 	fmt.Fprintf(w, "\n%s\n\n", s.bold(heading))
 	if len(rows) == 0 {
@@ -164,11 +164,10 @@ func QueueTerminal(w io.Writer, heading, noun string, rows []QueueRow, color, vu
 	}
 
 	fmt.Fprintf(w, "\n%s\n", queueSummary(s, noun, rows, vulnsChecked, metaChecked, freshDays))
-	hint := "full report for any of them:  lockvet pr <owner/repo#N>"
-	if noun == "MR" {
-		hint = "full report for any of them:  lockvet mr <group/project!N>"
+	if refHint == "" {
+		refHint = "lockvet pr <owner/repo#N>"
 	}
-	fmt.Fprintf(w, "%s\n", s.dim(hint))
+	fmt.Fprintf(w, "%s\n", s.dim("full report for any of them:  "+refHint))
 }
 
 // padANSI right-pads to width w counting visible runes only (the cell may

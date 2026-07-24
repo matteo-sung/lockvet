@@ -35,9 +35,10 @@ what really happened:
   Gitea / Codeberg URL (self-hosted GitLab, Gitea & Forgejo included):
   it vets straight from the API
 - **your whole Dependabot queue at once** — `lockvet queue <org>` triages
-  every open Dependabot/Renovate PR of a repo, user, or org — GitHub or
-  GitLab — into one table: which introduce vulnerabilities, which are major
-  or brand-new bumps, and which look routine
+  every open Dependabot/Renovate PR of a repo, user, or org — GitHub,
+  GitLab, or Gitea/Forgejo — into one table: which introduce
+  vulnerabilities, which are major or brand-new bumps, and which look
+  routine
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -124,6 +125,7 @@ lockvet -only jiff         # one package's story: jiff itself plus everything
 lockvet queue myorg           # triage EVERY open Dependabot/Renovate PR
 lockvet queue owner/repo      # of an org, user, or single repo (see below)
 lockvet queue gitlab.com/grp  # same for a GitLab group or project
+lockvet queue codeberg.org/o  # … or a Gitea/Forgejo owner or repo
 
 lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
@@ -249,6 +251,20 @@ lockvet queue https://gitlab.example.com/platform     # a whole group
 GitLab bot usernames vary per instance (there is no canonical Renovate
 app user), so the default search — `renovate-bot`, `dependabot` — often
 needs `-author <your bot's username>`. Uses `GITLAB_TOKEN` when set.
+
+**And Gitea / Forgejo / Codeberg** — pass an owner or repo URL
+(codeberg.org, gitea.com, or self-hosted; unknown hosts are
+auto-detected with one anonymous API probe):
+
+```sh
+lockvet queue codeberg.org/forgejo -author viceice-bot   # a whole org
+lockvet queue https://git.example.org/team/app           # one repo
+```
+
+Bot usernames vary here too (Forgejo's own Renovate runs as
+`viceice-bot`), so expect to pass `-author` — or `-author any` to vet
+every open PR that touches a lockfile. Uses `GITEA_TOKEN` /
+`FORGEJO_TOKEN` / `CODEBERG_TOKEN` when set.
 
 ## In CI (review Dependabot/Renovate PRs automatically)
 
@@ -484,7 +500,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
-| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub & GitLab) |
+| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub, GitLab & Gitea) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |

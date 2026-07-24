@@ -77,6 +77,12 @@ USAGE
                                       Bot usernames vary on GitLab — pass
                                       -author <username> for custom bots.
 
+  lockvet queue <gitea owner url>     same for a Gitea/Forgejo user, org, or
+  lockvet queue <gitea repo url>      repo (codeberg.org, gitea.com, or
+                                      self-hosted), e.g. lockvet queue
+                                      codeberg.org/forgejo. Bot usernames
+                                      vary here too: -author <username>.
+
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
@@ -100,9 +106,9 @@ FLAGS
                  "fresh", or "deprecated"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
   -author LIST   (queue mode) bot accounts to search for, comma list
-                 (GitHub default "app/dependabot,app/renovate"; GitLab
-                 default "renovate-bot,dependabot"; "any" = every open
-                 PR/MR that touches a lockfile)
+                 (GitHub default "app/dependabot,app/renovate"; GitLab and
+                 Gitea/Forgejo default "renovate-bot,dependabot"; "any" =
+                 every open PR/MR that touches a lockfile)
   -limit N       (queue mode) vet at most N pull/merge requests (default 30)
   -C dir         run as if started in dir
   -no-color      disable colors (also respects NO_COLOR)
@@ -532,11 +538,21 @@ func splitQueueScope(scope string) (host, rest string) {
 // project URL/path (host-qualified, e.g. gitlab.com/gitlab-org).
 func runQueue(scope string, o queueOpts) {
 	host, rest := splitQueueScope(scope)
-	gitlab := host != "" && host != "github.com"
+	forge := "github"
+	if host != "" && host != "github.com" {
+		if gtpr.IsGiteaHost(host) {
+			forge = "gitea"
+		} else {
+			forge = "gitlab"
+		}
+	}
 
 	defaultAuthors, defaultLabel := ghpr.DefaultQueueAuthors, "dependabot + renovate"
-	if gitlab {
+	switch forge {
+	case "gitlab":
 		defaultAuthors, defaultLabel = glmr.DefaultQueueAuthors, "renovate-bot + dependabot"
+	case "gitea":
+		defaultAuthors, defaultLabel = gtpr.DefaultQueueAuthors, "renovate-bot + dependabot"
 	}
 	authors, authorLabel := defaultAuthors, defaultLabel
 	switch a := strings.TrimSpace(o.author); {
@@ -560,7 +576,8 @@ func runQueue(scope string, o queueOpts) {
 		qual    string
 		noun    = "PRs"
 	)
-	if gitlab {
+	switch forge {
+	case "gitlab":
 		noun = "MRs"
 		items, label, err := glmr.ListQueue(host, rest, authors, o.limit)
 		check(err)
@@ -583,7 +600,30 @@ func runQueue(scope string, o queueOpts) {
 		if len(items) > 5 && !glmr.HasToken() {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated GitLab API — vetting %d MRs may hit the rate limit; set GITLAB_TOKEN\n", len(items))
 		}
-	} else {
+	case "gitea":
+		items, label, err := gtpr.ListQueue(host, rest, authors, o.limit)
+		check(err)
+		qual = label
+		singleRepo := strings.Contains(rest, "/")
+		for _, it := range items {
+			it := it
+			lbl := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.Index)
+			if singleRepo {
+				lbl = fmt.Sprintf("#%d", it.Ref.Index)
+			}
+			entries = append(entries, queueEntry{
+				refStr: it.Ref.String(), label: lbl,
+				title: it.Title, author: it.Author, url: it.URL, updated: it.Updated,
+				fetch: func(isLock func(string) bool) (*ghpr.Result, error) { return gtpr.Fetch(it.Ref, isLock) },
+			})
+		}
+		if len(items) == 0 && len(authors) > 0 && strings.TrimSpace(o.author) == "" {
+			fmt.Fprintf(os.Stderr, "lockvet: hint: bot usernames vary per Gitea/Forgejo instance (Forgejo's own Renovate is %q) — try -author <username> or -author any\n", "viceice-bot")
+		}
+		if len(items) > 5 && !gtpr.HasToken() {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated Gitea/Forgejo API — vetting %d PRs may hit the rate limit; set GITEA_TOKEN\n", len(items))
+		}
+	default:
 		items, label, err := ghpr.ListQueue(rest, authors, o.limit)
 		check(err)
 		qual = label
@@ -743,7 +783,14 @@ func runQueue(scope string, o queueOpts) {
 		render.QueueMarkdown(os.Stdout, heading, strings.TrimSuffix(noun, "s"), rows, vulnsChecked, metaChecked, o.freshDays)
 	default:
 		color := !o.noColor && os.Getenv("NO_COLOR") == "" && isTTY()
-		render.QueueTerminal(os.Stdout, heading, strings.TrimSuffix(noun, "s"), rows, color, vulnsChecked, metaChecked, o.freshDays)
+		refHint := "lockvet pr <owner/repo#N>"
+		switch forge {
+		case "gitlab":
+			refHint = "lockvet mr <group/project!N>"
+		case "gitea":
+			refHint = "lockvet pr <PR url>"
+		}
+		render.QueueTerminal(os.Stdout, heading, strings.TrimSuffix(noun, "s"), refHint, rows, color, vulnsChecked, metaChecked, o.freshDays)
 	}
 
 	if failed {

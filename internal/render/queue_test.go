@@ -35,7 +35,7 @@ func TestQueueTerminal(t *testing.T) {
 		{Label: "#3", Title: "broken", Err: "GitHub API: 404"},
 	}
 	var b strings.Builder
-	QueueTerminal(&b, "open dependency PRs — repo:o/r", "PR", rows, false, true, true, 7)
+	QueueTerminal(&b, "open dependency PRs — repo:o/r", "PR", "", rows, false, true, true, 7)
 	out := b.String()
 	for _, want := range []string{
 		"open dependency PRs — repo:o/r",
