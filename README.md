@@ -101,7 +101,8 @@ between the two revisions on its own — no configuration, no manifest of
 
 ## In CI (review Dependabot/Renovate PRs automatically)
 
-`lockvet` posts a summary comment on any PR that touches a lockfile:
+`lockvet` posts a summary comment on any PR that touches a lockfile —
+[see it live on a real PR](https://github.com/matteo-sung/lockvet-demo/pull/1):
 
 ```yaml
 # .github/workflows/lockvet.yml
