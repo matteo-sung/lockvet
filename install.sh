@@ -65,6 +65,7 @@ echo "Checksum OK."
 tar -xz -C "$tmp" -f "$tmp/$name.tar.gz"
 
 dest="$INSTALL_DIR/lockvet"
+mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 if [ -w "$INSTALL_DIR" ]; then
   install -m 755 "$tmp/$name/lockvet" "$dest"
 else
