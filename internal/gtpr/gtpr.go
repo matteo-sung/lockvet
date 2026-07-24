@@ -6,6 +6,7 @@ package gtpr
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,11 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 )
+
+// errNotFound marks 404/401 API errors so callers can distinguish "this
+// file/revision doesn't exist" from transport failures. Its message is
+// empty: it only tags the formatted error it is wrapped into.
+var errNotFound = errors.New("")
 
 // Ref identifies a pull request on a Gitea/Forgejo host.
 type Ref struct {
@@ -308,7 +314,7 @@ func (c *client) doReq(method, path string, body []byte) (*http.Response, error)
 		if c.token == "" {
 			hint = " — private repository? set GITEA_TOKEN (or CODEBERG_TOKEN)"
 		}
-		return nil, fmt.Errorf("Gitea API: %s: %s%s", resp.Status, path, hint)
+		return nil, fmt.Errorf("Gitea API: %s: %s%s%w", resp.Status, path, hint, errNotFound)
 	case http.StatusForbidden, http.StatusTooManyRequests:
 		resp.Body.Close()
 		hint := "rate limited?"

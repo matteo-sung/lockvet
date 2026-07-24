@@ -60,8 +60,8 @@ USAGE
                                       Uses BITBUCKET_TOKEN or app passwords.
 
   lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub,
-  lockvet <compare url>               GitLab, or Bitbucket repo, or a single
-  lockvet <commit url>                commit, without cloning.
+  lockvet <compare url>               GitLab, Bitbucket, or Gitea/Forgejo
+  lockvet <commit url>                repo, or a single commit, w/o cloning.
 
 FLAGS
   -md            markdown output (for PR comments)
@@ -165,6 +165,10 @@ func main() {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return gtpr.FetchCommit(ref, f) }
 		remoteWhat = ref.String()
 	}
+	setGTCmp := func(ref gtpr.CmpRef) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return gtpr.FetchCompare(ref, f) }
+		remoteWhat = ref.String()
+	}
 	switch {
 	case len(args) > 0 && (args[0] == "pr" || args[0] == "mr"):
 		if len(args) != 2 {
@@ -204,8 +208,10 @@ func main() {
 				setBBCmp(ref)
 			} else if ref, ok := gtpr.ParseCommit(args[1]); ok {
 				setGTCommit(ref)
+			} else if ref, ok := gtpr.ParseCompare(args[1]); ok {
+				setGTCmp(ref)
 			} else {
-				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket compare/commit url, a Gitea/Forgejo commit url, or: lockvet compare owner/repo base...head)", args[1]))
+				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket/Gitea compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
 			}
 		case 3: // lockvet compare owner/repo base...head
 			owner, repo, okRepo := strings.Cut(args[1], "/")
@@ -256,6 +262,8 @@ func main() {
 			setGT(ref)
 		} else if ref, ok := gtpr.ParseCommit(args[0]); ok {
 			setGTCommit(ref)
+		} else if ref, ok := gtpr.ParseCompare(args[0]); ok {
+			setGTCmp(ref)
 		}
 	}
 

@@ -179,8 +179,8 @@ Fork PRs work, `-comment` posts/updates the report on the PR
 (`GITEA_TOKEN`, `FORGEJO_TOKEN`, or `CODEBERG_TOKEN`); public repos need
 no auth.
 
-The same works for **any two revisions** of a GitHub, GitLab, or
-Bitbucket repo —
+The same works for **any two revisions** of a GitHub, GitLab, Bitbucket,
+or Gitea/Forgejo repo —
 e.g. "what changed dependency-wise between two releases?" — or a
 **single commit**:
 
@@ -190,6 +190,7 @@ lockvet https://github.com/sharkdp/fd/compare/v10.1.0...v10.2.0
 lockvet https://github.com/npm/cli/commit/f055ce68          # one commit
 lockvet https://gitlab.com/veloren/veloren/-/compare/v0.17.0...v0.18.0
 lockvet https://bitbucket.org/atlassian/aui/commits/8c4205a86de7
+lockvet https://codeberg.org/forgejo/forgejo/compare/v11.0.0...v11.0.1
 ```
 
 Compare URLs (including fork syntax like `main...user:branch`) and commit
