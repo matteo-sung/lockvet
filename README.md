@@ -277,6 +277,25 @@ For `-comment`, set a `BITBUCKET_TOKEN` repository variable (a repository
 access token with *pull request: write* scope). Without it, drop `-comment`
 and the report lands in the pipeline log.
 
+And on Codeberg (or any Gitea/Forgejo with Woodpecker CI):
+
+```yaml
+# .woodpecker/lockvet.yaml
+when:
+  - event: pull_request
+
+steps:
+  - name: lockvet
+    image: alpine:latest
+    environment:
+      GITEA_TOKEN:
+        from_secret: gitea_token   # only needed for -comment
+    commands:
+      - apk add --no-cache curl
+      - curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin
+      - lockvet pr "$CI_REPO_URL/pulls/$CI_COMMIT_PULL_REQUEST" -comment -fail-on vuln
+```
+
 ## As a pre-commit hook
 
 Catch a risky bump before it's even committed — lockvet's default mode
