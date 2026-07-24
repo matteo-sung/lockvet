@@ -201,12 +201,34 @@ queries (package names + versions). `-offline` disables both; `-no-vulns` /
 
 **Dependencies:** none. Pure Go standard library.
 
+## How it compares
+
+|  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
+|---|---|---|---|
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **20** across 14 ecosystems |
+| Readable per-package summary | ✗ | ✓ | ✓ |
+| Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
+| Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
+| Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
+| Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
+| Output formats | text | text, JSON, markdown | text, JSON, markdown |
+| Changelogs / release notes for updates | ✗ | ✓ | ✗ |
+| Interactive TUI, MCP server | ✗ | ✓ | ✗ |
+| Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |
+
+whatsdiff is a fine tool if you live in composer/npm and want changelogs and
+a TUI. lockvet's focus is different: *should I trust this diff?* — across
+whatever language your repos are in, with security data inline, in CI.
+
 ## Non-goals
 
 - Not a full SCA scanner — [osv-scanner](https://github.com/google/osv-scanner)
   audits your *entire* dependency tree. lockvet explains a *change*.
 - Not an updater — Dependabot/Renovate open the PRs; lockvet tells you
   whether to merge them.
+- No changelog fetching or interactive TUI (see whatsdiff above) — lockvet
+  stays a one-shot command whose output drops straight into a PR comment.
 
 ## License
 
