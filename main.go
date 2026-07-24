@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
@@ -61,9 +62,14 @@ USAGE
   lockvet pr <bitbucket PR url>       vet a Bitbucket Cloud pull request.
                                       Uses BITBUCKET_TOKEN or app passwords.
 
+  lockvet pr <azure devops PR url>    vet an Azure DevOps pull request
+                                      (dev.azure.com or Server). Uses
+                                      AZURE_DEVOPS_TOKEN / SYSTEM_ACCESSTOKEN.
+
   lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub,
-  lockvet <compare url>               GitLab, Bitbucket, or Gitea/Forgejo
-  lockvet <commit url>                repo, or a single commit, w/o cloning.
+  lockvet <compare url>               GitLab, Bitbucket, Gitea/Forgejo, or
+  lockvet <commit url>                Azure DevOps repo, or a single commit,
+                                      without cloning.
 
   lockvet queue <owner>               triage EVERY open Dependabot/Renovate
   lockvet queue <owner>/<repo>        PR of a GitHub user, org, or repo in
@@ -194,6 +200,15 @@ func main() {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return bbpr.FetchCompare(ref, f) }
 		remoteWhat = ref.String()
 	}
+	setADO := func(ref adopr.Ref) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return adopr.Fetch(ref, f) }
+		remoteWhat = ref.String()
+		remotePost = func(body string) (string, bool, error) { return adopr.PostComment(ref, body) }
+	}
+	setADOCmp := func(ref adopr.CmpRef) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return adopr.FetchCompare(ref, f) }
+		remoteWhat = ref.String()
+	}
 	setGT := func(ref gtpr.Ref) {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return gtpr.Fetch(ref, f) }
 		remoteWhat = ref.String()
@@ -238,6 +253,8 @@ func main() {
 		}
 		if ref, ok := bbpr.Parse(args[1]); ok {
 			setBB(ref)
+		} else if ref, ok := adopr.Parse(args[1]); ok {
+			setADO(ref)
 		} else if ref, ok := ghpr.Parse(args[1]); ok {
 			setPR(ref)
 		} else if ref, ok := glmr.ParseMR(args[1]); ok {
@@ -245,7 +262,7 @@ func main() {
 		} else if ref, ok := gtpr.Parse(args[1]); ok {
 			setGT(ref)
 		} else {
-			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab/Bitbucket/Gitea url)", args[1]))
+			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab/Bitbucket/Gitea/Azure DevOps url)", args[1]))
 		}
 	case len(args) > 0 && args[0] == "compare":
 		switch len(args) {
@@ -268,12 +285,18 @@ func main() {
 				ref, err := bbpr.ResolveCommit(w, r, sha)
 				check(err)
 				setBBCmp(ref)
+			} else if ref, ok := adopr.ParseCompare(args[1]); ok {
+				setADOCmp(ref)
+			} else if inst, proj, repo, sha, ok := adopr.ParseCommit(args[1]); ok {
+				ref, err := adopr.ResolveCommit(inst, proj, repo, sha)
+				check(err)
+				setADOCmp(ref)
 			} else if ref, ok := gtpr.ParseCommit(args[1]); ok {
 				setGTCommit(ref)
 			} else if ref, ok := gtpr.ParseCompare(args[1]); ok {
 				setGTCmp(ref)
 			} else {
-				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket/Gitea compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
+				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab/Bitbucket/Gitea/Azure DevOps compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
 			}
 		case 3: // lockvet compare owner/repo base...head
 			owner, repo, okRepo := strings.Cut(args[1], "/")
@@ -304,6 +327,18 @@ func main() {
 			ref, err := bbpr.ResolveCommit(w, r, sha)
 			check(err)
 			setBBCmp(ref)
+		}
+	case len(args) == 1 && strings.Contains(args[0], "/_git/"):
+		// Azure DevOps web URLs (dev.azure.com, *.visualstudio.com, or
+		// self-hosted Server) all put /_git/ before the repository name.
+		if ref, ok := adopr.Parse(args[0]); ok {
+			setADO(ref)
+		} else if ref, ok := adopr.ParseCompare(args[0]); ok {
+			setADOCmp(ref)
+		} else if inst, proj, repo, sha, ok := adopr.ParseCommit(args[0]); ok {
+			ref, err := adopr.ResolveCommit(inst, proj, repo, sha)
+			check(err)
+			setADOCmp(ref)
 		}
 	case len(args) == 1 && strings.Contains(args[0], "/-/"):
 		// GitLab web URLs (gitlab.com or self-hosted) all use the /-/
@@ -587,6 +622,9 @@ func splitQueueScope(scope string) (host, rest string) {
 // project URL/path (host-qualified, e.g. gitlab.com/gitlab-org).
 func runQueue(scope string, o queueOpts) {
 	host, rest := splitQueueScope(scope)
+	if strings.EqualFold(host, "dev.azure.com") || strings.HasSuffix(strings.ToLower(host), ".visualstudio.com") {
+		fatal("`lockvet queue` doesn't support Azure DevOps yet — vet PRs one at a time: lockvet pr <PR url>")
+	}
 	forge := "github"
 	if host != "" && host != "github.com" {
 		if gtpr.IsGiteaHost(host) {

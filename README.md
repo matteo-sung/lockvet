@@ -33,8 +33,8 @@ what really happened:
 - **on any PR, MR, compare, or commit — without cloning** — `lockvet pr
   owner/repo#123`, `lockvet mr group/project!123`, `lockvet compare
   owner/repo v1...v2`, or just paste a GitHub / GitLab / Bitbucket /
-  Gitea / Codeberg URL (self-hosted GitLab, Gitea & Forgejo included):
-  it vets straight from the API
+  Gitea / Codeberg / Azure DevOps URL (self-hosted GitLab, Gitea, Forgejo
+  & Azure DevOps Server included): it vets straight from the API
 - **your whole Dependabot queue at once** — `lockvet queue <org>` triages
   every open Dependabot/Renovate PR of a repo, user, or org — GitHub,
   GitLab, or Gitea/Forgejo — into one table: which introduce
@@ -147,7 +147,7 @@ Run it inside any git repository. `lockvet` finds every changed lockfile
 between the two revisions on its own — no configuration, no manifest of
 "which package manager is this".
 
-### Vet any GitHub, GitLab, Bitbucket, Gitea, or Codeberg PR — no clone needed
+### Vet any GitHub, GitLab, Bitbucket, Gitea, or Azure DevOps PR — no clone needed
 
 Point `lockvet` at a pull request and it fetches both sides of every
 changed lockfile through the GitHub API:
@@ -208,8 +208,21 @@ Fork PRs work, `-comment` posts/updates the report on the PR
 (`GITEA_TOKEN`, `FORGEJO_TOKEN`, or `CODEBERG_TOKEN`); public repos need
 no auth.
 
+**Azure DevOps pull requests** — dev.azure.com, `*.visualstudio.com`, or
+self-hosted Azure DevOps Server — paste the URL:
+
+```sh
+lockvet https://dev.azure.com/org/Project/_git/repo/pullrequest/128
+```
+
+Public projects need no auth; private ones use `AZURE_DEVOPS_TOKEN` (a
+personal access token with **Code: Read**) or, inside Azure Pipelines,
+`SYSTEM_ACCESSTOKEN`. `-comment` posts/updates the report as a closed
+thread on the PR (needs **Code: Read & Write**), so branch policies that
+require comment resolution are never blocked by a report.
+
 The same works for **any two revisions** of a GitHub, GitLab, Bitbucket,
-or Gitea/Forgejo repo —
+Gitea/Forgejo, or Azure DevOps repo —
 e.g. "what changed dependency-wise between two releases?" — or a
 **single commit**:
 
@@ -220,6 +233,8 @@ lockvet https://github.com/npm/cli/commit/f055ce68          # one commit
 lockvet https://gitlab.com/veloren/veloren/-/compare/v0.17.0...v0.18.0
 lockvet https://bitbucket.org/atlassian/aui/commits/8c4205a86de7
 lockvet https://codeberg.org/forgejo/forgejo/compare/v11.0.0...v11.0.1
+lockvet "https://dev.azure.com/org/Proj/_git/repo/branchCompare?baseVersion=GBmain&targetVersion=GBnext"
+lockvet https://dev.azure.com/org/Proj/_git/repo/commit/da22be91c073
 ```
 
 Compare URLs (including fork syntax like `main...user:branch`) and commit
@@ -429,6 +444,30 @@ For `-comment`, set a `BITBUCKET_TOKEN` repository variable (a repository
 access token with *pull request: write* scope). Without it, drop `-comment`
 and the report lands in the pipeline log.
 
+On Azure DevOps, add a PR-triggered job that comments the report on the
+pull request:
+
+```yaml
+# azure-pipelines.yml
+jobs:
+  - job: lockvet
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    pool: { vmImage: ubuntu-latest }
+    container: ghcr.io/matteo-sung/lockvet:0.1.17
+    steps:
+      - checkout: none
+      - script: >
+          lockvet pr
+          "$(System.CollectionUri)$(System.TeamProject)/_git/$(Build.Repository.Name)/pullrequest/$(System.PullRequest.PullRequestId)"
+          -comment -fail-on vuln
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+```
+
+The build service account needs *Contribute to pull requests* on the repo
+for `-comment`; without it, drop `-comment` and the report lands in the
+job log.
+
 And on Codeberg (or any Gitea/Forgejo with Woodpecker CI):
 
 ```yaml
@@ -576,7 +615,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
-| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
+| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub, GitLab & Gitea) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|license`) + GitHub Action |
