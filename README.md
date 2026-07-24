@@ -95,7 +95,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.11 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.12 lockvet
 ```
 
 ## Usage
@@ -238,7 +238,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.1.11
+      - uses: matteo-sung/lockvet@v0.1.12
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
@@ -264,7 +264,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.1.11
+      - uses: matteo-sung/lockvet@v0.1.12
         with:
           sarif: 'true'
 ```
@@ -284,7 +284,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.1.11
+  image: ghcr.io/matteo-sung/lockvet:0.1.12
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -309,7 +309,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.1.11
+          image: ghcr.io/matteo-sung/lockvet:0.1.12
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -327,7 +327,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.1.11
+    image: ghcr.io/matteo-sung/lockvet:0.1.12
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -345,7 +345,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.1.11
+    rev: v0.1.12
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
