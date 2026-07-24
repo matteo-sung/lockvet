@@ -223,19 +223,7 @@ lockvet queue mastodon/mastodon        # one repo
 lockvet queue grafana                  # a whole org (or user)
 ```
 
-```text
-open dependency PRs — repo:mastodon/mastodon · dependabot + renovate
-
-    PR      CHANGES  MAJOR    VULNS  FRESH  DEPR  TITLE
-  ! #37774  16       8      ·        ·      ·     Update eslint monorepo to v10
-  ! #39883  49       3      +0/−1    8      ·     Update dependency @unhead/react to v3.2.3
-  ! #39797  40       1      ·        13     ·     Update eslint (non-major)
-  ✓ #39937  2        ·      ·        ·      ·     Update dependency annotaterb to v4.24.0
-  – #39944  no lockfile changes — Update dependency msw-storybook-addon to v3
-
-11 open PRs · 3 need a look (major/downgrade/fresh <7d/deprecated) · 7 look routine · 1 without lockfile changes
-full report for any of them:  lockvet pr <owner/repo#N>
-```
+![lockvet queue triaging every open Renovate PR on mastodon/mastodon](docs/queue-demo.gif)
 
 Every count comes from actually diffing each PR's lockfiles (one OSV /
 deps.dev batch for the lot, so an org-wide queue takes seconds). `-md`
