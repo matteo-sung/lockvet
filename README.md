@@ -229,7 +229,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.1.9
+      - uses: matteo-sung/lockvet@v0.1.10
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
@@ -311,7 +311,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.1.9
+    rev: v0.1.10
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
