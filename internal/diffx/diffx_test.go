@@ -213,3 +213,21 @@ func TestFilter(t *testing.T) {
 		t.Errorf("'.' must be literal, got %v", names(got))
 	}
 }
+
+func TestMaxDeltaMultiVersion(t *testing.T) {
+	cases := []struct {
+		o, n []string
+		want vers.Level
+	}{
+		{[]string{"10.1.0", "11.3.5"}, []string{"10.1.0", "11.3.6"}, vers.Patch},
+		{[]string{"1.0.0", "5.0.0"}, []string{"1.0.1", "5.1.0"}, vers.Minor},
+		{[]string{"1.0.0"}, []string{"1.0.0", "2.0.0"}, vers.Major},
+		{[]string{"1.0.0", "2.0.0"}, []string{"2.0.0"}, vers.Major},
+		{[]string{"3.1.0", "4.0.0"}, []string{"3.2.0", "4.0.0"}, vers.Minor},
+	}
+	for _, c := range cases {
+		if got := maxDelta(c.o, c.n); got != c.want {
+			t.Errorf("maxDelta(%v, %v) = %v, want %v", c.o, c.n, got, c.want)
+		}
+	}
+}

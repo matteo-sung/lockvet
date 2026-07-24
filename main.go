@@ -15,6 +15,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
+	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -48,9 +49,13 @@ USAGE
   lockvet <github PR url>             needed (e.g. a Dependabot PR). Uses
                                       GITHUB_TOKEN / gh auth if available.
 
-  lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub
-  lockvet <github compare url>        repo, or a single commit, without
-  lockvet <github commit url>         cloning (e.g. between two releases).
+  lockvet mr <group>/<project>!<n>    vet a GitLab merge request (gitlab.com
+  lockvet <gitlab MR url>             or self-hosted; e.g. a Renovate MR).
+                                      Uses GITLAB_TOKEN / CI_JOB_TOKEN.
+
+  lockvet compare <o>/<r> <a>...<b>   vet any two revisions of a GitHub or
+  lockvet <compare url>               GitLab repo, or a single commit,
+  lockvet <commit url>                without cloning (e.g. two releases).
 
 FLAGS
   -md            markdown output (for PR comments)
@@ -119,16 +124,26 @@ func main() {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return ghpr.FetchCompare(ref, f) }
 		remoteWhat = ref.String()
 	}
+	setMR := func(ref glmr.Ref) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return glmr.Fetch(ref, f) }
+		remoteWhat = ref.String()
+	}
+	setGLCmp := func(ref glmr.CmpRef) {
+		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return glmr.FetchCompare(ref, f) }
+		remoteWhat = ref.String()
+	}
 	switch {
-	case len(args) > 0 && args[0] == "pr":
+	case len(args) > 0 && (args[0] == "pr" || args[0] == "mr"):
 		if len(args) != 2 {
-			fatal("usage: lockvet pr <owner/repo#N | github PR url>")
+			fatal("usage: lockvet " + args[0] + " <owner/repo#N | group/project!N | PR or MR url>")
 		}
-		ref, ok := ghpr.Parse(args[1])
-		if !ok {
-			fatal(fmt.Sprintf("cannot parse %q as a pull request (want owner/repo#N or a github.com PR url)", args[1]))
+		if ref, ok := ghpr.Parse(args[1]); ok {
+			setPR(ref)
+		} else if ref, ok := glmr.ParseMR(args[1]); ok {
+			setMR(ref)
+		} else {
+			fatal(fmt.Sprintf("cannot parse %q as a pull/merge request (want owner/repo#N, group/project!N, or a GitHub/GitLab url)", args[1]))
 		}
-		setPR(ref)
 	case len(args) > 0 && args[0] == "compare":
 		switch len(args) {
 		case 2: // lockvet compare <compare-or-commit url>
@@ -138,8 +153,14 @@ func main() {
 				ref, err := ghpr.ResolveCommit(o, r, sha)
 				check(err)
 				setCmp(ref)
+			} else if ref, ok := glmr.ParseCompare(args[1]); ok {
+				setGLCmp(ref)
+			} else if h, p, sha, ok := glmr.ParseCommit(args[1]); ok {
+				ref, err := glmr.ResolveCommit(h, p, sha)
+				check(err)
+				setGLCmp(ref)
 			} else {
-				fatal(fmt.Sprintf("cannot parse %q (want a github.com compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
+				fatal(fmt.Sprintf("cannot parse %q (want a GitHub/GitLab compare/commit url, or: lockvet compare owner/repo base...head)", args[1]))
 			}
 		case 3: // lockvet compare owner/repo base...head
 			owner, repo, okRepo := strings.Cut(args[1], "/")
@@ -160,6 +181,18 @@ func main() {
 			ref, err := ghpr.ResolveCommit(o, r, sha)
 			check(err)
 			setCmp(ref)
+		}
+	case len(args) == 1 && strings.Contains(args[0], "/-/"):
+		// GitLab web URLs (gitlab.com or self-hosted) all use the /-/
+		// separator: .../-/merge_requests/N, /-/compare/a...b, /-/commit/sha.
+		if ref, ok := glmr.ParseMR(args[0]); ok {
+			setMR(ref)
+		} else if ref, ok := glmr.ParseCompare(args[0]); ok {
+			setGLCmp(ref)
+		} else if h, p, sha, ok := glmr.ParseCommit(args[0]); ok {
+			ref, err := glmr.ResolveCommit(h, p, sha)
+			check(err)
+			setGLCmp(ref)
 		}
 	}
 

@@ -155,16 +155,67 @@ func kindRank(k Kind) int {
 	return 5
 }
 
+// maxDelta classifies a multi-version change (a package vendored at several
+// versions at once, e.g. fs-extra 10.x + 11.x in one npm tree). Versions
+// present on both sides are unchanged and must not influence the level:
+// {10.1.0, 11.3.5} → {10.1.0, 11.3.6} is a patch, not a major. The remaining
+// versions are sorted and paired positionally (clamped), and the largest
+// paired delta wins.
 func maxDelta(o, n []string) vers.Level {
+	ro, rn := trimCommon(o, n)
+	if len(ro) == 0 {
+		ro = append([]string(nil), o...) // copies only added: vs nearest kept
+	}
+	if len(rn) == 0 {
+		rn = append([]string(nil), n...) // copies only removed
+	}
+	if len(ro) == 0 || len(rn) == 0 {
+		return vers.None
+	}
+	sort.Slice(ro, func(i, j int) bool { return vers.Compare(ro[i], ro[j]) < 0 })
+	sort.Slice(rn, func(i, j int) bool { return vers.Compare(rn[i], rn[j]) < 0 })
 	max := vers.None
-	for _, ov := range o {
-		for _, nv := range n {
-			if d := vers.Delta(ov, nv); d != vers.Unknown && d > max {
-				max = d
-			}
+	steps := len(ro)
+	if len(rn) > steps {
+		steps = len(rn)
+	}
+	for i := 0; i < steps; i++ {
+		ov := ro[clamp(i, len(ro))]
+		nv := rn[clamp(i, len(rn))]
+		if d := vers.Delta(ov, nv); d != vers.Unknown && d > max {
+			max = d
 		}
 	}
 	return max
+}
+
+func clamp(i, n int) int {
+	if i >= n {
+		return n - 1
+	}
+	return i
+}
+
+// trimCommon removes the multiset intersection from both version lists.
+func trimCommon(o, n []string) (ro, rn []string) {
+	count := map[string]int{}
+	for _, v := range o {
+		count[v]++
+	}
+	for _, v := range n {
+		if count[v] > 0 {
+			count[v]--
+		} else {
+			rn = append(rn, v)
+		}
+	}
+	for _, v := range o {
+		if count[v] > 0 {
+			count[v]--
+			ro = append(ro, v)
+		}
+	}
+	return ro, rn
 }
 
 func equal(a, b []string) bool {

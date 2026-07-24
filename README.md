@@ -24,9 +24,10 @@ what really happened:
   on anything published in the last 7 days (most hijacked releases are caught
   within days — a cooldown is cheap insurance), plus upstream deprecation
   notices (via [deps.dev](https://deps.dev))
-- **on any PR, compare, or commit — without cloning** — `lockvet pr
-  owner/repo#123`, `lockvet compare owner/repo v1...v2`, or just paste a
-  GitHub PR / compare / commit URL: it vets straight from the API
+- **on any PR, MR, compare, or commit — without cloning** — `lockvet pr
+  owner/repo#123`, `lockvet mr group/project!123`, `lockvet compare
+  owner/repo v1...v2`, or just paste a GitHub / GitLab URL (self-hosted
+  GitLab included): it vets straight from the API
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -111,7 +112,7 @@ Run it inside any git repository. `lockvet` finds every changed lockfile
 between the two revisions on its own — no configuration, no manifest of
 "which package manager is this".
 
-### Vet any GitHub PR — no clone needed
+### Vet any GitHub PR or GitLab MR — no clone needed
 
 Point `lockvet` at a pull request and it fetches both sides of every
 changed lockfile through the GitHub API:
@@ -127,13 +128,28 @@ apply. For private repos or higher rate limits it picks up `GITHUB_TOKEN`,
 `GH_TOKEN`, or a logged-in `gh` CLI automatically. Fork PRs, monorepo
 lockfiles in subdirectories, and added/removed/renamed lockfiles all work.
 
-The same works for **any two revisions** of a GitHub repo — e.g. "what
-changed dependency-wise between two releases?" — or a **single commit**:
+**GitLab merge requests** work the same way — on gitlab.com or any
+self-hosted instance (the host comes straight from the URL):
+
+```sh
+lockvet mr gitlab-org/gitlab!245360              # group/project!iid
+lockvet https://gitlab.com/gitlab-org/gitlab/-/merge_requests/245360
+lockvet https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/4232
+```
+
+Fork MRs and subgroups are fine. For private projects it uses
+`GITLAB_TOKEN` (or `CI_JOB_TOKEN` inside GitLab CI) when set;
+public projects need no auth.
+
+The same works for **any two revisions** of a GitHub or GitLab repo —
+e.g. "what changed dependency-wise between two releases?" — or a
+**single commit**:
 
 ```sh
 lockvet compare sharkdp/fd v10.1.0...v10.2.0                # two releases
 lockvet https://github.com/sharkdp/fd/compare/v10.1.0...v10.2.0
 lockvet https://github.com/npm/cli/commit/f055ce68          # one commit
+lockvet https://gitlab.com/veloren/veloren/-/compare/v0.17.0...v0.18.0
 ```
 
 Compare URLs (including fork syntax like `main...user:branch`) and commit
@@ -181,7 +197,9 @@ jobs:
 ```
 
 On GitLab (or any other CI), the single binary works the same way — compare
-the MR against its target branch and gate on whatever you care about:
+the MR against its target branch and gate on whatever you care about
+(or, on public projects, skip the fetch entirely with
+`lockvet "$CI_MERGE_REQUEST_PROJECT_URL/-/merge_requests/$CI_MERGE_REQUEST_IID"`):
 
 ```yaml
 # .gitlab-ci.yml
@@ -292,6 +310,7 @@ queries (package names + versions). `-offline` disables both; `-no-vulns` /
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
+| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab, self-hosted incl.) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown |
 | Changelogs / release notes for updates | ✗ | ✓ | ✗ |
