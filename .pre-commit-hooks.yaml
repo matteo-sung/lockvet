@@ -1,0 +1,30 @@
+# pre-commit hook definitions for lockvet — https://pre-commit.com
+#
+# lockvet's default mode compares the working tree against HEAD, which during
+# a pre-commit run is exactly "what this commit changes". The hook only fires
+# when a lockfile is part of the commit.
+#
+# Example .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/matteo-sung/lockvet
+#       rev: v0.1.2
+#       hooks:
+#         - id: lockvet
+#           # optional: block the commit instead of just explaining it
+#           # args: [-fail-on, "vuln,fresh"]
+#           # optional: skip network lookups (vulns/ages/deprecations)
+#           # args: [-offline]
+- id: lockvet
+  name: lockvet — explain lockfile changes
+  description: >-
+    Explains what a lockfile change really does: every bump classified
+    major/minor/patch, direct vs transitive origin, vulnerabilities introduced
+    and fixed (OSV.dev), release ages and deprecations (deps.dev). Add
+    "args: [-fail-on, vuln]" to block risky commits instead of just reporting.
+  entry: lockvet
+  language: golang
+  pass_filenames: false
+  verbose: true
+  files: >-
+    (^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|requirements\.txt|go\.mod|composer\.lock|Gemfile\.lock|Pipfile\.lock|mix\.lock|pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|Podfile\.lock|deno\.lock|flake\.lock)$
