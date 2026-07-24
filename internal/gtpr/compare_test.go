@@ -21,8 +21,8 @@ func TestParseCompare(t *testing.T) {
 		{"https://codeberg.org/o/r/compare/v1...v2.diff", true, "codeberg.org", "v1", "v2"},
 		{"https://codeberg.org/o/r/compare/v1...v2.patch?foo=1#bar", true, "codeberg.org", "v1", "v2"},
 		{"https://codeberg.org/release/notes/compare/v10.0/forgejo...v11.0/forgejo", true, "codeberg.org", "v10.0/forgejo", "v11.0/forgejo"},
-		{"https://github.com/o/r/compare/a...b", false, "", "", ""},   // GitHub path handles it
-		{"https://gitlab.com/o/r/compare/a...b", false, "", "", ""},   // foreign host
+		{"https://github.com/o/r/compare/a...b", false, "", "", ""}, // GitHub path handles it
+		{"https://gitlab.com/o/r/compare/a...b", false, "", "", ""}, // foreign host
 		{"https://codeberg.org/o/r/compare/onlyoneref", false, "", "", ""},
 		{"https://codeberg.org/o/r/pulls/5", false, "", "", ""},
 	}
