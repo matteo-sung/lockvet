@@ -62,6 +62,14 @@ package-lock.json (npm)
 
 ## Install
 
+Homebrew (macOS / Linux):
+
+```sh
+brew install matteo-sung/tap/lockvet
+```
+
+Go:
+
 ```sh
 go install github.com/matteo-sung/lockvet@latest
 ```
