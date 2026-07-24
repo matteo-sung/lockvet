@@ -96,22 +96,23 @@ func dot(s styler, n int, paint func(string) string) string {
 	return str
 }
 
-// QueueTerminal renders the queue overview table.
-func QueueTerminal(w io.Writer, heading string, rows []QueueRow, color, vulnsChecked, metaChecked bool, freshDays int) {
+// QueueTerminal renders the queue overview table. noun is "PR" or "MR",
+// matching the forge the queue came from.
+func QueueTerminal(w io.Writer, heading, noun string, rows []QueueRow, color, vulnsChecked, metaChecked bool, freshDays int) {
 	s := styler{on: color}
 	fmt.Fprintf(w, "\n%s\n\n", s.bold(heading))
 	if len(rows) == 0 {
-		fmt.Fprintf(w, "  %s\n\n", s.dim("no open dependency PRs found"))
+		fmt.Fprintf(w, "  %s\n\n", s.dim("no open dependency "+noun+"s found"))
 		return
 	}
 
-	labelW := len("PR")
+	labelW := len(noun)
 	for _, r := range rows {
 		labelW = max(labelW, len(r.Label))
 	}
 
 	head := fmt.Sprintf("    %s  %7s  %5s  %7s  %5s  %4s  %s",
-		pad("PR", labelW), "CHANGES", "MAJOR", "VULNS", "FRESH", "DEPR", "TITLE")
+		pad(noun, labelW), "CHANGES", "MAJOR", "VULNS", "FRESH", "DEPR", "TITLE")
 	fmt.Fprintln(w, s.dim(head))
 
 	for _, r := range rows {
@@ -162,8 +163,12 @@ func QueueTerminal(w io.Writer, heading string, rows []QueueRow, color, vulnsChe
 			truncate(r.Title, 60))
 	}
 
-	fmt.Fprintf(w, "\n%s\n", queueSummary(s, rows, vulnsChecked, metaChecked, freshDays))
-	fmt.Fprintf(w, "%s\n", s.dim("full report for any of them:  lockvet pr <owner/repo#N>"))
+	fmt.Fprintf(w, "\n%s\n", queueSummary(s, noun, rows, vulnsChecked, metaChecked, freshDays))
+	hint := "full report for any of them:  lockvet pr <owner/repo#N>"
+	if noun == "MR" {
+		hint = "full report for any of them:  lockvet mr <group/project!N>"
+	}
+	fmt.Fprintf(w, "%s\n", s.dim(hint))
 }
 
 // padANSI right-pads to width w counting visible runes only (the cell may
@@ -193,7 +198,7 @@ func visibleWidth(str string) int {
 	return n
 }
 
-func queueSummary(s styler, rows []QueueRow, vulnsChecked, metaChecked bool, freshDays int) string {
+func queueSummary(s styler, noun string, rows []QueueRow, vulnsChecked, metaChecked bool, freshDays int) string {
 	var vuln, look, routine, none, errs int
 	for _, r := range rows {
 		switch r.verdict() {
@@ -209,7 +214,7 @@ func queueSummary(s styler, rows []QueueRow, vulnsChecked, metaChecked bool, fre
 			errs++
 		}
 	}
-	parts := []string{fmt.Sprintf("%s", plural(len(rows), "open PR"))}
+	parts := []string{fmt.Sprintf("%s", plural(len(rows), "open "+noun))}
 	if vuln > 0 {
 		parts = append(parts, s.bred(fmt.Sprintf("%d introduce vulnerabilities", vuln)))
 	}
@@ -238,13 +243,13 @@ func queueSummary(s styler, rows []QueueRow, vulnsChecked, metaChecked bool, fre
 
 // QueueMarkdown renders the queue overview as a markdown table (for pasting
 // into a triage issue or posting from CI).
-func QueueMarkdown(w io.Writer, heading string, rows []QueueRow, vulnsChecked, metaChecked bool, freshDays int) {
+func QueueMarkdown(w io.Writer, heading, noun string, rows []QueueRow, vulnsChecked, metaChecked bool, freshDays int) {
 	fmt.Fprintf(w, "### 🔍 lockvet queue — %s\n\n", heading)
 	if len(rows) == 0 {
-		fmt.Fprintf(w, "_no open dependency PRs found_\n")
+		fmt.Fprintf(w, "_no open dependency %ss found_\n", noun)
 		return
 	}
-	fmt.Fprintln(w, "|  | PR | title | changes | major | vulns +/− | fresh | deprecated |")
+	fmt.Fprintf(w, "|  | %s | title | changes | major | vulns +/− | fresh | deprecated |\n", noun)
 	fmt.Fprintln(w, "|---|---|---|---:|---:|---:|---:|---:|")
 	for _, r := range rows {
 		mark := "✅"
@@ -282,10 +287,10 @@ func QueueMarkdown(w io.Writer, heading string, rows []QueueRow, vulnsChecked, m
 			mark, link, esc(truncate(r.Title, 60)), r.Sum.Total,
 			mdCell(r.Sum.Major), vulns, mdCell(r.Sum.Fresh), mdCell(r.Sum.Deprecated))
 	}
-	fmt.Fprintf(w, "\n%s\n", mdQueueFooter(rows, vulnsChecked, metaChecked, freshDays))
+	fmt.Fprintf(w, "\n%s\n", mdQueueFooter(noun, rows, vulnsChecked, metaChecked, freshDays))
 }
 
-func mdQueueFooter(rows []QueueRow, vulnsChecked, metaChecked bool, freshDays int) string {
+func mdQueueFooter(noun string, rows []QueueRow, vulnsChecked, metaChecked bool, freshDays int) string {
 	s := styler{on: false}
-	return "**" + queueSummary(s, rows, vulnsChecked, metaChecked, freshDays) + "**"
+	return "**" + queueSummary(s, noun, rows, vulnsChecked, metaChecked, freshDays) + "**"
 }

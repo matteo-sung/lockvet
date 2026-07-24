@@ -35,9 +35,9 @@ what really happened:
   Gitea / Codeberg URL (self-hosted GitLab, Gitea & Forgejo included):
   it vets straight from the API
 - **your whole Dependabot queue at once** — `lockvet queue <org>` triages
-  every open Dependabot/Renovate PR of a repo, user, or org into one table:
-  which introduce vulnerabilities, which are major or brand-new bumps, and
-  which look routine
+  every open Dependabot/Renovate PR of a repo, user, or org — GitHub or
+  GitLab — into one table: which introduce vulnerabilities, which are major
+  or brand-new bumps, and which look routine
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -99,7 +99,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.13 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.14 lockvet
 ```
 
 ## Usage
@@ -123,6 +123,7 @@ lockvet -only jiff         # one package's story: jiff itself plus everything
 
 lockvet queue myorg           # triage EVERY open Dependabot/Renovate PR
 lockvet queue owner/repo      # of an org, user, or single repo (see below)
+lockvet queue gitlab.com/grp  # same for a GitLab group or project
 
 lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
@@ -237,6 +238,18 @@ By default it searches for PRs by `app/dependabot` and `app/renovate`;
 `gh` auth when available — recommended above ~5 PRs to stay inside API
 rate limits.
 
+**GitLab queues work too** — point it at a group or project URL
+(gitlab.com or self-hosted; subgroup projects are included):
+
+```sh
+lockvet queue gitlab.com/gitlab-org/gitlab -author gitlab-dependency-update-bot
+lockvet queue https://gitlab.example.com/platform     # a whole group
+```
+
+GitLab bot usernames vary per instance (there is no canonical Renovate
+app user), so the default search — `renovate-bot`, `dependabot` — often
+needs `-author <your bot's username>`. Uses `GITLAB_TOKEN` when set.
+
 ## In CI (review Dependabot/Renovate PRs automatically)
 
 `lockvet` posts a summary comment on any PR that touches a lockfile —
@@ -271,7 +284,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.1.13
+      - uses: matteo-sung/lockvet@v0.1.14
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
@@ -297,7 +310,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.1.13
+      - uses: matteo-sung/lockvet@v0.1.14
         with:
           sarif: 'true'
 ```
@@ -317,7 +330,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.1.13
+  image: ghcr.io/matteo-sung/lockvet:0.1.14
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -342,7 +355,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.1.13
+          image: ghcr.io/matteo-sung/lockvet:0.1.14
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -360,7 +373,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.1.13
+    image: ghcr.io/matteo-sung/lockvet:0.1.14
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -378,7 +391,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.1.13
+    rev: v0.1.14
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -471,7 +484,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
-| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`) |
+| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub & GitLab) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |

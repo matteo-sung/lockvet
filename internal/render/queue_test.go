@@ -35,7 +35,7 @@ func TestQueueTerminal(t *testing.T) {
 		{Label: "#3", Title: "broken", Err: "GitHub API: 404"},
 	}
 	var b strings.Builder
-	QueueTerminal(&b, "open dependency PRs — repo:o/r", rows, false, true, true, 7)
+	QueueTerminal(&b, "open dependency PRs — repo:o/r", "PR", rows, false, true, true, 7)
 	out := b.String()
 	for _, want := range []string{
 		"open dependency PRs — repo:o/r",
@@ -57,7 +57,7 @@ func TestQueueMarkdown(t *testing.T) {
 		{Label: "agent#7", URL: "https://github.com/o/agent/pull/7", Title: "bump | pipe", Sum: diffx.Summary{Total: 2, Fresh: 1}},
 	}
 	var b strings.Builder
-	QueueMarkdown(&b, "open dependency PRs — org:o", rows, true, true, 7)
+	QueueMarkdown(&b, "open dependency PRs — org:o", "PR", rows, true, true, 7)
 	out := b.String()
 	for _, want := range []string{
 		"### 🔍 lockvet queue — open dependency PRs — org:o",

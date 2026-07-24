@@ -121,9 +121,15 @@ func ParseCommit(s string) (host, project, sha string, ok bool) {
 
 type client struct {
 	http     *http.Client
+	host     string // e.g. "gitlab.com"
 	base     string // e.g. "https://gitlab.com/api/v4/"
 	token    string // personal / project access token → PRIVATE-TOKEN
 	jobToken string // GitLab CI job token → JOB-TOKEN
+}
+
+// HasToken reports whether a GitLab token is available in the environment.
+func HasToken() bool {
+	return firstEnv("GITLAB_TOKEN", "GL_TOKEN", "CI_JOB_TOKEN") != ""
 }
 
 func newClient(host string) *client {
@@ -132,6 +138,7 @@ func newClient(host string) *client {
 	}
 	return &client{
 		http:     &http.Client{Timeout: 30 * time.Second},
+		host:     host,
 		base:     "https://" + host + "/api/v4/",
 		token:    firstEnv("GITLAB_TOKEN", "GL_TOKEN"),
 		jobToken: os.Getenv("CI_JOB_TOKEN"),

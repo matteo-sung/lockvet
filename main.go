@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
@@ -70,6 +71,12 @@ USAGE
                                       vulnerabilities, which are major or
                                       brand-new bumps, which look routine.
 
+  lockvet queue <gitlab group url>    same for a GitLab group or project
+  lockvet queue <gitlab project url>  (gitlab.com or self-hosted), e.g.
+                                      lockvet queue gitlab.com/gitlab-org.
+                                      Bot usernames vary on GitLab — pass
+                                      -author <username> for custom bots.
+
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
@@ -93,9 +100,10 @@ FLAGS
                  "fresh", or "deprecated"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
   -author LIST   (queue mode) bot accounts to search for, comma list
-                 (default "app/dependabot,app/renovate"; "any" = every
-                 open PR that touches a lockfile)
-  -limit N       (queue mode) vet at most N pull requests (default 30)
+                 (GitHub default "app/dependabot,app/renovate"; GitLab
+                 default "renovate-bot,dependabot"; "any" = every open
+                 PR/MR that touches a lockfile)
+  -limit N       (queue mode) vet at most N pull/merge requests (default 30)
   -C dir         run as if started in dir
   -no-color      disable colors (also respects NO_COLOR)
   -version       print version
@@ -189,7 +197,7 @@ func main() {
 	switch {
 	case len(args) > 0 && args[0] == "queue":
 		if len(args) != 2 {
-			fatal("usage: lockvet queue <owner | owner/repo>   (e.g. lockvet queue grafana)")
+			fatal("usage: lockvet queue <owner | owner/repo | gitlab group/project URL>   (e.g. lockvet queue grafana)")
 		}
 		if *comment {
 			fatal("-comment is not available in queue mode — it needs a single PR (lockvet pr … -comment)")
@@ -493,11 +501,44 @@ type queueOpts struct {
 	noColor         bool
 }
 
-// runQueue implements `lockvet queue <owner|owner/repo>`: find every open
-// dependency-update PR in scope, vet each one, and print a triage table.
+// queueEntry is one open PR/MR to vet, forge-agnostic.
+type queueEntry struct {
+	refStr  string // canonical reference for JSON ("owner/repo#12", "group/proj!34")
+	label   string // short label for the table ("#12", "repo#12", "proj!34")
+	title   string
+	author  string
+	url     string
+	updated time.Time
+	fetch   func(isLockfile func(string) bool) (*ghpr.Result, error)
+}
+
+// splitQueueScope recognises a host-qualified queue scope like
+// "https://gitlab.example.com/group/project" or "gitlab.com/group". A first
+// path segment containing a dot is a host (GitHub owner names can't contain
+// dots); anything else is a plain GitHub owner[/repo] scope.
+func splitQueueScope(scope string) (host, rest string) {
+	s := strings.TrimPrefix(strings.TrimPrefix(scope, "https://"), "http://")
+	s = strings.Trim(s, "/")
+	first, tail, found := strings.Cut(s, "/")
+	if h := strings.TrimSuffix(first, ":443"); found && strings.Contains(h, ".") {
+		return h, tail
+	}
+	return "", s
+}
+
+// runQueue implements `lockvet queue <scope>`: find every open
+// dependency-update PR/MR in scope, vet each one, and print a triage table.
+// Scope is a GitHub owner or owner/repo (default), or a GitLab group or
+// project URL/path (host-qualified, e.g. gitlab.com/gitlab-org).
 func runQueue(scope string, o queueOpts) {
-	authors := ghpr.DefaultQueueAuthors
-	authorLabel := "dependabot + renovate"
+	host, rest := splitQueueScope(scope)
+	gitlab := host != "" && host != "github.com"
+
+	defaultAuthors, defaultLabel := ghpr.DefaultQueueAuthors, "dependabot + renovate"
+	if gitlab {
+		defaultAuthors, defaultLabel = glmr.DefaultQueueAuthors, "renovate-bot + dependabot"
+	}
+	authors, authorLabel := defaultAuthors, defaultLabel
 	switch a := strings.TrimSpace(o.author); {
 	case a == "any" || a == "all" || a == "*":
 		authors, authorLabel = nil, "any author"
@@ -514,10 +555,54 @@ func runQueue(scope string, o queueOpts) {
 		o.limit = 30
 	}
 
-	items, qual, err := ghpr.ListQueue(scope, authors, o.limit)
-	check(err)
-	if len(items) > 5 && !ghpr.HasToken() {
-		fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated GitHub API — vetting %d PRs may hit the rate limit; set GITHUB_TOKEN\n", len(items))
+	var (
+		entries []queueEntry
+		qual    string
+		noun    = "PRs"
+	)
+	if gitlab {
+		noun = "MRs"
+		items, label, err := glmr.ListQueue(host, rest, authors, o.limit)
+		check(err)
+		qual = label
+		singleProject := strings.HasPrefix(label, "project:")
+		for _, it := range items {
+			it := it
+			lbl := it.Ref.Project + "!" + fmt.Sprint(it.Ref.IID)
+			if singleProject {
+				lbl = "!" + fmt.Sprint(it.Ref.IID)
+			} else if p, ok := strings.CutPrefix(it.Ref.Project, rest+"/"); ok {
+				lbl = p + "!" + fmt.Sprint(it.Ref.IID) // relative to the group
+			}
+			entries = append(entries, queueEntry{
+				refStr: it.Ref.String(), label: lbl,
+				title: it.Title, author: it.Author, url: it.URL, updated: it.Updated,
+				fetch: func(isLock func(string) bool) (*ghpr.Result, error) { return glmr.Fetch(it.Ref, isLock) },
+			})
+		}
+		if len(items) > 5 && !glmr.HasToken() {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated GitLab API — vetting %d MRs may hit the rate limit; set GITLAB_TOKEN\n", len(items))
+		}
+	} else {
+		items, label, err := ghpr.ListQueue(rest, authors, o.limit)
+		check(err)
+		qual = label
+		singleRepo := strings.Contains(rest, "/")
+		for _, it := range items {
+			it := it
+			lbl := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.Number)
+			if singleRepo {
+				lbl = fmt.Sprintf("#%d", it.Ref.Number)
+			}
+			entries = append(entries, queueEntry{
+				refStr: it.Ref.String(), label: lbl,
+				title: it.Title, author: it.Author, url: it.URL, updated: it.Updated,
+				fetch: func(isLock func(string) bool) (*ghpr.Result, error) { return ghpr.Fetch(it.Ref, isLock) },
+			})
+		}
+		if len(items) > 5 && !ghpr.HasToken() {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated GitHub API — vetting %d PRs may hit the rate limit; set GITHUB_TOKEN\n", len(items))
+		}
 	}
 
 	// Fetch and diff every PR (a few at a time).
@@ -525,16 +610,16 @@ func runQueue(scope string, o queueOpts) {
 		diffs []diffx.FileDiff
 		err   error
 	}
-	slots := make([]slot, len(items))
+	slots := make([]slot, len(entries))
 	sem := make(chan struct{}, 4)
 	var wg sync.WaitGroup
-	for i, it := range items {
+	for i, it := range entries {
 		wg.Add(1)
-		go func(i int, it ghpr.QueueItem) {
+		go func(i int, it queueEntry) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			res, err := ghpr.Fetch(it.Ref, func(p string) bool { return lock.ByBasename(p) != nil })
+			res, err := it.fetch(func(p string) bool { return lock.ByBasename(p) != nil })
 			if err != nil {
 				slots[i].err = err
 				return
@@ -560,7 +645,7 @@ func runQueue(scope string, o queueOpts) {
 	// Annotate all PRs' diffs in one pass (one OSV batch, one deps.dev
 	// batch — instead of one per PR).
 	var combined []diffx.FileDiff
-	spans := make([][2]int, len(items))
+	spans := make([][2]int, len(entries))
 	for i := range slots {
 		spans[i][0] = len(combined)
 		combined = append(combined, slots[i].diffs...)
@@ -595,17 +680,12 @@ func runQueue(scope string, o queueOpts) {
 	}
 
 	// Build, sort, and render the rows.
-	singleRepo := strings.Contains(scope, "/")
-	rows := make([]render.QueueRow, len(items))
+	rows := make([]render.QueueRow, len(entries))
 	failed := false
-	for i, it := range items {
+	for i, it := range entries {
 		diffs := combined[spans[i][0]:spans[i][1]]
-		label := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.Number)
-		if singleRepo {
-			label = fmt.Sprintf("#%d", it.Ref.Number)
-		}
 		rows[i] = render.QueueRow{
-			Label: label, URL: it.URL, Title: it.Title, Author: it.Author,
+			Label: it.label, URL: it.url, Title: it.title, Author: it.author,
 			Sum: diffx.Summarize(diffs), NoChanges: len(diffs) == 0,
 		}
 		if rows[i].NoChanges && o.only != "" {
@@ -620,7 +700,7 @@ func runQueue(scope string, o queueOpts) {
 	}
 	render.SortQueue(rows)
 
-	heading := fmt.Sprintf("open dependency PRs — %s · %s", qual, authorLabel)
+	heading := fmt.Sprintf("open dependency %s — %s · %s", noun, qual, authorLabel)
 	if o.only != "" {
 		heading += fmt.Sprintf(" · only %q", o.only)
 	}
@@ -644,19 +724,15 @@ func runQueue(scope string, o queueOpts) {
 			FreshDays    int       `json:"fresh_days"`
 			PRs          []jsonRow `json:"prs"`
 		}{Scope: qual, Authors: authors, VulnsChecked: vulnsChecked, MetaChecked: metaChecked, FreshDays: o.freshDays}
-		byLabel := map[string]ghpr.QueueItem{}
-		for _, it := range items {
-			l := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.Number)
-			if singleRepo {
-				l = fmt.Sprintf("#%d", it.Ref.Number)
-			}
-			byLabel[l] = it
+		byLabel := map[string]queueEntry{}
+		for _, it := range entries {
+			byLabel[it.label] = it
 		}
 		for _, r := range rows {
 			it := byLabel[r.Label]
 			out.PRs = append(out.PRs, jsonRow{
-				PR: it.Ref.String(), URL: r.URL, Title: r.Title, Author: r.Author,
-				UpdatedAt: it.Updated.Format("2006-01-02T15:04:05Z07:00"),
+				PR: it.refStr, URL: r.URL, Title: r.Title, Author: r.Author,
+				UpdatedAt: it.updated.Format("2006-01-02T15:04:05Z07:00"),
 				NoChanges: r.NoChanges, Error: r.Err, Summary: r.Sum,
 			})
 		}
@@ -664,10 +740,10 @@ func runQueue(scope string, o queueOpts) {
 		enc.SetIndent("", "  ")
 		check(enc.Encode(out))
 	case o.md:
-		render.QueueMarkdown(os.Stdout, heading, rows, vulnsChecked, metaChecked, o.freshDays)
+		render.QueueMarkdown(os.Stdout, heading, strings.TrimSuffix(noun, "s"), rows, vulnsChecked, metaChecked, o.freshDays)
 	default:
 		color := !o.noColor && os.Getenv("NO_COLOR") == "" && isTTY()
-		render.QueueTerminal(os.Stdout, heading, rows, color, vulnsChecked, metaChecked, o.freshDays)
+		render.QueueTerminal(os.Stdout, heading, strings.TrimSuffix(noun, "s"), rows, color, vulnsChecked, metaChecked, o.freshDays)
 	}
 
 	if failed {
