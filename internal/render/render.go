@@ -140,6 +140,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● deprecated upstream:"), s.dim(reason))
 			}
+			if c.LicenseChanged {
+				fmt.Fprintf(w, "      %s %s\n", s.yellow("● license change:"), s.dim(c.OldLicense+" → "+c.NewLicense))
+			}
 			for _, v := range c.IntroducedVulns {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ introduces "+v.ID+sev(v)), s.dim(v.Summary))
 			}
@@ -241,6 +244,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 		if sum.Deprecated > 0 {
 			out += " · " + s.yellow(fmt.Sprintf("%d deprecated", sum.Deprecated))
 		}
+		if sum.LicenseChanged > 0 {
+			out += " · " + s.yellow(fmt.Sprintf("%s changed", plural(sum.LicenseChanged, "license")))
+		}
 	}
 	return out
 }
@@ -275,13 +281,16 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	if vulnsChecked {
 		fmt.Fprintf(w, "\nVulnerabilities: **%d introduced**, %d fixed, %d unresolved (via [OSV.dev](https://osv.dev))\n", sum.VulnsIntroduced, sum.VulnsFixed, sum.VulnsExisting)
 	}
-	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0) {
+	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.LicenseChanged > 0) {
 		var bits []string
 		if sum.Fresh > 0 {
 			bits = append(bits, fmt.Sprintf("**%s published <%dd ago** ⏱", plural(sum.Fresh, "version"), freshDays))
 		}
 		if sum.Deprecated > 0 {
 			bits = append(bits, fmt.Sprintf("**%d deprecated**", sum.Deprecated))
+		}
+		if sum.LicenseChanged > 0 {
+			bits = append(bits, fmt.Sprintf("**%s changed** ⚖️", plural(sum.LicenseChanged, "license")))
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev))\n", strings.Join(bits, ", "))
 	}
@@ -348,6 +357,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				}
 				fmt.Fprintf(w, "| 🟠 | ↳ deprecated upstream | | | %s |%s\n", reason, padCell)
 			}
+			if c.LicenseChanged {
+				fmt.Fprintf(w, "| ⚖️ | ↳ license change | | | %s |%s\n", esc(c.OldLicense+" → "+c.NewLicense), padCell)
+			}
 			for _, v := range c.IntroducedVulns {
 				fmt.Fprintf(w, "| ⚠️ | ↳ introduces [%s](%s)%s | | | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
 			}
@@ -369,7 +381,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 
 func openAttr(fd diffx.FileDiff) string {
 	for _, c := range fd.Changes {
-		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated {
+		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged {
 			return " open"
 		}
 	}

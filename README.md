@@ -22,8 +22,9 @@ what really happened:
   (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC aliases)
 - **what's suspicious** — how old every incoming version is, with a ⏱ flag
   on anything published in the last 7 days (most hijacked releases are caught
-  within days — a cooldown is cheap insurance), plus upstream deprecation
-  notices (via [deps.dev](https://deps.dev))
+  within days — a cooldown is cheap insurance), upstream deprecation
+  notices, and ⚖ **license changes** — a bump that silently swaps MIT for
+  BUSL or "non-standard" gets flagged (via [deps.dev](https://deps.dev))
 - **what actually changed upstream** — every new version links to the exact
   tag-to-tag diff in its source repository (`…/compare/v1.2.3...v1.3.0`),
   *verified against the repo's real tags* so the link never 404s — across
@@ -107,7 +108,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.16 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.1.17 lockvet
 ```
 
 ## Usage
@@ -348,10 +349,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.1.16
+      - uses: matteo-sung/lockvet@v0.1.17
         # optional:
         # with:
-        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
+        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,license"
         #   fresh-days: '7'      # cooldown window for the fresh flag
         #   sarif: 'true'        # code scanning alerts (see below)
 ```
@@ -374,7 +375,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.1.16
+      - uses: matteo-sung/lockvet@v0.1.17
         with:
           sarif: 'true'
 ```
@@ -394,7 +395,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.1.16
+  image: ghcr.io/matteo-sung/lockvet:0.1.17
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -419,7 +420,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.1.16
+          image: ghcr.io/matteo-sung/lockvet:0.1.17
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -437,7 +438,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.1.16
+    image: ghcr.io/matteo-sung/lockvet:0.1.17
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -455,7 +456,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.1.16
+    rev: v0.1.17
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -468,6 +469,27 @@ By default the hook is informational — it prints the explanation and lets the
 commit through. Add `-fail-on` to turn it into a gate. Requires nothing but
 [pre-commit](https://pre-commit.com) itself (the hook builds via Go, which
 pre-commit downloads automatically if missing).
+
+## Deprecations and license changes
+
+Every incoming version is checked against its registry (via deps.dev):
+
+- **deprecated** — the registry marks the version deprecated; the upstream
+  reason is shown inline (`● deprecated upstream: use String.prototype.padStart()`).
+- **license change** — the incoming version is published under a different
+  license than the one it replaces:
+
+  ```
+  ↑ husky  4.3.8 → 5.0.9  MAJOR  (direct)
+      ● license change: MIT → non-standard
+  ```
+
+  Relicensing mid-stream (MIT → BUSL, SSPL, "non-standard", …) is exactly
+  the kind of thing nobody spots in a 40-line lockfile diff. lockvet only
+  claims a change when the registry reports a license for *both* sides.
+  JSON output carries `old_license` / `new_license` on every covered change.
+
+Both are gates too: `-fail-on deprecated,license`.
 
 ## Supported lockfiles
 
@@ -498,8 +520,9 @@ ecosystem (yet), so those diffs are explained without vulnerability data.
 SBOM packages keep their own ecosystem per purl; OS packages get OSV data
 when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
-Release ages / deprecations come from deps.dev, which covers npm, crates.io,
-PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply skip that check.
+Release ages / deprecations / license changes come from deps.dev, which covers
+npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
+skip those checks.
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
 
@@ -523,8 +546,9 @@ parsers are ~50 lines each.
    reverse is **fixed**; both is **unresolved**. Aliased advisories
    (GHSA/CVE/PYSEC/RUSTSEC for the same issue) are collapsed.
 5. Every *incoming* version is looked up on deps.dev's batch API for its
-   publish date and deprecation status (npm, crates.io, PyPI, Go, Maven,
-   NuGet, RubyGems). Versions younger than `-fresh-days` (default 7) get a
+   publish date, deprecation status, and license — departing versions are
+   looked up too, so a license flip between old and new gets flagged (npm,
+   crates.io, PyPI, Go, Maven, NuGet, RubyGems). Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
    days of publication, so a short cooldown filters most of them out.
 6. Each changed package's source repository (from deps.dev) has its tag list
@@ -550,11 +574,12 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
+| License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub, GitLab & Gitea) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |
 | Interactive TUI, MCP server | ✗ | ✓ | ✗ |

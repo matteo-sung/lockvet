@@ -199,3 +199,58 @@ func TestCovers(t *testing.T) {
 		}
 	}
 }
+
+func TestAnnotateLicenseChange(t *testing.T) {
+	pinClock(t, "2026-07-22T12:00:00Z")
+	srv := fakeServer(t, map[string]versionInfo{
+		// real-world shape: husky 4.x was MIT, 5.x was Parity ("non-standard")
+		"husky@4.3.8": {PublishedAt: "2021-01-10T00:00:00Z", Licenses: []string{"MIT"}},
+		"husky@5.0.9": {PublishedAt: "2021-02-01T00:00:00Z", Licenses: []string{"non-standard"}},
+		// unchanged license → fields set, no flag
+		"lodash@4.17.20": {PublishedAt: "2020-08-13T00:00:00Z", Licenses: []string{"MIT"}},
+		"lodash@4.17.21": {PublishedAt: "2021-02-20T00:00:00Z", Licenses: []string{"MIT"}},
+		// case-only difference → not a change
+		"c@1.0.0": {PublishedAt: "2020-01-01T00:00:00Z", Licenses: []string{"Apache-2.0"}},
+		"c@2.0.0": {PublishedAt: "2021-01-01T00:00:00Z", Licenses: []string{"APACHE-2.0"}},
+		// old side unknown → no claim
+		"d@2.0.0": {PublishedAt: "2021-01-01T00:00:00Z", Licenses: []string{"MIT"}},
+		// multi-version change: license from most recently published per side
+		"e@1.0.0": {PublishedAt: "2020-01-01T00:00:00Z", Licenses: []string{"MIT"}},
+		"e@1.5.0": {PublishedAt: "2020-06-01T00:00:00Z", Licenses: []string{"MIT"}},
+		"e@2.0.0": {PublishedAt: "2021-01-01T00:00:00Z", Licenses: []string{"BUSL-1.1"}},
+	})
+	old := BatchURL
+	BatchURL = srv.URL
+	defer func() { BatchURL = old }()
+
+	diffs := []diffx.FileDiff{{Path: "package-lock.json", Ecosystem: "npm", Changes: []diffx.Change{
+		{Name: "husky", Ecosystem: "npm", Kind: diffx.Upgraded, Old: []string{"4.3.8"}, New: []string{"5.0.9"}},
+		{Name: "lodash", Ecosystem: "npm", Kind: diffx.Upgraded, Old: []string{"4.17.20"}, New: []string{"4.17.21"}},
+		{Name: "c", Ecosystem: "npm", Kind: diffx.Upgraded, Old: []string{"1.0.0"}, New: []string{"2.0.0"}},
+		{Name: "d", Ecosystem: "npm", Kind: diffx.Upgraded, Old: []string{"1.0.0"}, New: []string{"2.0.0"}},
+		{Name: "e", Ecosystem: "npm", Kind: diffx.Changed, Old: []string{"1.0.0", "1.5.0"}, New: []string{"1.5.0", "2.0.0"}},
+		{Name: "husky", Ecosystem: "npm", Kind: diffx.Removed, Old: []string{"4.3.8"}},
+	}}}
+	if err := Annotate(diffs, 7); err != nil {
+		t.Fatal(err)
+	}
+	cs := diffs[0].Changes
+	if !cs[0].LicenseChanged || cs[0].OldLicense != "MIT" || cs[0].NewLicense != "non-standard" {
+		t.Errorf("husky: want MIT → non-standard flagged, got %+v", cs[0])
+	}
+	if cs[1].LicenseChanged || cs[1].OldLicense != "MIT" || cs[1].NewLicense != "MIT" {
+		t.Errorf("lodash: want unchanged MIT with fields set, got %+v", cs[1])
+	}
+	if cs[2].LicenseChanged {
+		t.Errorf("c: case-only difference must not flag, got %+v", cs[2])
+	}
+	if cs[3].LicenseChanged || cs[3].OldLicense != "" {
+		t.Errorf("d: unknown old side must not claim a change, got %+v", cs[3])
+	}
+	if !cs[4].LicenseChanged || cs[4].OldLicense != "MIT" || cs[4].NewLicense != "BUSL-1.1" {
+		t.Errorf("e: want MIT → BUSL-1.1 from most recent per side, got %+v", cs[4])
+	}
+	if cs[5].OldLicense != "" || cs[5].LicenseChanged {
+		t.Errorf("removed pkg must not be license-checked, got %+v", cs[5])
+	}
+}

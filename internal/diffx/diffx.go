@@ -51,6 +51,13 @@ type Change struct {
 	Deprecated       bool   `json:"deprecated,omitempty"`
 	DeprecatedReason string `json:"deprecated_reason,omitempty"`
 
+	// License strings as the registry reports them (per side), and
+	// whether the bump changes the license. Only set when deps.dev
+	// knows both sides.
+	OldLicense     string `json:"old_license,omitempty"`
+	NewLicense     string `json:"new_license,omitempty"`
+	LicenseChanged bool   `json:"license_changed,omitempty"`
+
 	// Filled in by the changelog layer: the upstream repository and, when
 	// both versions match real tags there, links that are verified not
 	// to 404.
@@ -431,7 +438,7 @@ func matchAnyOf(res []*regexp.Regexp, names []string) bool {
 type Summary struct {
 	Total, Major, Minor, Patch, Added, Removed, Downgraded int
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
-	Fresh, Deprecated                                      int
+	Fresh, Deprecated, LicenseChanged                      int
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 }
 
@@ -467,6 +474,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.Deprecated {
 				s.Deprecated++
+			}
+			if c.LicenseChanged {
+				s.LicenseChanged++
 			}
 			switch c.Origin {
 			case "direct":

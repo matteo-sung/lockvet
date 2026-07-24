@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -60,13 +61,21 @@ type request struct {
 }
 
 type versionInfo struct {
-	PublishedAt      string `json:"publishedAt"`
-	IsDeprecated     bool   `json:"isDeprecated"`
-	DeprecatedReason string `json:"deprecatedReason"`
+	PublishedAt      string   `json:"publishedAt"`
+	IsDeprecated     bool     `json:"isDeprecated"`
+	DeprecatedReason string   `json:"deprecatedReason"`
+	Licenses         []string `json:"licenses"`
 	Links            []struct {
 		Label string `json:"label"`
 		URL   string `json:"url"`
 	} `json:"links"`
+}
+
+// licenseOf joins the registry's license strings for display ("" = unknown).
+func licenseOf(info *versionInfo) string {
+	ls := append([]string(nil), info.Licenses...)
+	sort.Strings(ls)
+	return strings.Join(ls, ", ")
 }
 
 // sourceRepo picks the SOURCE_REPO link, canonicalised, or "".
@@ -84,7 +93,10 @@ func sourceRepo(info *versionInfo) string {
 // published fewer than freshDays days before now. Best-effort: network
 // errors return an error but leave diffs usable.
 func Annotate(diffs []diffx.FileDiff, freshDays int) error {
-	type slot struct{ fd, ci int }
+	type slot struct {
+		fd, ci  int
+		oldSide bool
+	}
 	var reqs []request
 	var slots []slot
 
@@ -102,22 +114,50 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 			for _, v := range c.Old {
 				old[v] = true
 			}
+			nu := map[string]bool{}
+			for _, v := range c.New {
+				nu[v] = true
+			}
+			queryVersion := func(v string) string {
+				if sys == "GO" && !strings.HasPrefix(v, "v") {
+					return "v" + v // lockvet stores Go versions without the prefix
+				}
+				return v
+			}
 			for _, v := range c.New {
 				if old[v] {
 					continue // only versions this change introduces
 				}
-				qv := v
-				if sys == "GO" && !strings.HasPrefix(qv, "v") {
-					qv = "v" + qv // lockvet stores Go versions without the prefix
+				reqs = append(reqs, request{versionKey{sys, c.Name, queryVersion(v)}})
+				slots = append(slots, slot{i, j, false})
+			}
+			if len(c.New) > 0 {
+				// Departing versions too, so we can spot license changes.
+				for _, v := range c.Old {
+					if nu[v] {
+						continue
+					}
+					reqs = append(reqs, request{versionKey{sys, c.Name, queryVersion(v)}})
+					slots = append(slots, slot{i, j, true})
 				}
-				reqs = append(reqs, request{versionKey{sys, c.Name, qv}})
-				slots = append(slots, slot{i, j})
 			}
 		}
 	}
 	if len(reqs) == 0 {
 		return nil
 	}
+
+	// Per change and side, the license of the most recently published
+	// version we saw (mirrors the age logic below).
+	type sideKey struct {
+		fd, ci  int
+		oldSide bool
+	}
+	type sideLic struct {
+		published string
+		license   string
+	}
+	lics := map[sideKey]sideLic{}
 
 	now := Now()
 	for start := 0; start < len(reqs); start += chunkSize {
@@ -132,6 +172,15 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 			}
 			s := slots[start+k]
 			c := &diffs[s.fd].Changes[s.ci]
+			if lic := licenseOf(info); lic != "" {
+				key := sideKey{s.fd, s.ci, s.oldSide}
+				if cur, ok := lics[key]; !ok || info.PublishedAt > cur.published {
+					lics[key] = sideLic{info.PublishedAt, lic}
+				}
+			}
+			if s.oldSide {
+				continue // departing version: license only
+			}
 			if c.SourceRepo == "" {
 				c.SourceRepo = sourceRepo(info)
 			}
@@ -155,6 +204,21 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 				c.AgeDays = age
 				c.Fresh = freshDays > 0 && now.Sub(t) < time.Duration(freshDays)*24*time.Hour
 			}
+		}
+	}
+
+	// A license change is only claimed when the registry reports a
+	// license for BOTH sides and they differ.
+	for i := range diffs {
+		for j := range diffs[i].Changes {
+			c := &diffs[i].Changes[j]
+			oldL, okOld := lics[sideKey{i, j, true}]
+			newL, okNew := lics[sideKey{i, j, false}]
+			if !okOld || !okNew {
+				continue
+			}
+			c.OldLicense, c.NewLicense = oldL.license, newL.license
+			c.LicenseChanged = !strings.EqualFold(oldL.license, newL.license)
 		}
 	}
 	return nil

@@ -143,7 +143,7 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				idx := addRule(rule{
 					ID:               "deprecated-package",
 					ShortDescription: map[string]string{"text": "Incoming version is marked deprecated by its registry"},
-					HelpURI:          "https://github.com/matteo-sung/lockvet#deprecations",
+					HelpURI:          "https://github.com/matteo-sung/lockvet#deprecations-and-license-changes",
 					Properties:       map[string]any{"tags": []string{"maintainability"}},
 				})
 				reason := ""
@@ -157,6 +157,23 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "deprecated"),
+					},
+				})
+			}
+			if c.LicenseChanged {
+				idx := addRule(rule{
+					ID:               "license-change",
+					ShortDescription: map[string]string{"text": "Incoming version is published under a different license"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#deprecations-and-license-changes",
+					Properties:       map[string]any{"tags": []string{"legal", "license"}},
+				})
+				results = append(results, result{
+					RuleID: "license-change", RuleIndex: idx,
+					Level:     "warning",
+					Message:   map[string]string{"text": fmt.Sprintf("%s, which changes its license from %s to %s.%s", what, c.OldLicense, c.NewLicense, via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "license-change"),
 					},
 				})
 			}

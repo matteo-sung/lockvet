@@ -37,7 +37,8 @@ func sarifDiffs() []diffx.FileDiff {
 					Summary: "ReDoS in lodash",
 					URL:     "https://osv.dev/vulnerability/GHSA-29mw-wpgm-hmr9",
 				}},
-				Via: []string{"express", "body-parser"},
+				Via:        []string{"express", "body-parser"},
+				OldLicense: "MIT", NewLicense: "non-standard", LicenseChanged: true,
 			},
 			{
 				Name: "request", Ecosystem: "npm", Kind: diffx.Added,
@@ -102,8 +103,8 @@ func TestSARIF(t *testing.T) {
 		t.Errorf("driver = %s %s, want lockvet 0.1.12 (no v prefix)",
 			run.Tool.Driver.Name, run.Tool.Driver.Version)
 	}
-	if len(run.Results) != 3 {
-		t.Fatalf("want 3 results (introduced, unresolved, deprecated), got %d", len(run.Results))
+	if len(run.Results) != 4 {
+		t.Fatalf("want 4 results (introduced, unresolved, deprecated, license), got %d", len(run.Results))
 	}
 
 	byRule := map[string]int{}
@@ -148,6 +149,19 @@ func TestSARIF(t *testing.T) {
 		t.Errorf("deprecated startLine = %d, want 6 (the node_modules/request line)", got)
 	}
 
+	lic := run.Results[byRule["license-change"]]
+	if lic.Level != "warning" {
+		t.Errorf("license-change level = %q, want warning", lic.Level)
+	}
+	for _, want := range []string{"lodash was upgraded to 4.17.19", "from MIT to non-standard"} {
+		if !strings.Contains(lic.Message.Text, want) {
+			t.Errorf("license message %q missing %q", lic.Message.Text, want)
+		}
+	}
+	if got := lic.Locations[0].PhysicalLocation.Region.StartLine; got != 3 {
+		t.Errorf("license startLine = %d, want 3 (the node_modules/lodash line)", got)
+	}
+
 	// Rules: dedup + security-severity mapping.
 	sawSec := false
 	for _, r := range run.Tool.Driver.Rules {
@@ -164,8 +178,8 @@ func TestSARIF(t *testing.T) {
 	if !sawSec {
 		t.Error("no rule for the introduced vuln")
 	}
-	if len(run.Tool.Driver.Rules) != 3 {
-		t.Errorf("want 3 rules, got %d", len(run.Tool.Driver.Rules))
+	if len(run.Tool.Driver.Rules) != 4 {
+		t.Errorf("want 4 rules, got %d", len(run.Tool.Driver.Rules))
 	}
 
 	// RuleIndex must point at the right rule.
