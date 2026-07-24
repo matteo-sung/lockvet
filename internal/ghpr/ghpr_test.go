@@ -11,9 +11,9 @@ func TestParse(t *testing.T) {
 		"https://github.com/sharkdp/fd/pull/1723/files":   {"sharkdp", "fd", 1723},
 		"https://github.com/sharkdp/fd/pull/1723?diff=s":  {"sharkdp", "fd", 1723},
 		"https://github.com/sharkdp/fd/pull/1723#issue-1": {"sharkdp", "fd", 1723},
-		"sharkdp/fd#1723":                                 {"sharkdp", "fd", 1723},
-		"matteo-sung/lockvet-demo#1":                      {"matteo-sung", "lockvet-demo", 1},
-		"My-Org/some.repo_name#42":                        {"My-Org", "some.repo_name", 42},
+		"sharkdp/fd#1723":            {"sharkdp", "fd", 1723},
+		"matteo-sung/lockvet-demo#1": {"matteo-sung", "lockvet-demo", 1},
+		"My-Org/some.repo_name#42":   {"My-Org", "some.repo_name", 42},
 	}
 	for in, want := range good {
 		got, ok := Parse(in)
