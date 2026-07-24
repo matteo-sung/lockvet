@@ -83,6 +83,11 @@ USAGE
                                       codeberg.org/forgejo. Bot usernames
                                       vary here too: -author <username>.
 
+  lockvet diff <old> <new>            vet two files on disk, no git needed —
+                                      two lockfiles, or two SBOMs (CycloneDX
+                                      or SPDX JSON, any mix), e.g. syft scans
+                                      of two container images.
+
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
@@ -115,7 +120,9 @@ FLAGS
   -version       print version
 
 SUPPORTED LOCKFILES
-  ` + strings.Join(lock.KnownBasenames(), ", ") + `
+  ` + strings.Join(lock.KnownBasenames(), ", ") + `,
+  *.cdx.json, *.spdx.json (SBOMs: multi-ecosystem, incl. Alpine/Debian
+  container packages when the purl says which release)
 
 Every ecosystem in one binary.
 Data: https://osv.dev (vulnerabilities) · https://deps.dev (release metadata)
@@ -200,7 +207,14 @@ func main() {
 		remoteFetch = func(f func(string) bool) (*ghpr.Result, error) { return gtpr.FetchCompare(ref, f) }
 		remoteWhat = ref.String()
 	}
+	var fileOld, fileNew string // `lockvet diff <old> <new>` file mode
+
 	switch {
+	case len(args) > 0 && args[0] == "diff":
+		if len(args) != 3 {
+			fatal("usage: lockvet diff <old-file> <new-file>   (two lockfiles, or two CycloneDX/SPDX JSON SBOMs)")
+		}
+		fileOld, fileNew = args[1], args[2]
 	case len(args) > 0 && args[0] == "queue":
 		if len(args) != 2 {
 			fatal("usage: lockvet queue <owner | owner/repo | gitlab group/project URL>   (e.g. lockvet queue grafana)")
@@ -355,6 +369,41 @@ func main() {
 			fmt.Fprintf(os.Stderr, "lockvet: no lockfile changes in %s\n", msg)
 			return
 		}
+	} else if fileNew != "" {
+		// File mode: two files on disk, no git. Format from the filename
+		// when recognizable, otherwise SBOM content sniffing.
+		// Format from the file's own name when recognizable; otherwise the
+		// other file's (so "Cargo.lock.old" vs "Cargo.lock" works); SBOM
+		// content sniffing as the last resort.
+		pOld, pNew := lock.ByBasename(fileOld), lock.ByBasename(fileNew)
+		if pOld == nil {
+			pOld = pNew
+		}
+		if pNew == nil {
+			pNew = pOld
+		}
+		parseFile := func(p string, parser *lock.Parser) (*lock.File, []byte) {
+			data, err := os.ReadFile(p)
+			check(err)
+			if parser == nil {
+				parser = lock.SBOMParser()
+			}
+			f, err := parser.Parse(p, data)
+			if err != nil {
+				fatal(fmt.Sprintf("%s: %v\nhint: lockvet diff wants two lockfiles with their usual names (one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock), or CycloneDX/SPDX JSON SBOMs under any filename", p, err))
+			}
+			return f, data
+		}
+		oldF, _ := parseFile(fileOld, pOld)
+		newF, newData := parseFile(fileNew, pNew)
+		base, target = fileOld, fileNew
+		fd := diffx.Diff(oldF, newF)
+		if len(fd.Changes) == 0 {
+			fmt.Fprintf(os.Stderr, "lockvet: no changes between %s and %s\n", fileOld, fileNew)
+			return
+		}
+		diffs = append(diffs, fd)
+		newContents[fileNew] = newData
 	} else {
 		base, target = "HEAD", ""
 		switch len(args) {

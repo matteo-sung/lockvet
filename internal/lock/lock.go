@@ -29,16 +29,44 @@ const (
 	// Nix has no OSV.dev ecosystem and no semver: flake inputs pin git
 	// revisions. lockvet still explains what moved and by how much time.
 	Nix Ecosystem = "Nix"
+
+	// GitHubActions covers pkg:github purls in SBOMs (OSV ecosystem
+	// "GitHub Actions").
+	GitHubActions Ecosystem = "GitHub Actions"
+
+	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
+	// or SPDX document mixes ecosystems, so each package carries its own
+	// (File.PkgEco) and this value is only a label / fallback.
+	SBOMEco Ecosystem = "SBOM"
 )
 
 // HasOSV reports whether the ecosystem can be queried on OSV.dev.
-// CocoaPods and Nix have no OSV.dev ecosystem (verified live: OSV returns
-// "invalid ecosystem"), so lockvet explains those diffs without vuln data.
-func (e Ecosystem) HasOSV() bool { return e != Nix && e != CocoaPods }
+// This is a whitelist: SBOMs introduce open-ended ecosystem strings
+// (Linux distro packages, unknown purl types) and OSV rejects a whole
+// batch when one query names an invalid ecosystem.
+func (e Ecosystem) HasOSV() bool {
+	switch e {
+	case NPM, CratesIO, PyPI, Go, Packagist, RubyGems, Hex, Pub, Maven,
+		NuGet, SwiftURL, GitHubActions:
+		return true
+	}
+	// Release-qualified distro ecosystems derived from SBOM purl
+	// qualifiers, e.g. "Alpine:v3.18", "Debian:12".
+	s := string(e)
+	return strings.HasPrefix(s, "Alpine:v") || strings.HasPrefix(s, "Debian:") || s == "Wolfi"
+}
 
 // HasSemver reports whether version-jump levels (major/minor/patch) are
-// meaningful for the ecosystem.
-func (e Ecosystem) HasSemver() bool { return e != Nix }
+// meaningful for the ecosystem. Nix pins git revisions; Debian/Ubuntu/RPM
+// version strings carry epochs and distro revisions where semver labels
+// would be noise.
+func (e Ecosystem) HasSemver() bool {
+	if e == Nix {
+		return false
+	}
+	s := string(e)
+	return !strings.HasPrefix(s, "Debian") && !strings.HasPrefix(s, "Ubuntu") && !strings.HasPrefix(s, "RPM")
+}
 
 // File is a parsed lockfile: package name -> set of pinned versions.
 // A lockfile may legitimately contain multiple versions of one package
@@ -58,6 +86,11 @@ type File struct {
 	Deps       map[string][]string
 	Roots      []string
 	RootsKnown bool
+
+	// PkgEco overrides the file-level Ecosystem per package. Only SBOMs
+	// use it: one CycloneDX/SPDX document mixes npm, PyPI, distro
+	// packages and more. nil for ordinary lockfiles.
+	PkgEco map[string]Ecosystem
 }
 
 func newFile(p, kind string, eco Ecosystem) *File {
@@ -190,7 +223,23 @@ func ByBasename(p string) *Parser {
 	case "flake.lock":
 		return &Parser{"flake.lock", Nix, parseFlakeLock}
 	}
+	if isSBOMName(path.Base(p)) {
+		return &Parser{"sbom", SBOMEco, parseSBOM}
+	}
 	return nil
+}
+
+// isSBOMName reports whether a basename looks like a JSON SBOM. The parser
+// sniffs the actual format (CycloneDX vs SPDX) from the content.
+func isSBOMName(base string) bool {
+	b := strings.ToLower(base)
+	switch b {
+	case "bom.json", "sbom.json", "cyclonedx.json", "spdx.json":
+		return true
+	}
+	return strings.HasSuffix(b, ".cdx.json") ||
+		strings.HasSuffix(b, ".spdx.json") ||
+		strings.HasSuffix(b, ".cyclonedx.json")
 }
 
 // KnownBasenames lists every lockfile filename lockvet understands.
@@ -200,6 +249,6 @@ func KnownBasenames() []string {
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
-		"Podfile.lock", "deno.lock", "flake.lock",
+		"Podfile.lock", "deno.lock", "flake.lock", "bom.json", "sbom.json",
 	}
 }

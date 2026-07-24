@@ -98,12 +98,28 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		names[n] = true
 	}
 
+	// Per-package ecosystem override (SBOMs mix ecosystems in one file).
+	ecoOf := func(name string) lock.Ecosystem {
+		if newF != nil {
+			if e, ok := newF.PkgEco[name]; ok {
+				return e
+			}
+		}
+		if oldF != nil {
+			if e, ok := oldF.PkgEco[name]; ok {
+				return e
+			}
+		}
+		return ref.Ecosystem
+	}
+
 	for name := range names {
 		o, n := oldPkgs[name], newPkgs[name]
 		if equal(o, n) {
 			continue
 		}
-		c := Change{Name: name, Ecosystem: fd.Ecosystem, Old: o, New: n}
+		eco := ecoOf(name)
+		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n}
 		switch {
 		case len(o) == 0:
 			c.Kind = Added
@@ -122,7 +138,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			c.Level = maxDelta(o, n)
 			c.LevelString = c.Level.String()
 		}
-		if !ref.Ecosystem.HasSemver() {
+		if !eco.HasSemver() {
 			// e.g. Nix flake inputs: pinned git revs, not versions —
 			// major/minor/patch labels would be noise.
 			c.Level = vers.None

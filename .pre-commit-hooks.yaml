@@ -27,4 +27,4 @@
   pass_filenames: false
   verbose: true
   files: >-
-    (^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|requirements\.txt|go\.mod|composer\.lock|Gemfile\.lock|Pipfile\.lock|mix\.lock|pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|Podfile\.lock|deno\.lock|flake\.lock)$
+    (^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|requirements\.txt|go\.mod|composer\.lock|Gemfile\.lock|Pipfile\.lock|mix\.lock|pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|Podfile\.lock|deno\.lock|flake\.lock|s?bom\.json|[^/]+\.(cdx|spdx)\.json)$

@@ -39,10 +39,17 @@ what really happened:
   GitLab, or Gitea/Forgejo — into one table: which introduce
   vulnerabilities, which are major or brand-new bumps, and which look
   routine
+- **SBOMs too — diff two container images** — feed it two CycloneDX or
+  SPDX JSON SBOMs (`lockvet diff old.cdx.json new.cdx.json`, e.g. from
+  `syft`): one report across every ecosystem in the image at once — npm +
+  PyPI + Go *and* the Alpine/Debian OS packages, with distro security
+  advisories (`ALPINE-CVE-…`, `DEBIAN-CVE-…`) resolved against the right
+  release branch
 - **across every ecosystem, in one static binary** — 20 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
-  Gradle, NuGet, Swift Package Manager, CocoaPods, Nix flakes
+  Gradle, NuGet, Swift Package Manager, CocoaPods, Nix flakes — plus
+  CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -126,6 +133,9 @@ lockvet queue myorg           # triage EVERY open Dependabot/Renovate PR
 lockvet queue owner/repo      # of an org, user, or single repo (see below)
 lockvet queue gitlab.com/grp  # same for a GitLab group or project
 lockvet queue codeberg.org/o  # … or a Gitea/Forgejo owner or repo
+
+lockvet diff old.cdx.json new.cdx.json   # two files on disk, no git — SBOMs
+lockvet diff Cargo.lock.orig Cargo.lock  # or any two lockfiles (see below)
 
 lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
@@ -265,6 +275,44 @@ Bot usernames vary here too (Forgejo's own Renovate runs as
 `viceice-bot`), so expect to pass `-author` — or `-author any` to vet
 every open PR that touches a lockfile. Uses `GITEA_TOKEN` /
 `FORGEJO_TOKEN` / `CODEBERG_TOKEN` when set.
+
+### Diff two SBOMs (or container images)
+
+`lockvet diff` vets **two files on disk** — no git repository needed. Point
+it at two CycloneDX or SPDX JSON SBOMs (any filename; the format is sniffed
+from the content) and it explains what changed between them, across every
+ecosystem in the document at once:
+
+```sh
+syft -q alpine:3.18 -o cyclonedx-json > old.cdx.json
+syft -q alpine:3.19 -o cyclonedx-json > new.cdx.json
+lockvet diff old.cdx.json new.cdx.json
+```
+
+```text
+new.cdx.json (SBOM)
+  ↑ ca-certificates-bundle 20241121-r1 → 20250911-r0  MAJOR  via apk-tools
+  ↑ zlib                   1.2.13-r1   → 1.3.1-r0  minor  via apk-tools
+  ↑ busybox                1.36.1-r7   → 1.36.1-r20  patch  via alpine-baselayout › busybox-binsh
+      ▼ fixes ALPINE-CVE-2023-42363 A use-after-free vulnerability was discovered in xasprintf…
+      ▼ fixes ALPINE-CVE-2023-42364 A use-after-free vulnerability in BusyBox v.1.36.1 allows…
+  …
+12 packages changed · 1 major · 1 minor · 10 patch · 2 direct · 10 transitive
+· vulnerabilities: 0 introduced, 5 fixed, 4 unresolved
+```
+
+Packages are matched by their purl: language ecosystems (npm, PyPI, Go,
+Cargo, …) get the full treatment — OSV advisories, release ages, verified
+changelog links — and **OS packages get distro advisories** resolved against
+the right release branch (`Alpine:v3.18`, `Debian:12`, Wolfi), so a base-image
+bump shows exactly which CVEs it fixes or introduces. Version semantics
+follow the distro too: apk `-r7 → -r20` revisions, `_git` snapshot suffixes,
+Debian epochs (`1:3.10-4`) and `~deb13u1` pre-releases all compare correctly.
+
+It also works for plain lockfiles outside a repo
+(`lockvet diff Cargo.lock.orig Cargo.lock`), and SBOMs *committed to git*
+(`bom.json`, `*.cdx.json`, `*.spdx.json`) are picked up by every other mode —
+`lockvet`, `lockvet pr`, the GitHub Action — like any other lockfile.
 
 ## In CI (review Dependabot/Renovate PRs automatically)
 
@@ -438,6 +486,7 @@ pre-commit downloads automatically if missing).
 | Swift | `Package.resolved` |
 | iOS / CocoaPods | `Podfile.lock` |
 | Nix | `flake.lock` |
+| SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 
 Notes: direct/`via …` origin labels appear where the lockfile records its
 dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler, and
@@ -446,6 +495,9 @@ chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
 Gradle, …) skip the label.
 Deno's `jsr:` packages, CocoaPods, and Nix flakes have no OSV.dev
 ecosystem (yet), so those diffs are explained without vulnerability data.
+SBOM packages keep their own ecosystem per purl; OS packages get OSV data
+when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
+Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations come from deps.dev, which covers npm, crates.io,
 PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply skip that check.
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
@@ -493,7 +545,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
 |---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **20** across 14 ecosystems |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **20** across 14 ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
@@ -501,6 +553,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub, GitLab & Gitea) |
+| Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |
