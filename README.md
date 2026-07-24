@@ -83,6 +83,7 @@ lockvet main my-branch     # any two revisions
 lockvet main..my-branch    # range syntax works too
 
 lockvet -md                # markdown, ready to paste into a PR comment
+                           # (package names link to npmjs/crates.io/PyPI/…)
 lockvet -json              # machine-readable, full vuln ID lists
 lockvet -offline           # no network calls (skips vuln + metadata lookups)
 

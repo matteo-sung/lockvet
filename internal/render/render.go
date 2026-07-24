@@ -310,6 +310,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				padCell = " |"
 			}
 			pkgCell := "`" + c.Name + "`"
+			if u := registryLink(c); u != "" {
+				pkgCell = "[" + pkgCell + "](" + u + ")"
+			}
 			switch c.Origin {
 			case "direct":
 				pkgCell += " <sub>**direct**</sub>"
