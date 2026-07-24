@@ -22,6 +22,13 @@ inputs:
     description: Post/update a PR comment with the report (true/false).
     required: false
     default: 'true'
+  sarif:
+    description: >-
+      Upload findings to GitHub Code Scanning so vulnerable, unresolved and
+      deprecated incoming versions become alerts on the exact lockfile line
+      (true/false). The job needs `permissions: security-events: write`.
+    required: false
+    default: 'false'
   github-token:
     description: Token used to post the PR comment.
     required: false
@@ -84,6 +91,21 @@ runs:
         else
           gh api "repos/$REPO/issues/$PR/comments" -F body=@body.md > /dev/null
         fi
+
+    - name: Upload SARIF to code scanning
+      if: inputs.sarif == 'true' && steps.run.outputs.has_report == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BASE: ${{ github.event.pull_request.base.sha }}
+        REPO: ${{ github.repository }}
+      run: |
+        lockvet -sarif -fresh-days "${{ inputs.fresh-days }}" "$BASE" HEAD > lockvet.sarif
+        gh api "repos/$REPO/code-scanning/sarifs" \
+          -f commit_sha="$GITHUB_SHA" \
+          -f ref="$GITHUB_REF" \
+          -f sarif="$(gzip -c lockvet.sarif | base64 -w0)" > /dev/null
+        echo "lockvet: SARIF uploaded for $GITHUB_REF @ $GITHUB_SHA"
 
     - name: Enforce fail-on
       if: steps.run.outputs.rc == '1'

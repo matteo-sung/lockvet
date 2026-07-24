@@ -109,6 +109,8 @@ lockvet main..my-branch    # range syntax works too
 lockvet -md                # markdown, ready to paste into a PR comment
                            # (package names link to npmjs/crates.io/PyPI/…)
 lockvet -json              # machine-readable, full vuln ID lists
+lockvet -sarif             # SARIF for GitHub Code Scanning — alerts on the
+                           # exact lockfile line (see "In CI" below)
 lockvet -offline           # no network calls (skips vuln + metadata lookups)
 
 lockvet -only jiff         # one package's story: jiff itself plus everything
@@ -241,11 +243,40 @@ jobs:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated"
         #   fresh-days: '7'      # cooldown window for the fresh flag
+        #   sarif: 'true'        # code scanning alerts (see below)
 ```
 
 (Not on GitHub Actions? `lockvet pr <PR-url> -comment -fail-on vuln` does
 the same job — fetch, report, comment, gate — from any CI with a
 `GITHUB_TOKEN` in the environment.)
+
+### GitHub Code Scanning (SARIF)
+
+`lockvet -sarif` emits [SARIF 2.1.0](https://docs.github.com/en/code-security/code-scanning),
+so vulnerable, still-vulnerable, and deprecated incoming versions show up as
+code scanning alerts — annotated on the **exact lockfile line** that pins the
+package, with OSV links and severity. In the Action it's one input (the job
+additionally needs `security-events: write`):
+
+```yaml
+permissions:
+  pull-requests: write
+  contents: read
+  security-events: write
+
+      - uses: matteo-sung/lockvet@v0.1.11
+        with:
+          sarif: 'true'
+```
+
+Or standalone, anywhere:
+
+```console
+$ lockvet -sarif BASE HEAD > lockvet.sarif   # also works with pr/mr/compare modes
+```
+
+and upload with `github/codeql-action/upload-sarif` or
+`gh api repos/<owner>/<repo>/code-scanning/sarifs`.
 
 On GitLab, one line vets the MR and posts the report as an MR note —
 reruns update the note in place:
@@ -408,7 +439,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo/Codeberg, self-hosted incl.) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated`) + GitHub Action |
-| Output formats | text | text, JSON, markdown | text, JSON, markdown |
+| Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |
 | Interactive TUI, MCP server | ✗ | ✓ | ✗ |
 | Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |

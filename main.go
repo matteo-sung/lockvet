@@ -66,6 +66,9 @@ USAGE
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
+  -sarif         SARIF 2.1.0 output (GitHub Code Scanning: vulnerable,
+                 unresolved, and deprecated incoming versions become alerts
+                 on the exact lockfile line)
   -no-vulns      skip the OSV.dev vulnerability check
   -no-meta       skip the deps.dev metadata check (release age, deprecations)
                  and upstream changelog/diff links
@@ -97,6 +100,7 @@ func main() {
 	var (
 		md        = flag.Bool("md", false, "")
 		jsonOut   = flag.Bool("json", false, "")
+		sarifOut  = flag.Bool("sarif", false, "")
 		noVulns   = flag.Bool("no-vulns", false, "")
 		noMeta    = flag.Bool("no-meta", false, "")
 		offline   = flag.Bool("offline", false, "")
@@ -274,6 +278,10 @@ func main() {
 	var (
 		diffs        []diffx.FileDiff
 		base, target string
+
+		// New-side raw bytes per lockfile path, kept so SARIF output can
+		// point results at the exact line that names the package.
+		newContents = map[string][]byte{}
 	)
 	if remoteFetch != nil {
 		res, err := remoteFetch(func(p string) bool { return lock.ByBasename(p) != nil })
@@ -292,6 +300,7 @@ func main() {
 			fd := diffx.Diff(oldF, newF)
 			if len(fd.Changes) > 0 {
 				diffs = append(diffs, fd)
+				newContents[cf.Path] = cf.New
 			}
 		}
 		if len(diffs) == 0 {
@@ -344,6 +353,7 @@ func main() {
 			fd := diffx.Diff(oldF, newF)
 			if len(fd.Changes) > 0 {
 				diffs = append(diffs, fd)
+				newContents[p] = newData
 			}
 		}
 
@@ -405,6 +415,9 @@ func main() {
 	sum := diffx.Summarize(diffs)
 
 	switch {
+	case *sarifOut:
+		check(render.SARIF(os.Stdout, diffs, effectiveVersion(),
+			func(p string) []byte { return newContents[p] }))
 	case *jsonOut:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
