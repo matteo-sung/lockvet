@@ -299,6 +299,35 @@ Bot usernames vary here too (Forgejo's own Renovate runs as
 every open PR that touches a lockfile. Uses `GITEA_TOKEN` /
 `FORGEJO_TOKEN` / `CODEBERG_TOKEN` when set.
 
+**Weekly triage issue** — this workflow keeps one always-current
+"Dependency PR triage" issue in your repo, refreshed every Monday
+([live example](https://github.com/matteo-sung/lockvet-demo/issues/2)):
+
+```yaml
+name: dependency triage
+on:
+  schedule: [{cron: '0 8 * * 1'}]
+  workflow_dispatch:
+permissions:
+  issues: write
+  pull-requests: read
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.1.18
+      - env: {GITHUB_TOKEN: '${{ github.token }}'}
+        run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
+      - env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          title="Dependency PR triage"
+          n=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$n" ]; then gh issue edit -R "$GITHUB_REPOSITORY" "$n" --body-file queue.md
+          else gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file queue.md; fi
+```
+
+(Add `-author any` to the `lockvet queue` line to include non-bot PRs.)
+
 ### Diff two SBOMs (or container images)
 
 `lockvet diff` vets **two files on disk** — no git repository needed. Point
