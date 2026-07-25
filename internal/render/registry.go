@@ -87,6 +87,11 @@ func registryLink(c diffx.Change) string {
 		return "https://www.nuget.org/packages/" + name + "/" + v
 	case "CocoaPods":
 		return "https://cocoapods.org/pods/" + name
+	case "CRAN":
+		// CRAN package pages are not versioned.
+		return "https://cran.r-project.org/package=" + name
+	case "Bioconductor":
+		return "https://bioconductor.org/packages/" + name + "/"
 	case "SwiftURL":
 		// Swift package names are already "host/org/repo".
 		return "https://" + name

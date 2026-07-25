@@ -46,11 +46,11 @@ what really happened:
   PyPI + Go *and* the Alpine/Debian OS packages, with distro security
   advisories (`ALPINE-CVE-…`, `DEBIAN-CVE-…`) resolved against the right
   release branch
-- **across every ecosystem, in one static binary** — 20 lockfile formats:
+- **across every ecosystem, in one static binary** — 21 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
-  Gradle, NuGet, Swift Package Manager, CocoaPods, Nix flakes — plus
-  CycloneDX & SPDX SBOMs
+  Gradle, NuGet, Swift Package Manager, CocoaPods, R/renv, Nix flakes —
+  plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -582,13 +582,14 @@ Both are gates too: `-fail-on deprecated,license`.
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
 | iOS / CocoaPods | `Podfile.lock` |
+| R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
 | Nix | `flake.lock` |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 
 Notes: direct/`via …` origin labels appear where the lockfile records its
-dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler, and
-Go modules (go.mod's `// indirect` markers give direct/transitive, without
-chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
+dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler,
+renv, and Go modules (go.mod's `// indirect` markers give direct/transitive,
+without chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
 Gradle, …) skip the label.
 Deno's `jsr:` packages, CocoaPods, and Nix flakes have no OSV.dev
 ecosystem (yet), so those diffs are explained without vulnerability data.
@@ -644,7 +645,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
 |---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **20** across 14 ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **21** across 15 ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |

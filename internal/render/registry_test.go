@@ -30,6 +30,8 @@ func TestRegistryLink(t *testing.T) {
 		{up("NuGet", "Newtonsoft.Json", "13.0.2", "13.0.3"), "https://www.nuget.org/packages/Newtonsoft.Json/13.0.3"},
 		{up("CocoaPods", "Alamofire", "5.8.0", "5.9.0"), "https://cocoapods.org/pods/Alamofire"},
 		{up("SwiftURL", "github.com/apple/swift-nio", "2.60.0", "2.61.0"), "https://github.com/apple/swift-nio"},
+		{up("CRAN", "dplyr", "1.1.3", "1.1.4"), "https://cran.r-project.org/package=dplyr"},
+		{up("Bioconductor", "BiocGenerics", "0.46.0", "0.48.0"), "https://bioconductor.org/packages/BiocGenerics/"},
 
 		// no registry page
 		{up("Nix", "nixpkgs", "20240101.abcd1234", "20240201.ef567890"), ""},

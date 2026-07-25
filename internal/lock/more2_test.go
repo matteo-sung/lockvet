@@ -135,3 +135,106 @@ func TestNixDiffSuppressesLevels(t *testing.T) {
 		t.Fatal("Nix should have neither semver nor OSV")
 	}
 }
+
+func TestRenvLock(t *testing.T) {
+	f := mustParse(t, "renv.lock", `{
+  "R": {
+    "Version": "4.3.1",
+    "Repositories": [{"Name": "CRAN", "URL": "https://cloud.r-project.org"}]
+  },
+  "Bioconductor": {"Version": "3.17"},
+  "Packages": {
+    "dplyr": {
+      "Package": "dplyr",
+      "Version": "1.1.4",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": ["R", "cli", "generics", "methods", "utils"],
+      "Hash": "fedd9d00c2944ff00a0e2696ccf048ec"
+    },
+    "cli": {
+      "Package": "cli",
+      "Version": "3.6.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": ["R", "utils"]
+    },
+    "generics": {
+      "Package": "generics",
+      "Version": "0.1.3",
+      "Source": "Repository",
+      "Repository": "RSPM"
+    },
+    "BiocGenerics": {
+      "Package": "BiocGenerics",
+      "Version": "0.46.0",
+      "Source": "Bioconductor",
+      "Requirements": ["R", "graphics", "methods"]
+    },
+    "lattice": {
+      "Package": "lattice",
+      "Version": "0.21-8",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "noversion": {"Package": "noversion", "Source": "Repository"}
+  }
+}`)
+	if f.Ecosystem != CRAN {
+		t.Errorf("ecosystem = %s", f.Ecosystem)
+	}
+	wantPkgs(t, f, map[string][]string{
+		"dplyr":        {"1.1.4"},
+		"cli":          {"3.6.2"},
+		"generics":     {"0.1.3"},
+		"BiocGenerics": {"0.46.0"},
+		"lattice":      {"0.21-8"},
+	})
+	if got := f.PkgEco["BiocGenerics"]; got != Bioconductor {
+		t.Errorf("BiocGenerics eco = %s, want Bioconductor", got)
+	}
+	if _, ok := f.PkgEco["dplyr"]; ok {
+		t.Errorf("dplyr should not have a PkgEco override")
+	}
+	// Edges only between locked packages: dplyr -> cli, generics; the base
+	// R packages (R, methods, utils, graphics) must not appear.
+	wantEdges := map[string][]string{"dplyr": {"cli", "generics"}, "cli": nil, "BiocGenerics": nil}
+	for from, want := range wantEdges {
+		got := f.Deps[from]
+		if len(got) != len(want) {
+			t.Errorf("Deps[%s] = %v, want %v", from, got, want)
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("Deps[%s] = %v, want %v", from, got, want)
+			}
+		}
+	}
+	if f.RootsKnown {
+		t.Errorf("renv.lock records no direct-dependency roots")
+	}
+}
+
+func TestRenvLockBareNA(t *testing.T) {
+	// Real-world renv.lock files (e.g. tidyverse/datascience-box) carry
+	// R's NA serialized unquoted, which is not valid JSON.
+	f := mustParse(t, "renv.lock", `{
+  "Packages": {
+    "renv": {
+      "Package": "renv",
+      "Version": "1.0.7",
+      "OS_type": NA,
+      "Repository": "CRAN",
+      "Source": "Repository",
+      "Requirements": []
+    },
+    "NAmed": {
+      "Package": "NAmed",
+      "Version": "2.0",
+      "Title": "has NA inside: \"NA\" and NAme-like words stay intact"
+    }
+  }
+}`)
+	wantPkgs(t, f, map[string][]string{"renv": {"1.0.7"}, "NAmed": {"2.0"}})
+}

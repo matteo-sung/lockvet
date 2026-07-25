@@ -153,3 +153,103 @@ func parseFlakeLock(p string, data []byte) (*File, error) {
 	}
 	return f, nil
 }
+
+// ---- renv.lock (R) ----
+//
+// renv's lockfile is JSON: {"R": {...}, "Packages": {"dplyr": {"Package":
+// "dplyr", "Version": "1.1.4", "Source": "Repository", "Repository":
+// "CRAN", "Requirements": ["cli", "generics", ...]}}}.
+//
+// Bioconductor packages carry Source/Repository "Bioconductor" and are
+// queried against OSV's Bioconductor ecosystem via File.PkgEco; everything
+// else (CRAN, RSPM, GitHub remotes of CRAN packages) uses CRAN.
+// Requirements name base R packages ("R", "utils", ...) that never appear
+// in Packages; edges are only recorded between locked packages.
+// R versions use '-' as a component separator ("1.8-4"); vers treats the
+// suffix as a comparable alnum run, which orders and classifies dash
+// bumps correctly (1.8-2 -> 1.8-4 = patch).
+
+// renvNA replaces bare NA tokens with null: real-world renv.lock files
+// sometimes carry R's missing value serialized unquoted ("OS_type": NA),
+// which is not valid JSON. Strings are left untouched.
+func renvNA(data []byte) []byte {
+	out := make([]byte, 0, len(data))
+	inStr := false
+	for i := 0; i < len(data); i++ {
+		c := data[i]
+		if inStr {
+			out = append(out, c)
+			if c == '\\' && i+1 < len(data) {
+				i++
+				out = append(out, data[i])
+			} else if c == '"' {
+				inStr = false
+			}
+			continue
+		}
+		if c == '"' {
+			inStr = true
+			out = append(out, c)
+			continue
+		}
+		if c == 'N' && i+1 < len(data) && data[i+1] == 'A' &&
+			(i == 0 || !isAlnumByte(data[i-1])) &&
+			(i+2 >= len(data) || !isAlnumByte(data[i+2])) {
+			out = append(out, "null"...)
+			i++
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func isAlnumByte(c byte) bool {
+	return c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+func parseRenvLock(p string, data []byte) (*File, error) {
+	data = renvNA(data)
+	var doc struct {
+		Packages map[string]struct {
+			Package      string   `json:"Package"`
+			Version      string   `json:"Version"`
+			Source       string   `json:"Source"`
+			Repository   string   `json:"Repository"`
+			Requirements []string `json:"Requirements"`
+		} `json:"Packages"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	f := newFile(p, "renv.lock", CRAN)
+	for key, pkg := range doc.Packages {
+		name := pkg.Package
+		if name == "" {
+			name = key
+		}
+		if pkg.Version == "" {
+			continue
+		}
+		f.add(name, pkg.Version)
+		if strings.EqualFold(pkg.Source, "Bioconductor") ||
+			strings.EqualFold(pkg.Repository, "Bioconductor") {
+			if f.PkgEco == nil {
+				f.PkgEco = map[string]Ecosystem{}
+			}
+			f.PkgEco[Sanitize(name)] = Bioconductor
+		}
+	}
+	for key, pkg := range doc.Packages {
+		name := pkg.Package
+		if name == "" {
+			name = key
+		}
+		for _, req := range pkg.Requirements {
+			if _, locked := doc.Packages[req]; locked {
+				f.addEdge(name, req)
+			}
+		}
+	}
+	return f, nil
+}

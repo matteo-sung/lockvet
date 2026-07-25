@@ -26,6 +26,12 @@ const (
 	SwiftURL  Ecosystem = "SwiftURL"
 	CocoaPods Ecosystem = "CocoaPods"
 
+	// CRAN and Bioconductor cover R packages from renv.lock. A single
+	// renv.lock mixes both; Bioconductor packages are marked per-package
+	// via File.PkgEco.
+	CRAN         Ecosystem = "CRAN"
+	Bioconductor Ecosystem = "Bioconductor"
+
 	// Nix has no OSV.dev ecosystem and no semver: flake inputs pin git
 	// revisions. lockvet still explains what moved and by how much time.
 	Nix Ecosystem = "Nix"
@@ -47,7 +53,7 @@ const (
 func (e Ecosystem) HasOSV() bool {
 	switch e {
 	case NPM, CratesIO, PyPI, Go, Packagist, RubyGems, Hex, Pub, Maven,
-		NuGet, SwiftURL, GitHubActions:
+		NuGet, SwiftURL, GitHubActions, CRAN, Bioconductor:
 		return true
 	}
 	// Release-qualified distro ecosystems derived from SBOM purl
@@ -222,6 +228,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"deno.lock", NPM, parseDenoLock}
 	case "flake.lock":
 		return &Parser{"flake.lock", Nix, parseFlakeLock}
+	case "renv.lock":
+		return &Parser{"renv.lock", CRAN, parseRenvLock}
 	}
 	if isSBOMName(path.Base(p)) {
 		return &Parser{"sbom", SBOMEco, parseSBOM}
@@ -249,6 +257,7 @@ func KnownBasenames() []string {
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
-		"Podfile.lock", "deno.lock", "flake.lock", "bom.json", "sbom.json",
+		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "bom.json",
+		"sbom.json",
 	}
 }
