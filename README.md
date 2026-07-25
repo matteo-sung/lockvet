@@ -91,6 +91,13 @@ Homebrew (macOS / Linux):
 brew install matteo-sung/tap/lockvet
 ```
 
+Scoop (Windows):
+
+```powershell
+scoop bucket add matteo-sung https://github.com/matteo-sung/scoop-bucket
+scoop install matteo-sung/lockvet
+```
+
 Go:
 
 ```sh
