@@ -4,6 +4,18 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.2.1 — 2026-07-31
+
+- **Conda support**: `pixi.lock` (schema v4 through v7) and `conda-lock.yml`
+  join the lineup (23 formats), including suffix-named unified lockfiles
+  (`audio.pixi.lock`, `conda-reqs.conda-lock.yml`). Conda dependency graphs
+  (`depends:` / `dependencies:`) drive direct/via-chain labels; pip/pypi
+  packages inside either format are matched against **PyPI advisories** on
+  OSV.dev and get deps.dev release ages, deprecation and license-change
+  data, exactly like any other Python lockfile. Conda channels themselves
+  have no OSV ecosystem (yet), so pure-conda diffs are explained without
+  vulnerability claims.
+
 ## v0.2.0 — 2026-07-25
 
 - **R support**: `renv.lock` joins the lineup (21 formats) — versions,

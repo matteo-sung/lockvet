@@ -36,6 +36,13 @@ const (
 	// revisions. lockvet still explains what moved and by how much time.
 	Nix Ecosystem = "Nix"
 
+	// Conda covers pixi.lock and conda-lock.yml. Conda channels have no
+	// OSV.dev ecosystem or deps.dev coverage, so conda packages get diff,
+	// graph and version-jump treatment only; pip/pypi packages inside the
+	// same lockfile are marked PyPI per-package (File.PkgEco) and get
+	// full vulnerability, age and deprecation data.
+	Conda Ecosystem = "conda"
+
 	// GitHubActions covers pkg:github purls in SBOMs (OSV ecosystem
 	// "GitHub Actions").
 	GitHubActions Ecosystem = "GitHub Actions"
@@ -230,8 +237,21 @@ func ByBasename(p string) *Parser {
 		return &Parser{"flake.lock", Nix, parseFlakeLock}
 	case "renv.lock":
 		return &Parser{"renv.lock", CRAN, parseRenvLock}
+	case "pixi.lock":
+		return &Parser{"pixi.lock", Conda, parsePixiLock}
+	case "conda-lock.yml", "conda-lock.yaml":
+		return &Parser{"conda-lock.yml", Conda, parseCondaLock}
 	}
-	if isSBOMName(path.Base(p)) {
+	base := path.Base(p)
+	// conda-lock supports named unified lockfiles (chipyard keeps
+	// conda-reqs.conda-lock.yml, torchlens audio.pixi.lock, …).
+	if strings.HasSuffix(base, ".pixi.lock") {
+		return &Parser{"pixi.lock", Conda, parsePixiLock}
+	}
+	if strings.HasSuffix(base, ".conda-lock.yml") || strings.HasSuffix(base, ".conda-lock.yaml") {
+		return &Parser{"conda-lock.yml", Conda, parseCondaLock}
+	}
+	if isSBOMName(base) {
 		return &Parser{"sbom", SBOMEco, parseSBOM}
 	}
 	return nil
@@ -257,7 +277,7 @@ func KnownBasenames() []string {
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
-		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "bom.json",
-		"sbom.json",
+		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",
+		"conda-lock.yml", "bom.json", "sbom.json",
 	}
 }

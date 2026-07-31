@@ -34,6 +34,9 @@ func FuzzAllParsers(f *testing.F) {
 		"{\"pins\":[{\"identity\":\"swift-nio\",\"location\":\"https://github.com/apple/swift-nio.git\",\"state\":{\"version\":\"2.0.0\"}}]}",
 		"{\"bomFormat\":\"CycloneDX\",\"components\":[{\"bom-ref\":\"a\",\"purl\":\"pkg:npm/a@1.0.0\"}],\"dependencies\":[{\"ref\":\"a\",\"dependsOn\":[\"a\"]}]}",
 		"{\"spdxVersion\":\"SPDX-2.3\",\"packages\":[{\"SPDXID\":\"p\",\"externalRefs\":[{\"referenceType\":\"purl\",\"referenceLocator\":\"pkg:apk/alpine/musl@1.2.4-r2?distro=alpine-3.18.4\"}]}]}",
+		"version: 7\npackages:\n- conda: https://x/a-1.0-b_0.conda\n  depends:\n  - b >=1\n- pypi: https://x/c-2.0-py3-none-any.whl\n  name: c\n  version: '2.0'\n  requires_dist:\n  - d>=1\n",
+		"version: 4\npackages:\n- kind: conda\n  name: a\n  version: '1.0'\n  depends:\n  - b 1.0 x\n",
+		"version: 1\npackage:\n- name: a\n  version: '1.0'\n  manager: conda\n  dependencies:\n    b: '>=1'\n  hash:\n    md5: x\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))
