@@ -87,6 +87,17 @@ func registryLink(c diffx.Change) string {
 		return "https://www.nuget.org/packages/" + name + "/" + v
 	case "CocoaPods":
 		return "https://cocoapods.org/pods/" + name
+	case "Julia":
+		// JuliaHub's General-registry pages are versioned.
+		if v == "" {
+			return "https://juliahub.com/ui/Packages/General/" + name
+		}
+		return "https://juliahub.com/ui/Packages/General/" + name + "/" + v
+	case "Hackage":
+		if v == "" {
+			return "https://hackage.haskell.org/package/" + name
+		}
+		return "https://hackage.haskell.org/package/" + name + "-" + v
 	case "CRAN":
 		// CRAN package pages are not versioned.
 		return "https://cran.r-project.org/package=" + name

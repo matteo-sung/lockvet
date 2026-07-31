@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	neturl "net/url"
 	"os"
 	"path"
 	"runtime/debug"
@@ -88,6 +89,15 @@ USAGE
                                       self-hosted), e.g. lockvet queue
                                       codeberg.org/forgejo. Bot usernames
                                       vary here too: -author <username>.
+
+  lockvet queue <bitbucket ws url>    same for a Bitbucket Cloud workspace
+  lockvet queue <bitbucket repo url>  or repo, e.g. lockvet queue
+                                      bitbucket.org/atlassian. Author specs
+                                      also match bot display names loosely.
+
+  lockvet queue <azure project url>   same for an Azure DevOps project or
+  lockvet queue <azure repo url>      repo, e.g. lockvet queue
+                                      dev.azure.com/ORG/PROJECT[/_git/REPO].
 
   lockvet diff <old> <new>            vet two files on disk, no git needed —
                                       two lockfiles, or two SBOMs (CycloneDX
@@ -606,6 +616,47 @@ type queueEntry struct {
 // "https://gitlab.example.com/group/project" or "gitlab.com/group". A first
 // path segment containing a dot is a host (GitHub owner names can't contain
 // dots); anything else is a plain GitHub owner[/repo] scope.
+// splitADOQueueScope turns a queue scope host+rest into an Azure DevOps
+// instance URL, project, and optional repo (URL path segments, kept
+// percent-encoded). dev.azure.com scopes are ORG/PROJECT[/_git/REPO];
+// *.visualstudio.com scopes are PROJECT[/_git/REPO].
+func splitADOQueueScope(host, rest string) (instance, project, repo string, ok bool) {
+	segs := strings.Split(strings.Trim(rest, "/"), "/")
+	if strings.EqualFold(host, "dev.azure.com") {
+		if len(segs) < 2 || segs[0] == "" {
+			return "", "", "", false
+		}
+		instance = "https://dev.azure.com/" + segs[0]
+		segs = segs[1:]
+	} else {
+		instance = "https://" + host
+	}
+	if len(segs) == 0 || segs[0] == "" {
+		return "", "", "", false
+	}
+	project = segs[0]
+	segs = segs[1:]
+	if len(segs) > 0 && segs[0] == "_git" {
+		segs = segs[1:]
+	}
+	switch {
+	case len(segs) == 0:
+		return instance, project, "", true
+	case len(segs) == 1 && segs[0] != "":
+		return instance, project, segs[0], true
+	}
+	return "", "", "", false
+}
+
+// adoPathLabel decodes a percent-encoded Azure DevOps path segment for
+// display.
+func adoPathLabel(seg string) string {
+	if u, err := neturl.PathUnescape(seg); err == nil {
+		return u
+	}
+	return seg
+}
+
 func splitQueueScope(scope string) (host, rest string) {
 	s := strings.TrimPrefix(strings.TrimPrefix(scope, "https://"), "http://")
 	s = strings.Trim(s, "/")
@@ -622,11 +673,13 @@ func splitQueueScope(scope string) (host, rest string) {
 // project URL/path (host-qualified, e.g. gitlab.com/gitlab-org).
 func runQueue(scope string, o queueOpts) {
 	host, rest := splitQueueScope(scope)
-	if strings.EqualFold(host, "dev.azure.com") || strings.HasSuffix(strings.ToLower(host), ".visualstudio.com") {
-		fatal("`lockvet queue` doesn't support Azure DevOps yet — vet PRs one at a time: lockvet pr <PR url>")
-	}
 	forge := "github"
-	if host != "" && host != "github.com" {
+	switch {
+	case strings.EqualFold(host, "bitbucket.org"):
+		forge = "bitbucket"
+	case strings.EqualFold(host, "dev.azure.com"), strings.HasSuffix(strings.ToLower(host), ".visualstudio.com"):
+		forge = "ado"
+	case host != "" && host != "github.com":
 		if gtpr.IsGiteaHost(host) {
 			forge = "gitea"
 		} else {
@@ -640,6 +693,10 @@ func runQueue(scope string, o queueOpts) {
 		defaultAuthors, defaultLabel = glmr.DefaultQueueAuthors, "renovate-bot + dependabot"
 	case "gitea":
 		defaultAuthors, defaultLabel = gtpr.DefaultQueueAuthors, "renovate-bot + dependabot"
+	case "bitbucket":
+		defaultAuthors, defaultLabel = bbpr.DefaultQueueAuthors, "renovate-bot + dependabot"
+	case "ado":
+		defaultAuthors, defaultLabel = adopr.DefaultQueueAuthors, "dependabot + renovate"
 	}
 	authors, authorLabel := defaultAuthors, defaultLabel
 	switch a := strings.TrimSpace(o.author); {
@@ -709,6 +766,58 @@ func runQueue(scope string, o queueOpts) {
 		}
 		if len(items) > 5 && !gtpr.HasToken() {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated Gitea/Forgejo API — vetting %d PRs may hit the rate limit; set GITEA_TOKEN\n", len(items))
+		}
+	case "bitbucket":
+		items, label, note, err := bbpr.ListQueue(rest, authors, o.limit)
+		check(err)
+		qual = label
+		if note != "" {
+			fmt.Fprintf(os.Stderr, "lockvet: note: %s\n", note)
+		}
+		singleRepo := strings.Contains(rest, "/")
+		for _, it := range items {
+			it := it
+			lbl := fmt.Sprintf("%s#%d", it.Ref.Repo, it.Ref.ID)
+			if singleRepo {
+				lbl = fmt.Sprintf("#%d", it.Ref.ID)
+			}
+			entries = append(entries, queueEntry{
+				refStr: it.Ref.String(), label: lbl,
+				title: it.Title, author: it.Author, url: it.URL, updated: it.Updated,
+				fetch: func(isLock func(string) bool) (*ghpr.Result, error) { return bbpr.Fetch(it.Ref, isLock) },
+			})
+		}
+		if len(items) == 0 && len(authors) > 0 && strings.TrimSpace(o.author) == "" {
+			fmt.Fprintf(os.Stderr, "lockvet: hint: Bitbucket bots often run as app users with only a display name — author specs match display names as substrings; try -author <name or {uuid}> or -author any\n")
+		}
+		if len(items) > 5 && !bbpr.HasToken() {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated Bitbucket API — vetting %d PRs may hit the rate limit; set BITBUCKET_TOKEN\n", len(items))
+		}
+	case "ado":
+		instance, project, repo, ok := splitADOQueueScope(host, rest)
+		if !ok {
+			fatal("cannot parse the Azure DevOps queue scope — want dev.azure.com/ORG/PROJECT or dev.azure.com/ORG/PROJECT/_git/REPO")
+		}
+		items, label, err := adopr.ListQueue(instance, project, repo, authors, o.limit)
+		check(err)
+		qual = label
+		for _, it := range items {
+			it := it
+			lbl := fmt.Sprintf("%s#%d", adoPathLabel(it.Ref.Repo), it.Ref.ID)
+			if repo != "" {
+				lbl = fmt.Sprintf("#%d", it.Ref.ID)
+			}
+			entries = append(entries, queueEntry{
+				refStr: it.Ref.String(), label: lbl,
+				title: it.Title, author: it.Author, url: it.URL, updated: it.Updated,
+				fetch: func(isLock func(string) bool) (*ghpr.Result, error) { return adopr.Fetch(it.Ref, isLock) },
+			})
+		}
+		if len(items) == 0 && len(authors) > 0 && strings.TrimSpace(o.author) == "" {
+			fmt.Fprintf(os.Stderr, "lockvet: hint: bot identities vary on Azure DevOps — author specs match display names as substrings; try -author <display name> or -author any\n")
+		}
+		if len(items) > 5 && !adopr.HasToken() {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: unauthenticated Azure DevOps API — vetting %d PRs may hit the rate limit; set AZURE_DEVOPS_TOKEN\n", len(items))
 		}
 	default:
 		items, label, err := ghpr.ListQueue(rest, authors, o.limit)
@@ -874,7 +983,7 @@ func runQueue(scope string, o queueOpts) {
 		switch forge {
 		case "gitlab":
 			refHint = "lockvet mr <group/project!N>"
-		case "gitea":
+		case "gitea", "bitbucket", "ado":
 			refHint = "lockvet pr <PR url>"
 		}
 		render.QueueTerminal(os.Stdout, heading, strings.TrimSuffix(noun, "s"), refHint, rows, color, vulnsChecked, metaChecked, o.freshDays)

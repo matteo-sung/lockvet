@@ -50,6 +50,12 @@ const (
 	Terraform Ecosystem = "Terraform"
 	Helm      Ecosystem = "Helm"
 
+	// Julia covers Manifest.toml (General registry packages and stdlibs;
+	// OSV ecosystem "Julia"). Hackage covers stack.yaml.lock and
+	// cabal.project.freeze/cabal.config (OSV ecosystem "Hackage").
+	Julia   Ecosystem = "Julia"
+	Hackage Ecosystem = "Hackage"
+
 	// GitHubActions covers pkg:github purls in SBOMs (OSV ecosystem
 	// "GitHub Actions").
 	GitHubActions Ecosystem = "GitHub Actions"
@@ -67,7 +73,7 @@ const (
 func (e Ecosystem) HasOSV() bool {
 	switch e {
 	case NPM, CratesIO, PyPI, Go, Packagist, RubyGems, Hex, Pub, Maven,
-		NuGet, SwiftURL, GitHubActions, CRAN, Bioconductor:
+		NuGet, SwiftURL, GitHubActions, CRAN, Bioconductor, Julia, Hackage:
 		return true
 	}
 	// Release-qualified distro ecosystems derived from SBOM purl
@@ -255,6 +261,16 @@ func ByBasename(p string) *Parser {
 	case "requirements.lock":
 		// Helm v2 chart lock, or pip-frozen requirements — sniffed.
 		return &Parser{"requirements.lock", Helm, parseRequirementsLock}
+	case "Manifest.toml":
+		return &Parser{"Manifest.toml", Julia, sniffManifestTOML(true)}
+	case "manifest.toml":
+		// Gleam's lockfile; content-sniffed in case a Julia manifest was
+		// lowercased somewhere along the way.
+		return &Parser{"manifest.toml", Hex, sniffManifestTOML(false)}
+	case "stack.yaml.lock":
+		return &Parser{"stack.yaml.lock", Hackage, parseStackYamlLock}
+	case "cabal.project.freeze", "cabal.config":
+		return &Parser{"cabal.project.freeze", Hackage, parseCabalFreeze}
 	}
 	base := path.Base(p)
 	// conda-lock supports named unified lockfiles (chipyard keeps
@@ -269,6 +285,10 @@ func ByBasename(p string) *Parser {
 	// .plat-uw2-dev-kms-key.terraform.lock.hcl and friends).
 	if strings.HasSuffix(base, ".terraform.lock.hcl") {
 		return &Parser{".terraform.lock.hcl", Terraform, parseTerraformLock}
+	}
+	// Julia 1.10.8+ writes version-specific manifests (Manifest-v1.11.toml).
+	if strings.HasPrefix(base, "Manifest-v") && strings.HasSuffix(base, ".toml") {
+		return &Parser{"Manifest.toml", Julia, sniffManifestTOML(true)}
 	}
 	if isSBOMName(base) {
 		return &Parser{"sbom", SBOMEco, parseSBOM}
@@ -298,6 +318,8 @@ func KnownBasenames() []string {
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
 		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
-		"requirements.lock", "bom.json", "sbom.json",
+		"requirements.lock", "Manifest.toml", "manifest.toml",
+		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
+		"bom.json", "sbom.json",
 	}
 }

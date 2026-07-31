@@ -37,7 +37,8 @@ what really happened:
   & Azure DevOps Server included): it vets straight from the API
 - **your whole Dependabot queue at once** — `lockvet queue <org>` triages
   every open Dependabot/Renovate PR of a repo, user, or org — GitHub,
-  GitLab, or Gitea/Forgejo — into one table: which introduce
+  GitLab, Bitbucket, Gitea/Forgejo, or Azure DevOps — into one table:
+  which introduce
   vulnerabilities, which are major or brand-new bumps, and which look
   routine
 - **SBOMs too — diff two container images** — feed it two CycloneDX or
@@ -46,11 +47,12 @@ what really happened:
   PyPI + Go *and* the Alpine/Debian OS packages, with distro security
   advisories (`ALPINE-CVE-…`, `DEBIAN-CVE-…`) resolved against the right
   release branch
-- **across every ecosystem, in one static binary** — 25 lockfile formats:
+- **across every ecosystem, in one static binary** — 29 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
   Gradle, NuGet, Swift Package Manager, CocoaPods, R/renv, conda/pixi,
-  Terraform/OpenTofu, Helm, Nix flakes — plus CycloneDX & SPDX SBOMs
+  Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu, Helm,
+  Nix flakes — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -139,8 +141,9 @@ lockvet -only jiff         # one package's story: jiff itself plus everything
 
 lockvet queue myorg           # triage EVERY open Dependabot/Renovate PR
 lockvet queue owner/repo      # of an org, user, or single repo (see below)
-lockvet queue gitlab.com/grp  # same for a GitLab group or project
-lockvet queue codeberg.org/o  # … or a Gitea/Forgejo owner or repo
+lockvet queue gitlab.com/grp  # same for a GitLab group or project,
+lockvet queue codeberg.org/o  # a Gitea/Forgejo owner or repo, a Bitbucket
+                              # workspace, or an Azure DevOps project
 
 lockvet diff old.cdx.json new.cdx.json   # two files on disk, no git — SBOMs
 lockvet diff Cargo.lock.orig Cargo.lock  # or any two lockfiles (see below)
@@ -298,6 +301,33 @@ Bot usernames vary here too (Forgejo's own Renovate runs as
 `viceice-bot`), so expect to pass `-author` — or `-author any` to vet
 every open PR that touches a lockfile. Uses `GITEA_TOKEN` /
 `FORGEJO_TOKEN` / `CODEBERG_TOKEN` when set.
+
+**Bitbucket Cloud** — pass a workspace or repo URL:
+
+```sh
+lockvet queue bitbucket.org/atlassian          # a whole workspace
+lockvet queue bitbucket.org/atlassian/aui      # one repo
+```
+
+Bitbucket bots often run as app users whose only name is a display
+name, so author specs also match display names loosely —
+`renovate-bot` (a default) finds `atlassian-renovate-bot`. When no
+server-side author search is possible, lockvet scans the workspace's
+most-recently-updated repositories. Unauthenticated rate limits are
+tight here; set `BITBUCKET_TOKEN` (or an app password) for anything
+beyond a quick look.
+
+**And Azure DevOps** — pass a project or repo URL:
+
+```sh
+lockvet queue dev.azure.com/myorg/myproject            # a whole project
+lockvet queue dev.azure.com/myorg/myproject/_git/api   # one repo
+```
+
+Bot identities vary on Azure DevOps too, so author specs match
+display names loosely (`renovate`, a default, finds "Renovate Bot") —
+or pass `-author any`. Uses `AZURE_DEVOPS_TOKEN` / `SYSTEM_ACCESSTOKEN`
+when set.
 
 **Weekly triage issue** — this workflow keeps one always-current
 "Dependency PR triage" issue in your repo, refreshed every Monday
@@ -583,6 +613,9 @@ Both are gates too: `-fail-on deprecated,license`.
 | Swift | `Package.resolved` |
 | iOS / CocoaPods | `Podfile.lock` |
 | R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
+| Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
+| Haskell | `stack.yaml.lock`, `cabal.project.freeze`, `cabal.config` (Stackage pins) — Hackage advisories (`HSEC-…`) |
+| Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]` |
 | Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — pip packages inside get full PyPI vulnerability/age data |
 | Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — default-registry hosts stripped, registry links for terraform.io & OpenTofu providers |
 | Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
@@ -591,7 +624,7 @@ Both are gates too: `-fail-on deprecated,license`.
 
 Notes: direct/`via …` origin labels appear where the lockfile records its
 dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler,
-renv, pixi/conda-lock, and Go modules (go.mod's `// indirect` markers give direct/transitive,
+renv, pixi/conda-lock, Julia manifests, Gleam, and Go modules (go.mod's `// indirect` markers give direct/transitive,
 without chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
 Gradle, …) skip the label.
 Deno's `jsr:` packages, CocoaPods, conda channels, Terraform providers,
@@ -658,7 +691,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
-| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, GitHub, GitLab & Gitea) |
+| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
