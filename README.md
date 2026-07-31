@@ -46,11 +46,11 @@ what really happened:
   PyPI + Go *and* the Alpine/Debian OS packages, with distro security
   advisories (`ALPINE-CVE-…`, `DEBIAN-CVE-…`) resolved against the right
   release branch
-- **across every ecosystem, in one static binary** — 23 lockfile formats:
+- **across every ecosystem, in one static binary** — 25 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
   Gradle, NuGet, Swift Package Manager, CocoaPods, R/renv, conda/pixi,
-  Nix flakes — plus CycloneDX & SPDX SBOMs
+  Terraform/OpenTofu, Helm, Nix flakes — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -115,7 +115,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.2.1 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.2.2 lockvet
 ```
 
 ## Usage
@@ -315,7 +315,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.2.1
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.2.2
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -400,7 +400,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.2.1
+      - uses: matteo-sung/lockvet@v0.2.2
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,license"
@@ -426,7 +426,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.2.1
+      - uses: matteo-sung/lockvet@v0.2.2
         with:
           sarif: 'true'
 ```
@@ -446,7 +446,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.2.1
+  image: ghcr.io/matteo-sung/lockvet:0.2.2
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -471,7 +471,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.2.1
+          image: ghcr.io/matteo-sung/lockvet:0.2.2
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -489,7 +489,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.2.1
+    container: ghcr.io/matteo-sung/lockvet:0.2.2
     steps:
       - checkout: none
       - script: >
@@ -513,7 +513,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.2.1
+    image: ghcr.io/matteo-sung/lockvet:0.2.2
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -531,7 +531,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.2.1
+    rev: v0.2.2
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -584,6 +584,8 @@ Both are gates too: `-fail-on deprecated,license`.
 | iOS / CocoaPods | `Podfile.lock` |
 | R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
 | Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — pip packages inside get full PyPI vulnerability/age data |
+| Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — default-registry hosts stripped, registry links for terraform.io & OpenTofu providers |
+| Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
 | Nix | `flake.lock` |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 
@@ -592,9 +594,9 @@ dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler,
 renv, pixi/conda-lock, and Go modules (go.mod's `// indirect` markers give direct/transitive,
 without chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
 Gradle, …) skip the label.
-Deno's `jsr:` packages, CocoaPods, conda channels, and Nix flakes have no
-OSV.dev ecosystem (yet), so those diffs are explained without vulnerability
-data — but pip/pypi packages inside `pixi.lock` / `conda-lock.yml` are
+Deno's `jsr:` packages, CocoaPods, conda channels, Terraform providers,
+Helm charts, and Nix flakes have no OSV.dev ecosystem (yet), so those
+diffs are explained without vulnerability data — but pip/pypi packages inside `pixi.lock` / `conda-lock.yml` are
 matched against PyPI advisories like any other Python lockfile.
 SBOM packages keep their own ecosystem per purl; OS packages get OSV data
 when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
@@ -648,7 +650,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
 |---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **23** across 16 ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **25** across 18 ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |

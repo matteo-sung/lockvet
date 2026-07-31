@@ -43,6 +43,13 @@ const (
 	// full vulnerability, age and deprecation data.
 	Conda Ecosystem = "conda"
 
+	// Terraform providers (.terraform.lock.hcl, Terraform & OpenTofu)
+	// and Helm charts (Chart.lock) have no OSV.dev ecosystem or deps.dev
+	// coverage: changes are diffed, classified and explained without
+	// vulnerability or age claims.
+	Terraform Ecosystem = "Terraform"
+	Helm      Ecosystem = "Helm"
+
 	// GitHubActions covers pkg:github purls in SBOMs (OSV ecosystem
 	// "GitHub Actions").
 	GitHubActions Ecosystem = "GitHub Actions"
@@ -241,6 +248,13 @@ func ByBasename(p string) *Parser {
 		return &Parser{"pixi.lock", Conda, parsePixiLock}
 	case "conda-lock.yml", "conda-lock.yaml":
 		return &Parser{"conda-lock.yml", Conda, parseCondaLock}
+	case ".terraform.lock.hcl":
+		return &Parser{".terraform.lock.hcl", Terraform, parseTerraformLock}
+	case "Chart.lock":
+		return &Parser{"Chart.lock", Helm, parseChartLock}
+	case "requirements.lock":
+		// Helm v2 chart lock, or pip-frozen requirements — sniffed.
+		return &Parser{"requirements.lock", Helm, parseRequirementsLock}
 	}
 	base := path.Base(p)
 	// conda-lock supports named unified lockfiles (chipyard keeps
@@ -250,6 +264,11 @@ func ByBasename(p string) *Parser {
 	}
 	if strings.HasSuffix(base, ".conda-lock.yml") || strings.HasSuffix(base, ".conda-lock.yaml") {
 		return &Parser{"conda-lock.yml", Conda, parseCondaLock}
+	}
+	// Suffix-named terraform locks exist too (cloudposse/atmos keeps
+	// .plat-uw2-dev-kms-key.terraform.lock.hcl and friends).
+	if strings.HasSuffix(base, ".terraform.lock.hcl") {
+		return &Parser{".terraform.lock.hcl", Terraform, parseTerraformLock}
 	}
 	if isSBOMName(base) {
 		return &Parser{"sbom", SBOMEco, parseSBOM}
@@ -278,6 +297,7 @@ func KnownBasenames() []string {
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
 		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",
-		"conda-lock.yml", "bom.json", "sbom.json",
+		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
+		"requirements.lock", "bom.json", "sbom.json",
 	}
 }

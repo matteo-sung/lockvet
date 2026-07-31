@@ -95,6 +95,26 @@ func registryLink(c diffx.Change) string {
 	case "SwiftURL":
 		// Swift package names are already "host/org/repo".
 		return "https://" + name
+	case "Terraform":
+		// Default-registry providers are "namespace/name"; OpenTofu and
+		// custom registries keep their host prefix. Only the two public
+		// registries have stable pages.
+		if host, rest, ok := strings.Cut(name, "/"); ok && strings.Contains(host, ".") {
+			if host != "registry.opentofu.org" || strings.Count(rest, "/") != 1 {
+				return ""
+			}
+			if v == "" {
+				return "https://search.opentofu.org/provider/" + rest + "/latest"
+			}
+			return "https://search.opentofu.org/provider/" + rest + "/v" + v
+		}
+		if strings.Count(name, "/") != 1 {
+			return ""
+		}
+		if v == "" {
+			return "https://registry.terraform.io/providers/" + name + "/latest"
+		}
+		return "https://registry.terraform.io/providers/" + name + "/" + v
 	}
 	return "" // Nix and anything unknown: no stable registry page
 }

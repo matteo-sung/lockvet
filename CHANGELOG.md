@@ -4,6 +4,20 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.2.2 — 2026-07-31
+
+- **Terraform / OpenTofu support**: `.terraform.lock.hcl` (including
+  suffix-named variants like atmos's `.plat-uw2-dev-kms-key.terraform.lock.hcl`)
+  as lockfile format #24. Default-registry hosts are stripped from provider
+  names; OpenTofu and custom-registry addresses keep theirs. `--md` links
+  providers to registry.terraform.io / search.opentofu.org pages.
+- **Helm support**: `Chart.lock` and Helm v2 `requirements.lock` as format
+  #25, every entry labeled direct. Pip-style `requirements.lock` (rye) is
+  auto-detected and gets the full PyPI vulnerability/age treatment instead.
+- Terraform providers and Helm charts have no OSV.dev ecosystem, so their
+  diffs are explained without vulnerability claims — same policy as Nix
+  and conda channels.
+
 ## v0.2.1 — 2026-07-31
 
 - **Conda support**: `pixi.lock` (schema v4 through v7) and `conda-lock.yml`
