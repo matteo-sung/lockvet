@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/matteo-sung/lockvet/internal/diffx"
@@ -17,6 +19,14 @@ import (
 
 // BatchURL is a var so tests can point it at a fake server.
 var BatchURL = "https://api.deps.dev/v3alpha/versionbatch"
+
+// SingleURL is the base for per-version GET lookups (see SingleRequests).
+var SingleURL = "https://api.deps.dev/v3alpha"
+
+// SingleRequests switches Annotate from the versionbatch endpoint to one
+// GET per version. The browser (wasm) build sets it: versionbatch does not
+// answer CORS preflight requests, but the GET endpoints are CORS-simple.
+var SingleRequests = false
 
 var client = &http.Client{Timeout: 20 * time.Second}
 
@@ -162,7 +172,11 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 	now := Now()
 	for start := 0; start < len(reqs); start += chunkSize {
 		end := min(start+chunkSize, len(reqs))
-		infos, err := runBatch(reqs[start:end])
+		fetchChunk := runBatch
+		if SingleRequests {
+			fetchChunk = runSingles
+		}
+		infos, err := fetchChunk(reqs[start:end])
 		if err != nil {
 			return err
 		}
@@ -268,6 +282,64 @@ func runBatch(reqs []request) ([]*versionInfo, error) {
 	}
 	if pos != len(out) {
 		return nil, fmt.Errorf("deps.dev returned %d results for %d queries", pos, len(out))
+	}
+	return out, nil
+}
+
+// runSingles resolves one chunk with one GET per version key, a few at a
+// time. 404 means deps.dev has no data for that version (nil entry), like
+// an empty batch response.
+func runSingles(reqs []request) ([]*versionInfo, error) {
+	out := make([]*versionInfo, len(reqs))
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	for i, r := range reqs {
+		wg.Add(1)
+		go func(i int, vk versionKey) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			mu.Lock()
+			stop := firstErr != nil
+			mu.Unlock()
+			if stop {
+				return
+			}
+			u := SingleURL + "/systems/" + neturl.PathEscape(vk.System) +
+				"/packages/" + neturl.PathEscape(vk.Name) +
+				"/versions/" + neturl.PathEscape(vk.Version)
+			resp, err := client.Get(u)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("deps.dev unreachable: %w", err)
+				}
+				mu.Unlock()
+				return
+			}
+			defer resp.Body.Close()
+			switch resp.StatusCode {
+			case 200:
+				var info versionInfo
+				if err := json.NewDecoder(resp.Body).Decode(&info); err == nil {
+					out[i] = &info
+				}
+			case 404:
+				// unknown version: leave nil
+			default:
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("deps.dev returned HTTP %d", resp.StatusCode)
+				}
+				mu.Unlock()
+			}
+		}(i, r.VersionKey)
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
 	}
 	return out, nil
 }

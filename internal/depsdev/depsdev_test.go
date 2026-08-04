@@ -254,3 +254,49 @@ func TestAnnotateLicenseChange(t *testing.T) {
 		t.Errorf("removed pkg must not be license-checked, got %+v", cs[5])
 	}
 }
+
+// TestAnnotateSingleRequests exercises the per-version GET path used by the
+// browser (wasm) build, including scoped-name path escaping and 404s.
+func TestAnnotateSingleRequests(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.EscapedPath() {
+		case "/systems/NPM/packages/@scope%2Fpkg/versions/2.0.0":
+			json.NewEncoder(w).Encode(versionInfo{PublishedAt: "2026-01-01T00:00:00Z", Licenses: []string{"MIT"}})
+		case "/systems/NPM/packages/@scope%2Fpkg/versions/1.0.0":
+			json.NewEncoder(w).Encode(versionInfo{PublishedAt: "2020-01-01T00:00:00Z", Licenses: []string{"MIT"}})
+		case "/systems/NPM/packages/gone/versions/1.0.0":
+			http.NotFound(w, r)
+		case "/systems/NPM/packages/old-thing/versions/3.0.0":
+			json.NewEncoder(w).Encode(versionInfo{
+				PublishedAt: "2025-01-01T00:00:00Z", IsDeprecated: true, DeprecatedReason: "use new-thing",
+			})
+		default:
+			t.Errorf("unexpected path %s", r.URL.EscapedPath())
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	oldURL, oldMode := SingleURL, SingleRequests
+	SingleURL, SingleRequests = srv.URL, true
+	defer func() { SingleURL, SingleRequests = oldURL, oldMode }()
+	pinClock(t, "2026-01-10T00:00:00Z")
+
+	diffs := []diffx.FileDiff{{Path: "package-lock.json", Changes: []diffx.Change{
+		{Name: "@scope/pkg", Ecosystem: "npm", Old: []string{"1.0.0"}, New: []string{"2.0.0"}},
+		{Name: "gone", Ecosystem: "npm", New: []string{"1.0.0"}},
+		{Name: "old-thing", Ecosystem: "npm", New: []string{"3.0.0"}},
+	}}}
+	if err := Annotate(diffs, 30); err != nil {
+		t.Fatal(err)
+	}
+	cs := diffs[0].Changes
+	if cs[0].AgeDays != 9 || !cs[0].Fresh {
+		t.Errorf("@scope/pkg: age=%d fresh=%v, want 9/true", cs[0].AgeDays, cs[0].Fresh)
+	}
+	if cs[1].PublishedAt != "" {
+		t.Errorf("gone: expected no metadata, got %q", cs[1].PublishedAt)
+	}
+	if !cs[2].Deprecated || cs[2].DeprecatedReason != "use new-thing" {
+		t.Errorf("old-thing: deprecated=%v reason=%q", cs[2].Deprecated, cs[2].DeprecatedReason)
+	}
+}

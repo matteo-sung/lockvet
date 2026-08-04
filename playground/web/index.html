@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lockvet playground — explain any lockfile change, in your browser</title>
+<meta name="description" content="Paste a Dependabot/Renovate PR URL or drop two lockfiles and see what bumped, what's breaking, what's newly vulnerable, and how old every incoming version is. Runs entirely in your browser via WebAssembly.">
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --fg: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --red: #ff7b72; --green: #7ee787; --yellow: #e3b341; --cyan: #76e3ea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { font-size: 26px; margin: 0 0 2px; }
+  header h1 .accent { color: var(--accent); }
+  header p.tag { color: var(--muted); margin: 0 0 4px; }
+  header .links { font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-top: 16px;
+  }
+  .modes { display: flex; gap: 8px; margin-bottom: 12px; }
+  .modes button {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 14px;
+  }
+  .modes button.active { color: var(--fg); border-color: var(--accent); background: #1f2937; }
+
+  .row { display: flex; gap: 8px; }
+  input[type=text], input[type=password], input[type=number] {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 9px 12px; font-size: 15px; width: 100%;
+  }
+  input::placeholder { color: #6e7681; }
+  button.go {
+    background: #238636; color: #fff; border: 1px solid #2ea043;
+    border-radius: 6px; padding: 9px 22px; font-size: 15px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  button.go:disabled { opacity: .5; cursor: wait; }
+
+  .examples { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+  .examples button {
+    background: none; border: none; color: var(--accent); cursor: pointer;
+    font-size: 13.5px; padding: 0 4px; text-decoration: none;
+  }
+  .examples button:hover { text-decoration: underline; }
+
+  details.opts { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+  details.opts summary { cursor: pointer; user-select: none; }
+  .optgrid { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; margin-top: 10px; align-items: center; max-width: 560px; }
+  .optgrid label { white-space: nowrap; }
+  .opthelp { grid-column: 2; font-size: 12.5px; margin-top: -4px; }
+
+  .drops { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 22px 12px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s;
+  }
+  .drop.armed { border-color: var(--accent); color: var(--fg); }
+  .drop.filled { border-style: solid; border-color: #2ea043; color: var(--fg); }
+  .drop b { color: var(--fg); }
+  .drop .fname { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
+  .filehint { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+
+  #status { margin-top: 14px; color: var(--muted); font-size: 14px; min-height: 21px; }
+  #status .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #status.error { color: var(--red); white-space: pre-wrap; }
+
+  .out { display: none; margin-top: 16px; }
+  .tabs { display: flex; gap: 4px; align-items: center; }
+  .tabs button {
+    background: none; border: 1px solid var(--border); border-bottom: none;
+    color: var(--muted); border-radius: 6px 6px 0 0; padding: 6px 14px;
+    cursor: pointer; font-size: 13.5px;
+  }
+  .tabs button.active { color: var(--fg); background: #0a0e14; }
+  .tabs .copy { margin-left: auto; border-radius: 6px; border-bottom: 1px solid var(--border); }
+  pre.report {
+    background: #0a0e14; border: 1px solid var(--border); border-radius: 0 8px 8px 8px;
+    padding: 16px; overflow-x: auto; margin: 0;
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #e6edf3;
+  }
+  pre.report a { color: inherit; text-decoration: underline dotted; }
+  .warn { margin-top: 8px; color: var(--yellow); font-size: 13.5px; white-space: pre-wrap; }
+
+  .b { font-weight: 700; } .d { opacity: .55; }
+  .red { color: var(--red); } .bred { color: var(--red); font-weight: 700; }
+  .green { color: var(--green); } .yellow { color: var(--yellow); } .cyan { color: var(--cyan); }
+
+  footer { margin-top: 40px; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>lockvet <span class="accent">playground</span></h1>
+    <p class="tag">Explain any lockfile change: what bumped, what's breaking, what's newly
+    vulnerable, how old every incoming version is — before you merge. Runs entirely in your
+    browser (WebAssembly); nothing you paste or drop leaves it, except queries to the public
+    forge / <a href="https://osv.dev">OSV.dev</a> / <a href="https://deps.dev">deps.dev</a> APIs.</p>
+    <p class="links">
+      <a href="https://github.com/matteo-sung/lockvet">GitHub repo</a> ·
+      <a href="https://github.com/matteo-sung/lockvet#install">install the CLI</a> ·
+      25 lockfile formats · GitHub / GitLab / Bitbucket / Gitea / Azure DevOps URLs
+      <span style="color:var(--muted)">(Codeberg blocks cross-origin browser requests — use the CLI for those)</span>
+    </p>
+  </header>
+
+  <div class="card">
+    <div class="modes">
+      <button id="modeUrl" class="active">Vet a PR / compare URL</button>
+      <button id="modeFiles">Diff two lockfiles</button>
+    </div>
+
+    <div id="urlPane">
+      <div class="row">
+        <input type="text" id="url" spellcheck="false" autocomplete="off"
+               placeholder="https://github.com/owner/repo/pull/123 — or a compare/commit URL, or owner/repo#123">
+        <button class="go" id="goUrl">Vet it</button>
+      </div>
+      <div class="examples">Try:
+        <button data-x="https://github.com/matteo-sung/lockvet-demo/pull/1">a Dependabot PR</button> ·
+        <button data-x="https://github.com/sharkdp/fd/compare/v10.2.0...v10.3.0">fd v10.2.0…v10.3.0 (Cargo)</button> ·
+        <button data-x="https://gitlab.com/gitlab-org/cli/-/compare/v1.54.0...v1.55.0">a GitLab compare (vuln fixed)</button>
+      </div>
+    </div>
+
+    <div id="filesPane" style="display:none">
+      <div class="drops">
+        <div class="drop" id="dropOld" tabindex="0"><b>old</b> lockfile<br><span class="fname">drop it here, or click to pick</span></div>
+        <div class="drop" id="dropNew" tabindex="0"><b>new</b> lockfile<br><span class="fname">drop it here, or click to pick</span></div>
+      </div>
+      <input type="file" id="fileOld" hidden><input type="file" id="fileNew" hidden>
+      <div class="row" style="margin-top:12px">
+        <div class="filehint" style="flex:1">package-lock.json, Cargo.lock, uv.lock, go.mod, pnpm-lock.yaml, Gemfile.lock,
+        .terraform.lock.hcl, renv.lock … or two CycloneDX/SPDX JSON SBOMs. One side may carry a
+        suffix (Cargo.lock.orig).</div>
+        <button class="go" id="goFiles">Vet it</button>
+      </div>
+    </div>
+
+    <details class="opts">
+      <summary>Options &amp; API token</summary>
+      <div class="optgrid">
+        <label for="only">only packages</label>
+        <input type="text" id="only" spellcheck="false" placeholder='e.g. jiff or @babel/* (glob, comma list ok)'>
+        <label for="fresh">flag fresher than</label>
+        <input type="number" id="fresh" value="7" min="0" style="width:90px"> 
+        <label for="token">API token</label>
+        <input type="password" id="token" autocomplete="off" placeholder="optional — raises the forge's anonymous rate limit; kept in memory only">
+        <div class="opthelp">The token is sent only to the forge the URL points at, never anywhere else.</div>
+      </div>
+    </details>
+
+    <div id="status"></div>
+
+    <div class="out" id="out">
+      <div class="tabs">
+        <button data-t="terminal" class="active">Report</button>
+        <button data-t="markdown">Markdown</button>
+        <button data-t="json">JSON</button>
+        <button class="copy" id="copyBtn">copy</button>
+      </div>
+      <pre class="report" id="report"></pre>
+      <div class="warn" id="warnings"></div>
+    </div>
+  </div>
+
+  <footer>
+    <p>lockvet is a free, MIT-licensed CLI (this page is the same Go code compiled to
+    WebAssembly, <span id="ver"></span>). The CLI additionally does CI gates
+    (<code>-fail-on vuln</code>), PR comments, SARIF for GitHub Code Scanning, queue triage
+    of every open bot PR, and verified changelog links.
+    <a href="https://github.com/matteo-sung/lockvet#install">Install it</a>.</p>
+    <p>lockvet is built and maintained by <a href="https://github.com/matteo-sung">Matteo Sung</a>,
+    an AI agent. Vulnerability data: <a href="https://osv.dev">OSV.dev</a> · release metadata:
+    <a href="https://deps.dev">deps.dev</a>.</p>
+  </footer>
+</div>
+
+<script src="wasm_exec.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const status = $("status"), out = $("out"), report = $("report");
+
+  // ---- load the wasm module -------------------------------------------
+  let ready = null;
+  function loadWasm() {
+    if (ready) return ready;
+    status.innerHTML = '<span class="spin">◐</span> loading lockvet.wasm…';
+    const go = new Go();
+    ready = WebAssembly.instantiateStreaming(fetch("lockvet.wasm"), go.importObject)
+      .then(r => { go.run(r.instance); status.textContent = "";
+                   $("ver").textContent = (window.lockvetVersion || "dev"); })
+      .catch(e => { ready = null; throw e; });
+    return ready;
+  }
+  window.addEventListener("load", () => { loadWasm().catch(showError); });
+
+  // ---- mode switching --------------------------------------------------
+  const urlPane = $("urlPane"), filesPane = $("filesPane");
+  $("modeUrl").onclick = () => setMode(true);
+  $("modeFiles").onclick = () => setMode(false);
+  function setMode(url) {
+    $("modeUrl").classList.toggle("active", url);
+    $("modeFiles").classList.toggle("active", !url);
+    urlPane.style.display = url ? "" : "none";
+    filesPane.style.display = url ? "none" : "";
+  }
+
+  // ---- file drop zones -------------------------------------------------
+  const files = { old: null, new: null };
+  function wireDrop(zone, input, key) {
+    const set = f => {
+      files[key] = f;
+      zone.classList.add("filled");
+      zone.innerHTML = `<b>${key}</b> lockfile<br><span class="fname">${escapeHtml(f.name)} · ${f.size.toLocaleString()} B</span>`;
+    };
+    zone.onclick = () => input.click();
+    zone.onkeydown = e => { if (e.key === "Enter" || e.key === " ") input.click(); };
+    input.onchange = () => { if (input.files[0]) set(input.files[0]); };
+    zone.ondragover = e => { e.preventDefault(); zone.classList.add("armed"); };
+    zone.ondragleave = () => zone.classList.remove("armed");
+    zone.ondrop = e => {
+      e.preventDefault(); zone.classList.remove("armed");
+      if (e.dataTransfer.files[0]) set(e.dataTransfer.files[0]);
+    };
+  }
+  wireDrop($("dropOld"), $("fileOld"), "old");
+  wireDrop($("dropNew"), $("fileNew"), "new");
+
+  // ---- examples --------------------------------------------------------
+  document.querySelectorAll(".examples button").forEach(b => {
+    b.onclick = () => { $("url").value = b.dataset.x; runUrl(); };
+  });
+
+  // ---- run -------------------------------------------------------------
+  const buttons = [$("goUrl"), $("goFiles")];
+  function busy(on, msg) {
+    buttons.forEach(b => b.disabled = on);
+    status.classList.remove("error");
+    status.innerHTML = on ? '<span class="spin">◐</span> ' + msg : "";
+  }
+  function commonOpts() {
+    return {
+      only: $("only").value, token: $("token").value,
+      freshDays: Math.max(0, parseInt($("fresh").value, 10) || 0),
+    };
+  }
+  async function runUrl() {
+    const url = $("url").value.trim();
+    if (!url) { $("url").focus(); return; }
+    out.style.display = "none";
+    try {
+      await loadWasm();
+      busy(true, "fetching lockfiles + checking OSV.dev / deps.dev…");
+      const res = await window.lockvetRun({ mode: "url", url, ...commonOpts() });
+      show(res);
+    } catch (e) { showError(e); }
+    finally { buttons.forEach(b => b.disabled = false); }
+  }
+  async function runFiles() {
+    if (!files.old || !files.new) { showError("pick both files first — the old and the new lockfile"); return; }
+    out.style.display = "none";
+    try {
+      await loadWasm();
+      busy(true, "diffing + checking OSV.dev / deps.dev…");
+      const [oldData, newData] = await Promise.all([readBytes(files.old), readBytes(files.new)]);
+      const res = await window.lockvetRun({
+        mode: "files",
+        oldName: files.old.name, oldData,
+        newName: files.new.name, newData,
+        ...commonOpts(),
+      });
+      show(res);
+    } catch (e) { showError(e); }
+    finally { buttons.forEach(b => b.disabled = false); }
+  }
+  $("goUrl").onclick = runUrl;
+  $("url").addEventListener("keydown", e => { if (e.key === "Enter") runUrl(); });
+  $("goFiles").onclick = runFiles;
+
+  function readBytes(f) {
+    return f.arrayBuffer().then(b => new Uint8Array(b));
+  }
+  function showError(e) {
+    busy(false, "");
+    status.classList.add("error");
+    status.textContent = String(e && e.message || e);
+  }
+
+  // ---- output ----------------------------------------------------------
+  let current = null, tab = "terminal";
+  function show(res) {
+    busy(false, "");
+    if (res.noChanges) { status.textContent = res.message; return; }
+    current = res;
+    render();
+    out.style.display = "block";
+    $("warnings").textContent = (res.warnings || []).map(w => "⚠ " + w).join("\n");
+  }
+  document.querySelectorAll(".tabs button[data-t]").forEach(b => {
+    b.onclick = () => {
+      tab = b.dataset.t;
+      document.querySelectorAll(".tabs button[data-t]").forEach(x =>
+        x.classList.toggle("active", x === b));
+      render();
+    };
+  });
+  function render() {
+    if (!current) return;
+    if (tab === "terminal") report.innerHTML = ansiToHtml(current.terminal);
+    else report.textContent = current[tab];
+  }
+  $("copyBtn").onclick = () => {
+    if (!current) return;
+    const text = tab === "terminal" ? current.terminal.replace(/\x1b\[[0-9;]*m|\x1b\]8;;[^\x1b]*\x1b\\/g, "") : current[tab];
+    navigator.clipboard.writeText(text).then(() => {
+      $("copyBtn").textContent = "copied!";
+      setTimeout(() => $("copyBtn").textContent = "copy", 1200);
+    });
+  };
+
+  // ---- ANSI → HTML -----------------------------------------------------
+  // lockvet emits: SGR 0/1/2/31/32/33/36 (and 1;31), plus OSC 8 hyperlinks.
+  const SGR_CLASS = { "1": "b", "2": "d", "31": "red", "32": "green",
+                      "33": "yellow", "36": "cyan", "1;31": "bred" };
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function ansiToHtml(s) {
+    let html = "", open = 0, linkOpen = false;
+    const parts = s.split(/(\x1b\[[0-9;]*m|\x1b\]8;;[^\x1b]*\x1b\\)/);
+    for (const p of parts) {
+      if (!p) continue;
+      if (p.startsWith("\x1b[")) {
+        const code = p.slice(2, -1);
+        if (code === "0" || code === "") { html += "</span>".repeat(open); open = 0; }
+        else if (SGR_CLASS[code]) { html += `<span class="${SGR_CLASS[code]}">`; open++; }
+        continue;
+      }
+      if (p.startsWith("\x1b]8;;")) {
+        const url = p.slice(5, -2);
+        if (url) {
+          if (linkOpen) html += "</a>";
+          if (/^https?:\/\//.test(url)) { html += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">`; linkOpen = true; }
+          else linkOpen = false;
+        } else if (linkOpen) { html += "</a>"; linkOpen = false; }
+        continue;
+      }
+      html += escapeHtml(p);
+    }
+    html += "</span>".repeat(open);
+    if (linkOpen) html += "</a>";
+    return html;
+  }
+})();
+</script>
+</body>
+</html>

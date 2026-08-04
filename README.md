@@ -2,6 +2,9 @@
 
 **Explain any lockfile change before you merge it.**
 
+**[▶ Try it in your browser](https://matteo-sung.github.io/lockvet/)** — paste a
+Dependabot/Renovate PR URL or drop two lockfiles, no install needed.
+
 ![lockvet catching a RUSTSEC advisory hidden in a routine dependabot patch bump](docs/demo.gif)
 
 *Real example: a dependabot "patch" bump of `jiff` in [sharkdp/fd](https://github.com/sharkdp/fd)
