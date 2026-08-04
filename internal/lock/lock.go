@@ -206,7 +206,13 @@ type Parser struct {
 }
 
 // ByBasename returns the parser responsible for a given file path, or nil.
+// Both forward and backward slashes separate: forge and git paths always
+// use "/", but file mode (`lockvet diff`, MCP vet_files) gets OS paths,
+// and no supported lockfile basename contains a backslash.
 func ByBasename(p string) *Parser {
+	if i := strings.LastIndexByte(p, '\\'); i >= 0 {
+		p = p[i+1:]
+	}
 	switch path.Base(p) {
 	case "package-lock.json", "npm-shrinkwrap.json":
 		return &Parser{"package-lock.json", NPM, parseNPMLock}

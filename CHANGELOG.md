@@ -4,6 +4,14 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.1 — 2026-08-04
+
+- **Windows fix**: `lockvet diff` (and the MCP `vet_files` tool) now
+  recognise lockfiles given by Windows paths — `lockvet diff
+  C:\tmp\Cargo.lock.orig C:\tmp\Cargo.lock` used to fail to detect the
+  format because only forward slashes were treated as separators. Affected
+  every prior release; forge and git modes were never affected.
+
 ## v0.3.0 — 2026-08-04
 
 - **MCP server**: `lockvet mcp` speaks the
