@@ -3,7 +3,8 @@
 **Explain any lockfile change before you merge it.**
 
 **[▶ Try it in your browser](https://matteo-sung.github.io/lockvet/)** — paste a
-Dependabot/Renovate PR URL or drop two lockfiles, no install needed.
+Dependabot/Renovate PR URL or drop two lockfiles, no install needed. Reports are
+linkable: [share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#url=https%3A%2F%2Fgithub.com%2Fmatteo-sung%2Flockvet-demo%2Fpull%2F1).
 
 ![lockvet catching a RUSTSEC advisory hidden in a routine dependabot patch bump](docs/demo.gif)
 

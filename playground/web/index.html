@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lockvet playground — explain any lockfile change, in your browser</title>
 <meta name="description" content="Paste a Dependabot/Renovate PR URL or drop two lockfiles and see what bumped, what's breaking, what's newly vulnerable, and how old every incoming version is. Runs entirely in your browser via WebAssembly.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%F0%9F%94%8E%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d;
@@ -86,6 +87,7 @@
   }
   .tabs button.active { color: var(--fg); background: #0a0e14; }
   .tabs .copy { margin-left: auto; border-radius: 6px; border-bottom: 1px solid var(--border); }
+  .tabs .copy + .copy { margin-left: 4px; }
   pre.report {
     background: #0a0e14; border: 1px solid var(--border); border-radius: 0 8px 8px 8px;
     padding: 16px; overflow-x: auto; margin: 0;
@@ -171,6 +173,7 @@
         <button data-t="terminal" class="active">Report</button>
         <button data-t="markdown">Markdown</button>
         <button data-t="json">JSON</button>
+        <button class="copy" id="shareBtn" title="copy a link that re-runs this report" style="display:none">share link</button>
         <button class="copy" id="copyBtn">copy</button>
       </div>
       <pre class="report" id="report"></pre>
@@ -209,7 +212,9 @@
       .catch(e => { ready = null; throw e; });
     return ready;
   }
-  window.addEventListener("load", () => { loadWasm().catch(showError); });
+  window.addEventListener("load", () => {
+    if (!applyHash()) loadWasm().catch(showError);
+  });
 
   // ---- mode switching --------------------------------------------------
   const urlPane = $("urlPane"), filesPane = $("filesPane");
@@ -268,8 +273,10 @@
     try {
       await loadWasm();
       busy(true, "fetching lockfiles + checking OSV.dev / deps.dev…");
-      const res = await window.lockvetRun({ mode: "url", url, ...commonOpts() });
-      show(res);
+      const opts = commonOpts();
+      setHash(url, opts);
+      const res = await window.lockvetRun({ mode: "url", url, ...opts });
+      show(res, /*shareable=*/true);
     } catch (e) { showError(e); }
     finally { buttons.forEach(b => b.disabled = false); }
   }
@@ -280,13 +287,14 @@
       await loadWasm();
       busy(true, "diffing + checking OSV.dev / deps.dev…");
       const [oldData, newData] = await Promise.all([readBytes(files.old), readBytes(files.new)]);
+      clearHash();
       const res = await window.lockvetRun({
         mode: "files",
         oldName: files.old.name, oldData,
         newName: files.new.name, newData,
         ...commonOpts(),
       });
-      show(res);
+      show(res, /*shareable=*/false);
     } catch (e) { showError(e); }
     finally { buttons.forEach(b => b.disabled = false); }
   }
@@ -305,8 +313,9 @@
 
   // ---- output ----------------------------------------------------------
   let current = null, tab = "terminal";
-  function show(res) {
+  function show(res, shareable) {
     busy(false, "");
+    $("shareBtn").style.display = shareable ? "" : "none";
     if (res.noChanges) { status.textContent = res.message; return; }
     current = res;
     render();
@@ -326,6 +335,45 @@
     if (tab === "terminal") report.innerHTML = ansiToHtml(current.terminal);
     else report.textContent = current[tab];
   }
+  // ---- shareable links (#url=…&only=…&fresh=…; never the token) --------
+  function setHash(url, opts) {
+    const p = new URLSearchParams();
+    p.set("url", url);
+    if (opts.only) p.set("only", opts.only);
+    if (opts.freshDays !== 7) p.set("fresh", String(opts.freshDays));
+    history.replaceState(null, "", "#" + p.toString());
+  }
+  function clearHash() {
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }
+  function applyHash() {
+    const h = location.hash.replace(/^#/, "");
+    if (!h.includes("url=")) return false;
+    const p = new URLSearchParams(h);
+    const url = (p.get("url") || "").trim();
+    if (!url) return false;
+    setMode(true);
+    $("url").value = url;
+    $("only").value = p.get("only") || "";
+    if (p.has("fresh")) $("fresh").value = p.get("fresh");
+    runUrl();
+    return true;
+  }
+  window.addEventListener("hashchange", () => {
+    const h = new URLSearchParams(location.hash.replace(/^#/, ""));
+    if ((h.get("url") || "").trim() && h.get("url").trim() !== $("url").value.trim()) applyHash();
+  });
+  $("shareBtn").onclick = () => {
+    navigator.clipboard.writeText(location.href).then(() => {
+      $("shareBtn").textContent = "link copied!";
+      setTimeout(() => $("shareBtn").textContent = "share link", 1200);
+    }).catch(() => {
+      // clipboard blocked — show the link so it can be copied by hand
+      status.classList.remove("error");
+      status.textContent = location.href;
+    });
+  };
+
   $("copyBtn").onclick = () => {
     if (!current) return;
     const text = tab === "terminal" ? current.terminal.replace(/\x1b\[[0-9;]*m|\x1b\]8;;[^\x1b]*\x1b\\/g, "") : current[tab];
