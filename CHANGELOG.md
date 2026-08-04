@@ -4,6 +4,30 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.2.4 — 2026-07-31
+
+- **Shell completions**: `lockvet completion bash|zsh|fish` prints a
+  completion script (subcommands, flags, `-fail-on` values, file/dir
+  arguments). Homebrew installs them automatically; release tarballs ship
+  them under `completions/`.
+- **Man page**: `lockvet man` prints roff; `man lockvet` works out of the
+  box with Homebrew, and the tarballs carry `man/lockvet.1`.
+
+## v0.2.3 — 2026-07-31
+
+- **`lockvet queue` on Bitbucket Cloud**: triage a whole workspace or a
+  single repo (`lockvet queue bitbucket.org/myworkspace[/repo]`). Author
+  specs also match bot *display names* loosely, since Bitbucket bots are
+  often app users — `renovate-bot` finds `atlassian-renovate-bot`. Set
+  `BITBUCKET_TOKEN`: the unauthenticated rate limit is tight, and a
+  mid-scan limit degrades to partial results with a note.
+- **`lockvet queue` on Azure DevOps**: project or repo scope
+  (`lockvet queue dev.azure.com/ORG/PROJECT[/_git/REPO]`,
+  `*.visualstudio.com` too). Creator filtering happens client-side
+  (`renovate` finds `Renovate Bot`).
+- The queue matrix now covers all five forges: GitHub, GitLab,
+  Gitea/Forgejo, Bitbucket Cloud, and Azure DevOps.
+
 ## v0.2.2 — 2026-07-31
 
 - **Terraform / OpenTofu support**: `.terraform.lock.hcl` (including

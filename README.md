@@ -120,6 +120,19 @@ Docker (linux/amd64 & arm64, git included — handy in CI):
 docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.2.3 lockvet
 ```
 
+### Shell completions & man page
+
+Homebrew installs bash/zsh/fish completions and `man lockvet` automatically;
+the release tarballs ship them under `completions/` and `man/`. Installed
+another way? The binary prints everything itself:
+
+```sh
+lockvet completion bash > /etc/bash_completion.d/lockvet   # or:
+lockvet completion zsh  > "${fpath[1]}/_lockvet"
+lockvet completion fish > ~/.config/fish/completions/lockvet.fish
+lockvet man > /usr/local/share/man/man1/lockvet.1
+```
+
 ## Usage
 
 ```sh

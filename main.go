@@ -104,6 +104,9 @@ USAGE
                                       or SPDX JSON, any mix), e.g. syft scans
                                       of two container images.
 
+  lockvet completion bash|zsh|fish    print a shell completion script.
+  lockvet man                         print the manual page (roff).
+
 FLAGS
   -md            markdown output (for PR comments)
   -json          JSON output
@@ -235,6 +238,12 @@ func main() {
 	var fileOld, fileNew string // `lockvet diff <old> <new>` file mode
 
 	switch {
+	case len(args) > 0 && args[0] == "completion":
+		runCompletion(args[1:])
+		return
+	case len(args) > 0 && args[0] == "man":
+		runMan()
+		return
 	case len(args) > 0 && args[0] == "diff":
 		if len(args) != 3 {
 			fatal("usage: lockvet diff <old-file> <new-file>   (two lockfiles, or two CycloneDX/SPDX JSON SBOMs)")
