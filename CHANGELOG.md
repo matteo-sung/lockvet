@@ -4,6 +4,15 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.2 — 2026-08-04
+
+- **MCP Registry**: lockvet is published to the official
+  [MCP Registry](https://registry.modelcontextprotocol.io) as
+  `io.github.matteo-sung/lockvet` (OCI package — MCP clients can run it
+  via the Docker image with zero install). The image now carries the
+  `io.modelcontextprotocol.server.name` annotation, and the repo carries
+  `server.json`.
+
 ## v0.3.1 — 2026-08-04
 
 - **Windows fix**: `lockvet diff` (and the MCP `vet_files` tool) now

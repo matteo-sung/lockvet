@@ -16,7 +16,8 @@ COPY --from=build /lockvet /usr/local/bin/lockvet
 
 LABEL org.opencontainers.image.title="lockvet" \
       org.opencontainers.image.source="https://github.com/matteo-sung/lockvet" \
-      org.opencontainers.image.description="Explain any lockfile change: bumps, breaking jumps, vulnerabilities introduced & fixed, release ages, deprecations — across 20 lockfile formats." \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.description="Explain any lockfile change: bumps, breaking jumps, vulnerabilities introduced & fixed, release ages, deprecations — across 29 lockfile formats." \
+      org.opencontainers.image.licenses="MIT" \
+      io.modelcontextprotocol.server.name="io.github.matteo-sung/lockvet"
 
 CMD ["lockvet", "-h"]

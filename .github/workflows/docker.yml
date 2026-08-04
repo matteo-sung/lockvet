@@ -46,6 +46,12 @@ jobs:
           push: true
           build-args: |
             VERSION=${{ steps.meta.outputs.tag }}
+          # MCP Registry ownership verification reads this annotation
+          # (the Dockerfile LABEL covers per-arch configs; these cover the
+          # index + manifests of the multi-arch image).
+          annotations: |
+            index:io.modelcontextprotocol.server.name=io.github.matteo-sung/lockvet
+            manifest:io.modelcontextprotocol.server.name=io.github.matteo-sung/lockvet
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
             ghcr.io/${{ github.repository }}:latest

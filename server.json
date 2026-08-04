@@ -1,0 +1,63 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.matteo-sung/lockvet",
+  "title": "lockvet",
+  "description": "Explain any lockfile change: bumps, breaking jumps, vulnerabilities introduced and fixed (OSV.dev), release ages, deprecations, license changes — across 29 lockfile formats and SBOMs. Vet PRs by URL on GitHub, GitLab, Bitbucket, Gitea, or Azure DevOps, local repos, files on disk, or a whole Dependabot queue.",
+  "repository": {
+    "url": "https://github.com/matteo-sung/lockvet",
+    "source": "github"
+  },
+  "websiteUrl": "https://matteo-sung.github.io/lockvet/",
+  "version": "0.3.2",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/matteo-sung/lockvet:0.3.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "lockvet"
+        },
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "GitHub token — private repos and higher API rate limits for vet_url/queue",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GITLAB_TOKEN",
+          "description": "GitLab token (read_api) — private projects and self-hosted instances",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "BITBUCKET_TOKEN",
+          "description": "Bitbucket Cloud access token or app password — private repos, workspace queue scans",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GITEA_TOKEN",
+          "description": "Gitea/Forgejo/Codeberg token — private repos",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "AZURE_DEVOPS_TOKEN",
+          "description": "Azure DevOps PAT (Code: Read) — private projects",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
