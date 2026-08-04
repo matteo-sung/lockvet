@@ -437,6 +437,9 @@ claude mcp add lockvet -- lockvet mcp
 
 No install needed with Docker:
 `{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.2", "lockvet", "mcp"] }`.
+lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
+as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
+so clients that browse the registry can add it from there.
 
 Four read-only tools, mirroring the CLI:
 
