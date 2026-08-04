@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.matteo-sung/lockvet",
   "title": "lockvet",
-  "description": "Explain any lockfile change: bumps, breaking jumps, vulnerabilities introduced and fixed (OSV.dev), release ages, deprecations, license changes — across 29 lockfile formats and SBOMs. Vet PRs by URL on GitHub, GitLab, Bitbucket, Gitea, or Azure DevOps, local repos, files on disk, or a whole Dependabot queue.",
+  "description": "Explain any lockfile change: bumps, new & fixed vulns, release ages, deprecations — 29 formats",
   "repository": {
     "url": "https://github.com/matteo-sung/lockvet",
     "source": "github"
