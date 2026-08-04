@@ -26,7 +26,7 @@ _lockvet() {
     fi
 
     local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -only -comment -fail-on -author -limit -C -no-color -version -h"
-    local subcmds="pr mr compare queue diff completion man"
+    local subcmds="pr mr compare queue diff mcp completion man"
 
     case $prev in
         -C)
@@ -85,6 +85,7 @@ _lockvet() {
         'compare:vet any two revisions or a single commit of a remote repo'
         'queue:triage every open Dependabot/Renovate PR of a repo, user, or org'
         'diff:vet two lockfiles or SBOM files on disk, no git'
+        'mcp:run as a Model Context Protocol server (stdio) for AI assistants'
         'completion:print a shell completion script (bash, zsh, or fish)'
         'man:print the manual page (roff)'
     )
@@ -142,6 +143,7 @@ complete -c lockvet -n __fish_use_subcommand -a mr -d 'vet a GitLab merge reques
 complete -c lockvet -n __fish_use_subcommand -a compare -d 'vet two revisions or a commit of a remote repo'
 complete -c lockvet -n __fish_use_subcommand -a queue -d 'triage every open Dependabot/Renovate PR in one table'
 complete -c lockvet -n __fish_use_subcommand -a diff -d 'vet two lockfiles or SBOMs on disk'
+complete -c lockvet -n __fish_use_subcommand -a mcp -d 'run as a Model Context Protocol server (stdio)'
 complete -c lockvet -n __fish_use_subcommand -a completion -d 'print a shell completion script'
 complete -c lockvet -n __fish_use_subcommand -a man -d 'print the manual page (roff)'
 
@@ -202,11 +204,11 @@ which packages are deprecated upstream; and which bumps change their
 license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 25 lockfile formats across the npm, pnpm, yarn, bun, Cargo,
+It understands 29 lockfile formats across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex, pub, Gradle, NuGet,
-Swift, CocoaPods, Deno, Nix, conda, R, Terraform/OpenTofu, and Helm
-ecosystems, plus CycloneDX and SPDX JSON SBOMs \(em all in one static
-binary.
+Swift, CocoaPods, Deno, Nix, conda, R, Julia, Haskell, Gleam,
+Terraform/OpenTofu, and Helm ecosystems, plus CycloneDX and SPDX JSON
+SBOMs \(em all in one static binary.
 .SH MODES
 .TP
 .B lockvet
@@ -230,6 +232,11 @@ workspace, or project in one table, sorted most-alarming first.
 .B lockvet diff
 Vet two files on disk with no git: two lockfiles, or two CycloneDX/SPDX
 JSON SBOMs (e.g. syft scans of two container images).
+.TP
+.B lockvet mcp
+Run as a Model Context Protocol server on stdio, so AI assistants and
+coding agents can vet lockfile changes: tools \fBvet_url\fR, \fBvet_git\fR,
+\fBvet_files\fR, and \fBqueue\fR.
 .SH OPTIONS
 .TP
 .B \-md

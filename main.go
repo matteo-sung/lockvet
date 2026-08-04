@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	neturl "net/url"
 	"os"
 	"path"
@@ -103,6 +104,12 @@ USAGE
                                       two lockfiles, or two SBOMs (CycloneDX
                                       or SPDX JSON, any mix), e.g. syft scans
                                       of two container images.
+
+  lockvet mcp                         run as a Model Context Protocol
+                                      server (stdio) so AI assistants and
+                                      coding agents can vet lockfile
+                                      changes: tools vet_url, vet_git,
+                                      vet_files, and queue.
 
   lockvet completion bash|zsh|fish    print a shell completion script.
   lockvet man                         print the manual page (roff).
@@ -238,6 +245,9 @@ func main() {
 	var fileOld, fileNew string // `lockvet diff <old> <new>` file mode
 
 	switch {
+	case len(args) > 0 && args[0] == "mcp":
+		runMCP()
+		return
 	case len(args) > 0 && args[0] == "completion":
 		runCompletion(args[1:])
 		return
@@ -681,6 +691,17 @@ func splitQueueScope(scope string) (host, rest string) {
 // Scope is a GitHub owner or owner/repo (default), or a GitLab group or
 // project URL/path (host-qualified, e.g. gitlab.com/gitlab-org).
 func runQueue(scope string, o queueOpts) {
+	failed, err := queueRun(scope, o, os.Stdout)
+	check(err)
+	if failed {
+		os.Exit(1)
+	}
+}
+
+// queueRun is runQueue's reusable core: it writes the report to w and
+// returns instead of exiting (the MCP server uses it too). Warnings and
+// hints still go to stderr.
+func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 	host, rest := splitQueueScope(scope)
 	forge := "github"
 	switch {
@@ -733,7 +754,9 @@ func runQueue(scope string, o queueOpts) {
 	case "gitlab":
 		noun = "MRs"
 		items, label, err := glmr.ListQueue(host, rest, authors, o.limit)
-		check(err)
+		if err != nil {
+			return false, err
+		}
 		qual = label
 		singleProject := strings.HasPrefix(label, "project:")
 		for _, it := range items {
@@ -755,7 +778,9 @@ func runQueue(scope string, o queueOpts) {
 		}
 	case "gitea":
 		items, label, err := gtpr.ListQueue(host, rest, authors, o.limit)
-		check(err)
+		if err != nil {
+			return false, err
+		}
 		qual = label
 		singleRepo := strings.Contains(rest, "/")
 		for _, it := range items {
@@ -778,7 +803,9 @@ func runQueue(scope string, o queueOpts) {
 		}
 	case "bitbucket":
 		items, label, note, err := bbpr.ListQueue(rest, authors, o.limit)
-		check(err)
+		if err != nil {
+			return false, err
+		}
 		qual = label
 		if note != "" {
 			fmt.Fprintf(os.Stderr, "lockvet: note: %s\n", note)
@@ -805,10 +832,12 @@ func runQueue(scope string, o queueOpts) {
 	case "ado":
 		instance, project, repo, ok := splitADOQueueScope(host, rest)
 		if !ok {
-			fatal("cannot parse the Azure DevOps queue scope — want dev.azure.com/ORG/PROJECT or dev.azure.com/ORG/PROJECT/_git/REPO")
+			return false, fmt.Errorf("cannot parse the Azure DevOps queue scope — want dev.azure.com/ORG/PROJECT or dev.azure.com/ORG/PROJECT/_git/REPO")
 		}
 		items, label, err := adopr.ListQueue(instance, project, repo, authors, o.limit)
-		check(err)
+		if err != nil {
+			return false, err
+		}
 		qual = label
 		for _, it := range items {
 			it := it
@@ -830,7 +859,9 @@ func runQueue(scope string, o queueOpts) {
 		}
 	default:
 		items, label, err := ghpr.ListQueue(rest, authors, o.limit)
-		check(err)
+		if err != nil {
+			return false, err
+		}
 		qual = label
 		singleRepo := strings.Contains(rest, "/")
 		for _, it := range items {
@@ -926,7 +957,6 @@ func runQueue(scope string, o queueOpts) {
 
 	// Build, sort, and render the rows.
 	rows := make([]render.QueueRow, len(entries))
-	failed := false
 	for i, it := range entries {
 		diffs := combined[spans[i][0]:spans[i][1]]
 		rows[i] = render.QueueRow{
@@ -981,11 +1011,13 @@ func runQueue(scope string, o queueOpts) {
 				NoChanges: r.NoChanges, Error: r.Err, Summary: r.Sum,
 			})
 		}
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		check(enc.Encode(out))
+		if err := enc.Encode(out); err != nil {
+			return failed, err
+		}
 	case o.md:
-		render.QueueMarkdown(os.Stdout, heading, strings.TrimSuffix(noun, "s"), rows, vulnsChecked, metaChecked, o.freshDays)
+		render.QueueMarkdown(w, heading, strings.TrimSuffix(noun, "s"), rows, vulnsChecked, metaChecked, o.freshDays)
 	default:
 		color := !o.noColor && os.Getenv("NO_COLOR") == "" && isTTY()
 		refHint := "lockvet pr <owner/repo#N>"
@@ -995,12 +1027,10 @@ func runQueue(scope string, o queueOpts) {
 		case "gitea", "bitbucket", "ado":
 			refHint = "lockvet pr <PR url>"
 		}
-		render.QueueTerminal(os.Stdout, heading, strings.TrimSuffix(noun, "s"), refHint, rows, color, vulnsChecked, metaChecked, o.freshDays)
+		render.QueueTerminal(w, heading, strings.TrimSuffix(noun, "s"), refHint, rows, color, vulnsChecked, metaChecked, o.freshDays)
 	}
 
-	if failed {
-		os.Exit(1)
-	}
+	return failed, nil
 }
 
 func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {

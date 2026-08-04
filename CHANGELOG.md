@@ -4,6 +4,24 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.0 — 2026-08-04
+
+- **MCP server**: `lockvet mcp` speaks the
+  [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
+  Claude Code, Claude Desktop, Cursor, VS Code, and any other MCP client
+  can vet lockfile changes mid-conversation. Four read-only tools mirror
+  the CLI: `vet_url` (any PR/MR/compare/commit URL on GitHub, GitLab,
+  Bitbucket, Gitea/Forgejo, or Azure DevOps), `vet_git` (a local
+  repository), `vet_files` (two lockfiles or SBOMs on disk), and `queue`
+  (triage every open Dependabot/Renovate PR of a repo, user, or org).
+  Markdown reports by default, `format: "json"` for structure; forge
+  tokens come from the environment exactly like the CLI. Hand-rolled
+  JSON-RPC — lockvet still has zero dependencies.
+- **Browser playground**: [try lockvet without installing it](https://matteo-sung.github.io/lockvet/)
+  — lockvet compiled to WebAssembly. Paste a PR/compare/commit URL or drop
+  two lockfiles/SBOMs; reports are shareable as deep links.
+  *(Shipped on GitHub Pages between v0.2.4 and this release.)*
+
 ## v0.2.4 — 2026-07-31
 
 - **Shell completions**: `lockvet completion bash|zsh|fish` prints a
@@ -27,6 +45,11 @@ fixes.
   (`renovate` finds `Renovate Bot`).
 - The queue matrix now covers all five forges: GitHub, GitLab,
   Gitea/Forgejo, Bitbucket Cloud, and Azure DevOps.
+- **Julia, Haskell, and Gleam support**: `Manifest.toml` (Julia General
+  registry + stdlibs), `stack.yaml.lock`, `cabal.project.freeze`,
+  `cabal.config`, and Gleam's `manifest.toml` — 29 formats total.
+  *(This entry was added retroactively: the parsers shipped in v0.2.3
+  without a changelog line.)*
 
 ## v0.2.2 — 2026-07-31
 

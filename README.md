@@ -51,6 +51,10 @@ what really happened:
   PyPI + Go *and* the Alpine/Debian OS packages, with distro security
   advisories (`ALPINE-CVE-…`, `DEBIAN-CVE-…`) resolved against the right
   release branch
+- **usable by your AI assistant** — `lockvet mcp` is a built-in
+  [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
+  MCP client can vet a PR URL, a local repo, two files, or a whole
+  Dependabot queue mid-conversation
 - **across every ecosystem, in one static binary** — 29 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -121,7 +125,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.2.4 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.0 lockvet
 ```
 
 ### Shell completions & man page
@@ -362,7 +366,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.2.4
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.0
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -413,6 +417,41 @@ It also works for plain lockfiles outside a repo
 (`bom.json`, `*.cdx.json`, `*.spdx.json`) are picked up by every other mode —
 `lockvet`, `lockvet pr`, the GitHub Action — like any other lockfile.
 
+### Let your AI assistant vet dependencies (MCP server)
+
+`lockvet mcp` runs lockvet as a [Model Context Protocol](https://modelcontextprotocol.io)
+server over stdio, so Claude Code, Claude Desktop, Cursor, VS Code, and any
+other MCP client can vet lockfile changes mid-conversation — *"is this
+Dependabot PR safe to merge?"* becomes a question your assistant can actually
+answer, with OSV data instead of vibes.
+
+```sh
+# Claude Code
+claude mcp add lockvet -- lockvet mcp
+```
+
+```jsonc
+// Claude Desktop, Cursor, and most other clients (mcpServers config):
+{ "mcpServers": { "lockvet": { "command": "lockvet", "args": ["mcp"] } } }
+```
+
+No install needed with Docker:
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.0", "mcp"] }`.
+
+Four read-only tools, mirroring the CLI:
+
+| Tool | What it does |
+|---|---|
+| `vet_url` | vet any PR/MR, compare range, or commit by URL — GitHub, GitLab, Bitbucket, Gitea/Forgejo, Azure DevOps, no clone |
+| `vet_git` | vet a local repo: working tree vs `HEAD`, or any revision range |
+| `vet_files` | vet two lockfiles or SBOMs on disk |
+| `queue` | triage every open Dependabot/Renovate PR of a repo/org in one table |
+
+Reports come back as markdown (or `format: "json"` for structure); forge
+tokens are read from the environment (`GITHUB_TOKEN`, `GITLAB_TOKEN`, …) so
+private repos work wherever the CLI does. Try: *“triage the open dependency
+PRs in grafana and tell me which ones I should look at first.”*
+
 ## In CI (review Dependabot/Renovate PRs automatically)
 
 `lockvet` posts a summary comment on any PR that touches a lockfile —
@@ -447,7 +486,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.2.4
+      - uses: matteo-sung/lockvet@v0.3.0
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,license"
@@ -473,7 +512,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.2.4
+      - uses: matteo-sung/lockvet@v0.3.0
         with:
           sarif: 'true'
 ```
@@ -493,7 +532,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.2.4
+  image: ghcr.io/matteo-sung/lockvet:0.3.0
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -518,7 +557,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.2.4
+          image: ghcr.io/matteo-sung/lockvet:0.3.0
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -536,7 +575,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.2.4
+    container: ghcr.io/matteo-sung/lockvet:0.3.0
     steps:
       - checkout: none
       - script: >
@@ -560,7 +599,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.2.4
+    image: ghcr.io/matteo-sung/lockvet:0.3.0
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -578,7 +617,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.2.4
+    rev: v0.3.0
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -713,7 +752,8 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |
-| Interactive TUI, MCP server | ✗ | ✓ | ✗ |
+| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, whole queues) |
+| Interactive TUI | ✗ | ✓ | ✗ |
 | Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |
 
 whatsdiff is a fine tool if you live in composer/npm and want changelogs and
