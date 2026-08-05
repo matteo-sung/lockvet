@@ -50,6 +50,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
+	"github.com/matteo-sung/lockvet/internal/jsrreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
@@ -316,6 +317,12 @@ func run(opts js.Value) (js.Value, error) {
 		// pub.dev's API is CORS-open — same route as the CLI.
 		if ok, err := pubreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("pub.dev registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// jsr.io is CORS-open — same route as the CLI.
+		if ok, err := jsrreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("jsr.io registry check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

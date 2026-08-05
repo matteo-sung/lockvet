@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.18 — 2026-08-05
+
+- **JSR joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·
+  Packagist · NuGet · Hex · Go · Pub · CocoaPods · Terraform · Maven ·
+  JSR) — `jsr:` packages in `deno.lock` had no OSV ecosystem *and* no
+  deps.dev coverage, so their diffs carried zero registry data until now.
+  jsr.io itself fills the gap:
+  - **Release ages and the ⏱ cooldown flag** from each version's
+    `createdAt` in the package's `meta.json` — the exact document Deno
+    resolves against.
+  - **Yanked versions and archived packages land in the deprecation
+    lane** (`● deprecated upstream: version yanked on jsr.io`).
+  - **Registry-verified unlisted detection.** JSR never lets publishers
+    delete versions — yanking keeps them listed in `meta.json` — so an
+    incoming version missing while the package's other versions ARE
+    listed is a strong scrubbed-release signal.
+  - **Verified changelog links**: the GitHub repository each package
+    links on jsr.io feeds the tag-verified compare links and
+    `-changelogs` release notes, and markdown output links JSR package
+    names to their jsr.io pages.
+  - Two anonymous GETs per changed package against CORS-open endpoints
+    — the identical route works native and in the
+    [browser playground](https://matteo-sung.github.io/lockvet/).
+  - JSR publishes are sigstore-signed across the board (no unattested
+    baseline to fall from), so provenance-drop detection honestly does
+    not apply; jsr.io keeps no per-release license history, so that
+    check is skipped there too.
+- OSV.dev queries are no longer issued for `jsr:` names (npm's OSV
+  ecosystem cannot know them); JSR advisories will light up once OSV
+  grows a JSR ecosystem.
+
 ## v0.3.17 — 2026-08-05
 
 - **Maven joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·

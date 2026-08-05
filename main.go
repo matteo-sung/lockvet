@@ -27,6 +27,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
+	"github.com/matteo-sung/lockvet/internal/jsrreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/mvnreg"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
@@ -609,6 +610,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := jsrreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: jsr.io registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if ok, err := podreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: CocoaPods registry check skipped: %v\n", err)
 		} else if ok {
@@ -1048,6 +1054,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := pubreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: pub.dev registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := jsrreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: jsr.io registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

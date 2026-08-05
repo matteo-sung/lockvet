@@ -130,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.17 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.18 lockvet
 ```
 
 ### Shell completions & man page
@@ -373,7 +373,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.17
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.18
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -443,7 +443,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.17", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.18", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -496,7 +496,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.17
+      - uses: matteo-sung/lockvet@v0.3.18
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -523,7 +523,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.17
+      - uses: matteo-sung/lockvet@v0.3.18
         with:
           sarif: 'true'
 ```
@@ -543,7 +543,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.17
+  image: ghcr.io/matteo-sung/lockvet:0.3.18
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -568,7 +568,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.17
+          image: ghcr.io/matteo-sung/lockvet:0.3.18
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -586,7 +586,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.17
+    container: ghcr.io/matteo-sung/lockvet:0.3.18
     steps:
       - checkout: none
       - script: >
@@ -610,7 +610,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.17
+    image: ghcr.io/matteo-sung/lockvet:0.3.18
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -628,7 +628,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.17
+    rev: v0.3.18
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -673,6 +673,9 @@ Every incoming version is checked against its registry (via deps.dev):
   (`● deprecated upstream: discontinued on pub.dev; replaced by flutter_markdown_plus`),
   and a bump onto a [retracted](https://dart.dev/tools/pub/publishing#retract)
   version — one `dart pub` itself refuses to newly resolve — is flagged too.
+  JSR packages get theirs straight from jsr.io: bumps onto
+  [yanked](https://jsr.io/docs/packages#yanking-versions) versions and
+  packages archived on jsr.io land in this lane as well.
   Go [retractions](https://go.dev/ref/mod#go-mod-file-retract) land here
   straight from the module proxy — a bump onto a version its author
   retracted shows the rationale comment from the module's own `go.mod`
@@ -740,14 +743,16 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, CocoaPods,
-Go and Maven packages — and Terraform/OpenTofu providers —
+For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, JSR,
+CocoaPods, Go and Maven packages — and Terraform/OpenTofu providers —
 the flag is **double-checked against the registry itself**: deps.dev can lag
 the registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
 API / the crates.io sparse index / the RubyGems compact index /
 Packagist's Composer metadata endpoint / NuGet's registration index /
-hex.pm's and pub.dev's packages APIs / the sharded CocoaPods CDN index
+hex.pm's and pub.dev's packages APIs / jsr.io's `meta.json` (the same
+document Deno itself resolves against; yanks stay listed there, so
+absence is real signal) / the sharded CocoaPods CDN index
 (the same file `pod install` resolves against) / the Go module proxy /
 the Terraform registry's per-version endpoint and the OpenTofu registry's
 version index / the per-version POM on Maven Central (falling back to
@@ -894,7 +899,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 
 | Ecosystem | Files |
 |---|---|
-| JavaScript | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` (v1 & berry), `bun.lock`, `deno.lock` |
+| JavaScript | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` (v1 & berry), `bun.lock`, `deno.lock` — JSR packages in `deno.lock` get release ages, yank/archive flags and the registry-verified unlisted check straight from jsr.io |
 | Rust | `Cargo.lock` |
 | Python | `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements.txt` (`==` pins) |
 | Go | `go.mod` |
@@ -930,15 +935,16 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart, iOS and Terraform are the exceptions: deps.dev has no
-Composer, Hex, Pub, CocoaPods or Terraform system at all, so lockvet asks Packagist, hex.pm,
-pub.dev, the CocoaPods registry and the Terraform/OpenTofu registries directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, JSR, iOS and Terraform are the exceptions: deps.dev has no
+Composer, Hex, Pub, JSR, CocoaPods or Terraform system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, jsr.io, the CocoaPods registry and the Terraform/OpenTofu registries directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
+JSR yanked versions and archived packages,
 CocoaPods deprecated pods with their named replacement, archived/delisted
 Terraform providers),
 changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `Podfile.lock` and `.terraform.lock.hcl` too (plus license
-changes for Composer and CocoaPods; Hex, pub.dev and the Terraform registry keep no per-release license history,
+`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock` and `.terraform.lock.hcl` too (plus license
+changes for Composer and CocoaPods; Hex, pub.dev, jsr.io and the Terraform registry keep no per-release license history,
 so that one check is honestly skipped there).
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
@@ -979,8 +985,8 @@ parsers are ~50 lines each.
    RubyGems the compact index's own `created_at` times fill in ages
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
    its ⏱ flag; NuGet registration `published` times do the same for .NET
-   packages; for Composer, Hex and Dart packages the ages come straight from
-   Packagist, hex.pm and pub.dev, which deps.dev doesn't cover at all;
+   packages; for Composer, Hex, Dart and JSR packages the ages come straight from
+   Packagist, hex.pm, pub.dev and jsr.io, which deps.dev doesn't cover at all;
    pods get theirs from the CocoaPods trunk API's per-version timestamps;
 Terraform/OpenTofu providers from the registries' per-version publish
 times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
@@ -1000,7 +1006,7 @@ times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
-crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev /
+crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev / jsr.io /
 CocoaPods-CDN-and-trunk / Go-module-proxy / Terraform-and-OpenTofu-registry /
 Maven-Central-and-Google-Maven
 metadata fetches for

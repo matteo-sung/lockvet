@@ -352,11 +352,11 @@ Data sources:
 (vulnerabilities),
 .I https://deps.dev
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
-NuGet, hex.pm and pub.dev registries, the CocoaPods CDN and trunk API,
+NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
 the Terraform and OpenTofu registries,
 the Go module proxy, and the Maven repositories (Central and Google) themselves
 (version listings, install scripts, provenance, Go retractions, Maven
-relocations, and — for Composer, Hex, Dart, CocoaPods and Terraform —
+relocations, and — for Composer, Hex, Dart, JSR, CocoaPods and Terraform —
 ages and deprecations, which deps.dev does not carry).
 `
 

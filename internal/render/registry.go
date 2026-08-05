@@ -30,6 +30,14 @@ func registryLink(c diffx.Change) string {
 	name := c.Name
 	switch c.Ecosystem {
 	case "npm":
+		// deno.lock keeps JSR packages alongside npm ones, prefixed
+		// because OSV has no JSR ecosystem; they live on jsr.io.
+		if jsrName, ok := strings.CutPrefix(name, "jsr:"); ok {
+			if v == "" {
+				return "https://jsr.io/" + jsrName
+			}
+			return "https://jsr.io/" + jsrName + "@" + v
+		}
 		if v == "" {
 			return "https://www.npmjs.com/package/" + name
 		}

@@ -47,6 +47,9 @@ func Annotate(diffs []diffx.FileDiff) error {
 			if !lock.Ecosystem(c.Ecosystem).HasOSV() {
 				continue // e.g. Nix: no OSV.dev ecosystem
 			}
+			if strings.HasPrefix(c.Name, "jsr:") {
+				continue // JSR has no OSV ecosystem; npm won't know the name
+			}
 			for _, v := range c.Old {
 				queries = append(queries, mkQuery(c.Name, c.Ecosystem, v))
 				slots = append(slots, slot{i, j, "old"})
