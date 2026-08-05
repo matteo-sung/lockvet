@@ -26,8 +26,10 @@
 //
 // Requests are small and anonymous: one CDN index GET per shard, one
 // trunk GET per pod (native), and up to two podspec GETs per bumped
-// pod, 8-way concurrent. The browser (wasm) build reads the CDN through
-// its CORS-open jsDelivr mirror and skips trunk.
+// pod, 8-way concurrent. The browser (wasm) build reads the CDN index
+// directly (it is CORS-open), podspecs through the CORS-open jsDelivr
+// mirror (the CDN redirects those without CORS headers), and skips
+// trunk.
 package podreg
 
 import (
@@ -46,10 +48,16 @@ import (
 	"github.com/matteo-sung/lockvet/internal/diffx"
 )
 
-// CDNURL is the CocoaPods CDN base; the wasm build switches it to the
-// CORS-open jsDelivr mirror (https://cdn.jsdelivr.net/cocoa), tests to
-// an httptest server.
+// CDNURL is the CocoaPods CDN base (shard index files); tests point it
+// at an httptest server. Its index answers are CORS-open, so the wasm
+// build uses it too.
 var CDNURL = "https://cdn.cocoapods.org"
+
+// SpecsURL overrides where podspec.json files are read from. Empty means
+// CDNURL. The CDN 301-redirects /Specs/ paths to jsDelivr *without* CORS
+// headers — browsers refuse to follow that — so the wasm build sets the
+// CORS-open mirror (https://cdn.jsdelivr.net/cocoa) here directly.
+var SpecsURL = ""
 
 // TrunkURL is the trunk registry API base; a var so tests can fake it.
 var TrunkURL = "https://trunk.cocoapods.org"
@@ -382,9 +390,13 @@ func fetchSpecs(pkgs map[string]*pkg, diffs []diffx.FileDiff, byPod map[string][
 }
 
 func fetchSpec(name, version string) *spec {
+	base := SpecsURL
+	if base == "" {
+		base = CDNURL
+	}
 	sh := shard(name)
 	u := fmt.Sprintf("%s/Specs/%s/%s/%s/%s/%s/%s.podspec.json",
-		CDNURL, sh[0], sh[1], sh[2],
+		base, sh[0], sh[1], sh[2],
 		url.PathEscape(name), url.PathEscape(version), url.PathEscape(name))
 	body, status, err := get(u)
 	if err != nil || status != http.StatusOK {

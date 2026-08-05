@@ -70,9 +70,10 @@ func main() {
 	cargoreg.UseAPI = true
 	// repo.packagist.org (p2) sends no CORS headers; packagist.org does.
 	phpreg.UseAPI = true
-	// cdn.cocoapods.org answers with a CORS-less redirect; its jsDelivr
-	// mirror is CORS-open. trunk (publish dates) has no CORS at all.
-	podreg.CDNURL = "https://cdn.jsdelivr.net/cocoa"
+	// The CocoaPods CDN index is CORS-open, but its /Specs/ podspec
+	// paths 301-redirect to jsDelivr without CORS headers — read those
+	// from the mirror directly. trunk (publish dates) has no CORS at all.
+	podreg.SpecsURL = "https://cdn.jsdelivr.net/cocoa"
 	podreg.UseTrunk = false
 	js.Global().Set("lockvetRun", js.FuncOf(runPromise))
 	js.Global().Set("lockvetVersion", version)

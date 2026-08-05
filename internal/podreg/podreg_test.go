@@ -182,6 +182,37 @@ func TestWasmPathNoTrunk(t *testing.T) {
 	}
 }
 
+func TestSpecsURLSplit(t *testing.T) {
+	// The wasm build reads shard indexes from CDNURL but podspecs from
+	// SpecsURL (the jsDelivr mirror). Serve them from two servers and
+	// make sure each request lands on the right one.
+	specSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/Specs/") {
+			fmt.Fprint(w, `{"license":"MIT","deprecated_in_favor_of":"BetterPod"}`)
+			return
+		}
+		t.Errorf("unexpected path on specs server: %s", r.URL.Path)
+		http.NotFound(w, r)
+	}))
+	defer specSrv.Close()
+	defer fakeRegistry(t,
+		map[string]string{alamoShard: "Alamofire/1.0.0/2.0.0\n"},
+		map[string]string{}, // main server must NOT serve specs
+		map[string]string{},
+	)()
+	oldSpecs := SpecsURL
+	SpecsURL = specSrv.URL
+	defer func() { SpecsURL = oldSpecs }()
+
+	diffs := bump("Alamofire", "1.0.0", "2.0.0")
+	if _, err := Annotate(diffs, 7); err != nil {
+		t.Fatal(err)
+	}
+	if c := diffs[0].Changes[0]; !c.Deprecated || !strings.Contains(c.DeprecatedReason, "BetterPod") {
+		t.Errorf("podspec not read from SpecsURL: deprecated=%v reason=%q", c.Deprecated, c.DeprecatedReason)
+	}
+}
+
 func TestShardHelper(t *testing.T) {
 	if s := shard("Alamofire"); s != [3]string{"d", "a", "2"} {
 		t.Errorf("shard(Alamofire) = %v", s)
