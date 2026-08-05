@@ -4,6 +4,33 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.17 — 2026-08-05
+
+- **Maven joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·
+  Packagist · NuGet · Hex · Go · Pub · CocoaPods · Terraform · Maven) —
+  `gradle.lockfile` diffs and Maven packages in SBOMs now get signals from
+  the Maven repositories themselves (Central, falling back to Google's
+  Maven repository, where the androidx world lives):
+  - **Relocation stubs land in the deprecation lane.** A bump onto a POM
+    whose `<distributionManagement><relocation>` points at new
+    coordinates is flagged with those coordinates and the author's
+    message — `● deprecated upstream: relocated to
+    com.mysql:mysql-connector-j — MySQL Connector/J artifacts moved to
+    reverse-DNS compliant Maven 2+ coordinates.` deps.dev has no
+    relocation concept, so these were invisible before.
+  - **Registry-verified unlisted detection.** The unlisted flag is
+    settled by the repository's own per-version POM: a version Central
+    or Google serves loses the flag (deps.dev can lag by days), a
+    version both 404 on keeps it.
+  - **Release-age backfill** from the POM's `Last-Modified` upload time
+    for versions deps.dev hasn't indexed yet, so the ⏱ cooldown flag
+    works on freshly cut Java releases too.
+  - One anonymous CDN GET per introduced `group:artifact` version — the
+    same files every `mvn`/`gradle` build resolves — deduplicated across
+    lockfiles, 8-way concurrent, with the winning host remembered per
+    package. No CORS on either host, so the browser playground keeps the
+    deps.dev-only layer for Maven (like RubyGems).
+
 ## v0.3.16 — 2026-08-05
 
 - **Terraform/OpenTofu providers join the registry lineup** (npm · PyPI ·

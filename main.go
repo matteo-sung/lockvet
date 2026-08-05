@@ -28,6 +28,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"github.com/matteo-sung/lockvet/internal/mvnreg"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
@@ -644,6 +645,9 @@ func main() {
 		if err := goreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Go module proxy check skipped: %v\n", err)
 		}
+		if err := mvnreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
+		}
 	}
 
 	sum := diffx.Summarize(diffs)
@@ -1074,6 +1078,9 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if err := goreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Go module proxy check skipped: %v\n", err)
+		}
+		if err := mvnreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
 		}
 	}
 

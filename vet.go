@@ -25,6 +25,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"github.com/matteo-sung/lockvet/internal/mvnreg"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
@@ -190,6 +191,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if err := goreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Go module proxy check skipped: %v", err))
+		}
+		if err := mvnreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("Maven repository check skipped: %v", err))
 		}
 	}
 	v.diffs = diffs
