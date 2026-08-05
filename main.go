@@ -28,6 +28,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -581,6 +582,17 @@ func main() {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: release-metadata check skipped: %v\n", err)
 		} else {
 			metaChecked = true
+		}
+	}
+	if !*noMeta {
+		// deps.dev has no Composer system: for PHP, Packagist itself is
+		// the metadata layer (ages, abandoned, licenses, unlisted).
+		if ok, err := phpreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Packagist registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if metaChecked {
 			taglink.Annotate(diffs) // verified changelog/compare links
 			if *changelogs {
 				for _, w := range relnotes.Annotate(diffs, ghpr.Token()) {
@@ -588,8 +600,6 @@ func main() {
 				}
 			}
 		}
-	}
-	if !*noMeta {
 		if err := npmreg.Annotate(diffs); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: install-script check skipped: %v\n", err)
 		}
@@ -990,6 +1000,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 	}
 	if !o.noMeta {
+		if ok, err := phpreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Packagist registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if err := npmreg.Annotate(combined); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: install-script check skipped: %v\n", err)
 		}

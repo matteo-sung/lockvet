@@ -263,6 +263,12 @@ func parseComposerLock(p string, data []byte) (*File, error) {
 		Name    string            `json:"name"`
 		Version string            `json:"version"`
 		Require map[string]string `json:"require"`
+		// Composer writes notification-url for every package installed
+		// from Packagist; VCS/path repository pins lack it (or point at
+		// a private registry). Their versions may not exist on
+		// packagist.org at all, so registry-derived signals must skip
+		// them.
+		NotificationURL string `json:"notification-url"`
 	}
 	var doc struct {
 		Packages    []composerPkg `json:"packages"`
@@ -273,6 +279,9 @@ func parseComposerLock(p string, data []byte) (*File, error) {
 	}
 	for _, pkg := range append(doc.Packages, doc.PackagesDev...) {
 		f.add(pkg.Name, strings.TrimPrefix(pkg.Version, "v"))
+		if !strings.HasPrefix(pkg.NotificationURL, "https://packagist.org/") {
+			f.markNonRegistry(pkg.Name)
+		}
 		for dep := range pkg.Require {
 			// skip platform requirements: php, ext-*, lib-*, composer-*
 			if !strings.Contains(dep, "/") {

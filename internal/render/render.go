@@ -145,7 +145,7 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● deprecated upstream:"), s.dim(reason))
 			}
 			if c.Unlisted {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
+				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⚙ install scripts added: "+join(c.ScriptedVersions)), s.dim("the old version ran no install scripts, this one does — a favourite payload vehicle for hijacked npm packages; review before trusting"))
@@ -330,13 +330,13 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 		if sum.LicenseChanged > 0 {
 			bits = append(bits, fmt.Sprintf("**%s changed** ⚖️", plural(sum.LicenseChanged, "license")))
 		}
-		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev))\n", strings.Join(bits, ", "))
+		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev) and the package registries)\n", strings.Join(bits, ", "))
 	}
 	if sum.ScriptsAdded > 0 {
 		fmt.Fprintf(w, "\nInstall scripts: **%s install scripts** ⚙ where the outgoing version ran none (via the npm registry)\n", pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add"))
 	}
 	if sum.ProvenanceDropped > 0 {
-		fmt.Fprintf(w, "\nProvenance: **%s sigstore provenance** ⛨ where every previous version attested (checked against the npm / PyPI registries)\n", pluralVerb(sum.ProvenanceDropped, "bump drops", "bumps drop"))
+		fmt.Fprintf(w, "\nProvenance: **%s sigstore provenance** ⛨ where every previous version attested (checked against the package registries)\n", pluralVerb(sum.ProvenanceDropped, "bump drops", "bumps drop"))
 	}
 	ageCol := ""
 	if metaChecked {
@@ -403,7 +403,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				fmt.Fprintf(w, "| 🟠 | ↳ deprecated upstream | | | %s |%s\n", reason, padCell)
 			}
 			if c.Unlisted {
-				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "| ⚙ | ↳ install scripts added | | %s | the old version ran no install scripts — a favourite payload vehicle for hijacked npm packages |%s\n", esc(join(c.ScriptedVersions)), padCell)

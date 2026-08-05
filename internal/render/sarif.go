@@ -149,7 +149,7 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				results = append(results, result{
 					RuleID: "unlisted-version", RuleIndex: idx,
 					Level:     "warning",
-					Message:   map[string]string{"text": fmt.Sprintf("%s, but version %s is unknown to deps.dev even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)},
+					Message:   map[string]string{"text": fmt.Sprintf("%s, but version %s is missing from the registry index even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)},
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "unlisted"),

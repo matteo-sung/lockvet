@@ -25,6 +25,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -130,13 +131,22 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 			v.warnings = append(v.warnings, fmt.Sprintf("release-metadata check skipped: %v", err))
 		} else {
 			v.metaChecked = true
+		}
+	}
+	if !o.noMeta {
+		// deps.dev has no Composer system: for PHP, Packagist itself is
+		// the metadata layer (ages, abandoned, licenses, unlisted).
+		if ok, err := phpreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("Packagist registry check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if v.metaChecked {
 			taglink.Annotate(diffs)
 			if o.changelogs {
 				v.warnings = append(v.warnings, relnotes.Annotate(diffs, ghpr.Token())...)
 			}
 		}
-	}
-	if !o.noMeta {
 		if err := npmreg.Annotate(diffs); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("install-script check skipped: %v", err))
 		}

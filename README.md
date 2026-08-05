@@ -653,7 +653,11 @@ Every incoming version is checked against its registry (via deps.dev):
   a project **archived** by its maintainers or **quarantined** by PyPI's
   admins — the malware-review state — is flagged on every change that
   still pins it. crates.io yanks surface the same way, verified against
-  the sparse index itself so even a yank minutes old is caught.
+  the sparse index itself so even a yank minutes old is caught. Composer
+  packages get the same treatment straight from Packagist: a bump onto an
+  [abandoned](https://getcomposer.org/doc/04-schema.md#abandoned) package
+  is flagged with the maintainer's suggested replacement
+  (`● deprecated upstream: abandoned; use symfony/mailer instead`).
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -699,11 +703,12 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI, crates.io and RubyGems packages the flag is
+For npm, PyPI, crates.io, RubyGems and Packagist packages the flag is
 **double-checked against the registry itself**: deps.dev can lag the
 registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
-API / the crates.io sparse index / the RubyGems compact index and
+API / the crates.io sparse index / the RubyGems compact index /
+Packagist's Composer metadata endpoint and
 clears the flag for any version the registry serves. What survives is a
 version the registry itself no longer lists — and that distinction has
 teeth: on crates.io yanked versions *stay in the index* while deleted
@@ -869,7 +874,10 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks.
+skip those checks. PHP is the exception: deps.dev has no Composer system at
+all, so lockvet asks Packagist directly — release ages, abandoned-package
+warnings, license changes, changelog links and the unlisted check all work
+for `composer.lock` too.
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
 
@@ -899,7 +907,7 @@ parsers are ~50 lines each.
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
-   PyPI, crates.io and RubyGems the flag is double-checked against the
+   PyPI, crates.io, RubyGems and Packagist the flag is double-checked against the
    registry itself, which also tells lockvet when a bump [suddenly adds
    install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
@@ -908,7 +916,8 @@ parsers are ~50 lines each.
    days of publication, so a short cooldown filters most of them out. For
    RubyGems the compact index's own `created_at` times fill in ages
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
-   its ⏱ flag.
+   its ⏱ flag; for Composer packages the ages come straight from
+   Packagist, which deps.dev doesn't cover at all.
 6. Each changed package's source repository (from deps.dev) has its tag list
    fetched over git's smart-HTTP protocol — one anonymous GET per repo, the
    same request `git ls-remote` makes. Old and new versions are matched
@@ -918,8 +927,8 @@ parsers are ~50 lines each.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
-crates.io / RubyGems metadata fetches for changed packages of those
-ecosystems, and the anonymous git tag listings above.
+crates.io / RubyGems / Packagist metadata fetches for changed packages of
+those ecosystems, and the anonymous git tag listings above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 

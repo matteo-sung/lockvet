@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.10 — 2026-08-05
+
+- **PHP finally gets real metadata: Packagist joins the registry lineup**
+  (npm · PyPI · crates.io · RubyGems · Packagist). deps.dev has no
+  Composer system at all, so until now `composer.lock` diffs carried
+  vulnerability data but no ages, deprecations or licenses. lockvet now
+  asks Packagist directly — one anonymous GET per changed package against
+  the same p2 metadata CDN `composer update` uses (the CORS-open
+  packagist.org API in the browser playground):
+  - **Release ages and ⏱ fresh flags** from Packagist's per-version
+    publish times — the `-fail-on fresh` cooldown gate now works for PHP.
+  - **Abandoned packages** land in the deprecation lane with the
+    maintainer's suggested replacement
+    (`● deprecated upstream: abandoned; use symfony/mailer instead`) —
+    `-fail-on deprecated` covers them.
+  - **License changes** old → new from the per-version license lists
+    (`-fail-on license`).
+  - **`unlisted` detection, registry-verified from the start**: an
+    incoming version missing from Packagist while the package's other
+    versions are listed — what an unpublished/deleted release looks like.
+  - **Verified changelog links and `-changelogs` release notes** now work
+    for Composer packages too (the upstream repo comes from Packagist's
+    source field).
+- **composer.lock packages installed from VCS/path repositories are now
+  marked non-registry** (Composer only writes a packagist.org
+  `notification-url` for real Packagist installs) — a pinned fork's
+  version that never existed on packagist.org cannot produce a false
+  `unlisted` flag.
+- Unlisted-flag wording no longer says "unknown to deps.dev" — the flag
+  has been registry-verified on every covered ecosystem for a while.
+
 ## v0.3.9 — 2026-08-05
 
 - **RubyGems completes the registry-signal quartet** (npm · PyPI ·

@@ -51,6 +51,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -62,6 +63,8 @@ func main() {
 	// versionbatch does not answer CORS preflights; per-version GETs do.
 	depsdev.SingleRequests = true
 	cargoreg.UseAPI = true
+	// repo.packagist.org (p2) sends no CORS headers; packagist.org does.
+	phpreg.UseAPI = true
 	js.Global().Set("lockvetRun", js.FuncOf(runPromise))
 	js.Global().Set("lockvetVersion", version)
 	select {}
@@ -280,21 +283,28 @@ func run(opts js.Value) (js.Value, error) {
 			warnings = append(warnings, fmt.Sprintf("release-metadata check skipped: %v", err))
 		} else {
 			metaChecked = true
+		}
+	}
+	if !req.noMeta {
+		// deps.dev has no Composer system: Packagist itself is the PHP
+		// metadata layer (its packages endpoint is CORS-open).
+		if ok, err := phpreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Packagist registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		if metaChecked && req.changelogs {
 			// taglink (verified changelog links) is skipped in the
 			// browser — git smart-HTTP endpoints don't allow cross-origin
 			// requests. The CLI has them. Release notes instead resolve
 			// tags against the GitHub release list itself (relnotes.Fallback).
-			if req.changelogs {
-				relnotes.Fallback = true
-				relnotes.MaxRepos = 25 // stay inside the browser's anonymous API quota
-				for _, w := range relnotes.Annotate(diffs, os.Getenv("GITHUB_TOKEN")) {
-					warnings = append(warnings,
-						strings.Replace(w, "set GITHUB_TOKEN", "paste a GitHub API token under Options", 1))
-				}
+			relnotes.Fallback = true
+			relnotes.MaxRepos = 25 // stay inside the browser's anonymous API quota
+			for _, w := range relnotes.Annotate(diffs, os.Getenv("GITHUB_TOKEN")) {
+				warnings = append(warnings,
+					strings.Replace(w, "set GITHUB_TOKEN", "paste a GitHub API token under Options", 1))
 			}
 		}
-	}
-	if !req.noMeta {
 		if err := npmreg.Annotate(diffs); err != nil {
 			warnings = append(warnings, fmt.Sprintf("install-script check skipped: %v", err))
 		}

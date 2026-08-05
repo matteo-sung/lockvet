@@ -158,7 +158,7 @@ func TestSARIF(t *testing.T) {
 	if unl.Level != "warning" {
 		t.Errorf("unlisted level = %q, want warning", unl.Level)
 	}
-	for _, want := range []string{"event-stream was upgraded to 3.3.6", "version 3.3.6 is unknown to deps.dev", "other versions of the package are listed"} {
+	for _, want := range []string{"event-stream was upgraded to 3.3.6", "version 3.3.6 is missing from the registry index", "other versions of the package are listed"} {
 		if !strings.Contains(unl.Message.Text, want) {
 			t.Errorf("unlisted message %q missing %q", unl.Message.Text, want)
 		}

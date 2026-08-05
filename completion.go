@@ -351,7 +351,10 @@ Data sources:
 .I https://osv.dev
 (vulnerabilities),
 .I https://deps.dev
-(release metadata).
+(release metadata), plus the npm, PyPI, crates.io, RubyGems and Packagist
+registries themselves (version listings, install scripts, provenance,
+and — for Composer — ages, abandoned packages and licenses, which
+deps.dev does not carry).
 `
 
 // runCompletion handles `lockvet completion <shell>` and `lockvet man`.
