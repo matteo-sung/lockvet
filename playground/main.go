@@ -50,6 +50,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 )
@@ -294,6 +295,9 @@ func run(opts js.Value) (js.Value, error) {
 	if !req.noMeta {
 		if err := npmreg.Annotate(diffs); err != nil {
 			warnings = append(warnings, fmt.Sprintf("install-script check skipped: %v", err))
+		}
+		if err := pypireg.Annotate(diffs); err != nil {
+			warnings = append(warnings, fmt.Sprintf("PyPI registry check skipped: %v", err))
 		}
 	}
 

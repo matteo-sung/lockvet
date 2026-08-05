@@ -26,6 +26,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/taglink"
@@ -590,6 +591,9 @@ func main() {
 		if err := npmreg.Annotate(diffs); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: install-script check skipped: %v\n", err)
 		}
+		if err := pypireg.Annotate(diffs); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: PyPI registry check skipped: %v\n", err)
+		}
 	}
 
 	sum := diffx.Summarize(diffs)
@@ -980,6 +984,9 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 	if !o.noMeta {
 		if err := npmreg.Annotate(combined); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: install-script check skipped: %v\n", err)
+		}
+		if err := pypireg.Annotate(combined); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: PyPI registry check skipped: %v\n", err)
 		}
 	}
 

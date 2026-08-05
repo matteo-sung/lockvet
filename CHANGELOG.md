@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.7 — 2026-08-05
+
+- **PyPI joins the registry-signal lineup.** Everything the npm registry
+  integration catches now has a PyPI counterpart, powered by one anonymous
+  GET per changed package to PyPI's simple API (JSON flavour, PEP 691 —
+  CORS-open, so the [browser playground](https://matteo-sung.github.io/lockvet/)
+  gets it all too):
+  - **`⛨ provenance dropped` now covers PyPI** ([PEP 740
+    attestations](https://peps.python.org/pep-0740/)): a young (≤ 30 days)
+    release published with *no* attested files, where the outgoing pin and
+    the project's recent stable line all attested, is what publishing with
+    a stolen PyPI token looks like — trusted publishing keeps attesting, a
+    token thief can't. Same three noise gates as npm; a release with
+    *mixed* attested/unattested files never flags (that's a publishing
+    setup, not a signal). Across the top 1 000 PyPI packages' current
+    bumps it flags exactly one — a real week-old attestation-streak break.
+  - **`unlisted` flags are now registry-verified for PyPI** like they are
+    for npm: deps.dev can lag PyPI by days, so lockvet clears the flag for
+    any version PyPI's own version list serves; what survives is a version
+    PyPI itself no longer has — what an unpublished (pulled) release looks
+    like.
+  - **Yanked releases ([PEP 592](https://peps.python.org/pep-0592/)) and
+    [PEP 792](https://peps.python.org/pep-0792/) project statuses** surface
+    on the deprecation lane: an incoming version whose files were all
+    yanked shows the maintainer's yank reason, and a project **archived**
+    by its maintainers or **quarantined** by PyPI admins (the
+    malware-review state) is called out on every change that still pins
+    it — with `-fail-on deprecated` as the gate.
+- Provenance wording is now ecosystem-neutral ("a stolen publish token
+  can't") in terminal, markdown, and SARIF output.
+
 ## v0.3.6 — 2026-08-05
 
 - **`⛨ provenance dropped` — flag young npm releases published without

@@ -23,6 +23,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/taglink"
@@ -136,6 +137,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 	if !o.noMeta {
 		if err := npmreg.Annotate(diffs); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("install-script check skipped: %v", err))
+		}
+		if err := pypireg.Annotate(diffs); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("PyPI registry check skipped: %v", err))
 		}
 	}
 	v.diffs = diffs

@@ -183,7 +183,7 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				results = append(results, result{
 					RuleID: "provenance-dropped", RuleIndex: idx,
 					Level:     "warning",
-					Message:   map[string]string{"text": fmt.Sprintf("%s: version %s carries no sigstore provenance attestation while every previous version of the package was published with one. Legitimate CI keeps attesting its releases; a stolen npm token can publish but cannot make the project's pipeline attest. Verify the release before trusting it.%s", what, strings.Join(c.UnattestedVersions, ", "), via)},
+					Message:   map[string]string{"text": fmt.Sprintf("%s: version %s carries no sigstore provenance attestation while every previous version of the package was published with one. Legitimate CI keeps attesting its releases; a stolen publish token can publish but cannot make the project's pipeline attest. Verify the release before trusting it.%s", what, strings.Join(c.UnattestedVersions, ", "), via)},
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "provenance"),
