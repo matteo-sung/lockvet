@@ -270,3 +270,71 @@ func TestManifestTOMLSniff(t *testing.T) {
 		t.Error("haskell basenames not recognized")
 	}
 }
+
+// TestNonRegistryMarks: packages a lockfile says are not from the public
+// registry (workspace members, git/path deps, poetry source tables) must be
+// marked so registry-metadata checks skip them.
+func TestNonRegistryMarks(t *testing.T) {
+	cargo := `[[package]]
+name = "my-workspace-crate"
+version = "25.7.0"
+dependencies = ["serde"]
+
+[[package]]
+name = "serde"
+version = "1.0.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "forked-thing"
+version = "2.0.0"
+source = "git+https://github.com/me/forked-thing?rev=abc123"
+`
+	f := parseWith(t, "Cargo.lock", cargo)
+	if !f.NonRegistry["my-workspace-crate"] {
+		t.Error("Cargo workspace member (no source) must be NonRegistry")
+	}
+	if !f.NonRegistry["forked-thing"] {
+		t.Error("Cargo git dependency must be NonRegistry")
+	}
+	if f.NonRegistry["serde"] {
+		t.Error("registry crate must NOT be NonRegistry")
+	}
+
+	poetry := `[[package]]
+name = "requests"
+version = "2.32.0"
+
+[[package]]
+name = "internal-tool"
+version = "1.0.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/corp/internal-tool"
+`
+	f = parseWith(t, "poetry.lock", poetry)
+	if !f.NonRegistry["internal-tool"] {
+		t.Error("poetry package with a source table must be NonRegistry")
+	}
+	if f.NonRegistry["requests"] {
+		t.Error("plain poetry package must NOT be NonRegistry")
+	}
+
+	npm := `{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {"dependencies": {"a": "^1.0.0"}},
+    "node_modules/a": {"version": "1.0.0", "resolved": "https://registry.npmjs.org/a/-/a-1.0.0.tgz"},
+    "node_modules/b": {"version": "2.0.0", "resolved": "git+ssh://git@github.com/me/b.git#abc"},
+    "node_modules/c": {"version": "3.0.0", "resolved": "file:../c"}
+  }
+}`
+	f = parseWith(t, "package-lock.json", npm)
+	if f.NonRegistry["a"] {
+		t.Error("npm registry package must NOT be NonRegistry")
+	}
+	if !f.NonRegistry["b"] || !f.NonRegistry["c"] {
+		t.Errorf("npm git/file deps must be NonRegistry, got %v", f.NonRegistry)
+	}
+}

@@ -144,6 +144,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● deprecated upstream:"), s.dim(reason))
 			}
+			if c.Unlisted {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
+			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● license change:"), s.dim(c.OldLicense+" → "+c.NewLicense))
 			}
@@ -261,6 +264,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 		if sum.Deprecated > 0 {
 			out += " · " + s.yellow(fmt.Sprintf("%d deprecated", sum.Deprecated))
 		}
+		if sum.Unlisted > 0 {
+			out += " · " + s.bred(pluralVerb(sum.Unlisted, "version", "versions")+" not in registry index")
+		}
 		if sum.LicenseChanged > 0 {
 			out += " · " + s.yellow(fmt.Sprintf("%s changed", plural(sum.LicenseChanged, "license")))
 		}
@@ -298,13 +304,16 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	if vulnsChecked {
 		fmt.Fprintf(w, "\nVulnerabilities: **%d introduced**, %d fixed, %d unresolved (via [OSV.dev](https://osv.dev))\n", sum.VulnsIntroduced, sum.VulnsFixed, sum.VulnsExisting)
 	}
-	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.LicenseChanged > 0) {
+	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.LicenseChanged > 0 || sum.Unlisted > 0) {
 		var bits []string
 		if sum.Fresh > 0 {
 			bits = append(bits, fmt.Sprintf("**%s published <%dd ago** ⏱", plural(sum.Fresh, "version"), freshDays))
 		}
 		if sum.Deprecated > 0 {
 			bits = append(bits, fmt.Sprintf("**%d deprecated**", sum.Deprecated))
+		}
+		if sum.Unlisted > 0 {
+			bits = append(bits, fmt.Sprintf("**%s not in the registry index** ❗", plural(sum.Unlisted, "version")))
 		}
 		if sum.LicenseChanged > 0 {
 			bits = append(bits, fmt.Sprintf("**%s changed** ⚖️", plural(sum.LicenseChanged, "license")))
@@ -374,6 +383,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					reason = "no reason given"
 				}
 				fmt.Fprintf(w, "| 🟠 | ↳ deprecated upstream | | | %s |%s\n", reason, padCell)
+			}
+			if c.Unlisted {
+				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
 			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "| ⚖️ | ↳ license change | | | %s |%s\n", esc(c.OldLicense+" → "+c.NewLicense), padCell)

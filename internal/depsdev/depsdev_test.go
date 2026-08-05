@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,10 +13,16 @@ import (
 )
 
 // fakeServer answers versionbatch queries from a canned table keyed by
-// "name@version".
+// "name@version". GET requests are treated as package-level lookups and
+// answered from the same table: a package exists when any table key starts
+// with "name@", and its version list is every version present.
 func fakeServer(t *testing.T, table map[string]versionInfo) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			servePackage(w, r, table)
+			return
+		}
 		var in struct {
 			Requests []request `json:"requests"`
 		}
@@ -36,6 +44,33 @@ func fakeServer(t *testing.T, table map[string]versionInfo) *httptest.Server {
 	}))
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// servePackage answers GET /systems/S/packages/N from the canned table.
+func servePackage(w http.ResponseWriter, r *http.Request, table map[string]versionInfo) {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	// systems/S/packages/N...
+	if len(parts) < 4 || parts[0] != "systems" || parts[2] != "packages" {
+		http.NotFound(w, r)
+		return
+	}
+	name, _ := url.PathUnescape(strings.Join(parts[3:], "/"))
+	var doc struct {
+		Versions []map[string]any `json:"versions"`
+	}
+	for key := range table {
+		i := strings.LastIndex(key, "@")
+		if i > 0 && key[:i] == name {
+			doc.Versions = append(doc.Versions, map[string]any{
+				"versionKey": map[string]string{"version": key[i+1:]},
+			})
+		}
+	}
+	if doc.Versions == nil {
+		http.NotFound(w, r)
+		return
+	}
+	json.NewEncoder(w).Encode(doc)
 }
 
 func pinClock(t *testing.T, iso string) {
@@ -60,9 +95,9 @@ func TestAnnotate(t *testing.T) {
 			DeprecatedReason: "request has been deprecated\nsee issue #3142",
 		},
 	})
-	old := BatchURL
-	BatchURL = srv.URL
-	defer func() { BatchURL = old }()
+	old, oldSingle := BatchURL, SingleURL
+	BatchURL, SingleURL = srv.URL, srv.URL
+	defer func() { BatchURL, SingleURL = old, oldSingle }()
 
 	diffs := []diffx.FileDiff{{
 		Path: "package-lock.json", Ecosystem: "npm",
@@ -115,9 +150,9 @@ func TestAnnotateFreshWindow(t *testing.T) {
 		"a@1.0.0": {PublishedAt: "2026-07-16T00:00:00Z"}, // 6.5 days → inside 7d window
 		"b@1.0.0": {PublishedAt: "2026-07-15T00:00:00Z"}, // 7.5 days → outside
 	})
-	old := BatchURL
-	BatchURL = srv.URL
-	defer func() { BatchURL = old }()
+	old, oldSingle := BatchURL, SingleURL
+	BatchURL, SingleURL = srv.URL, srv.URL
+	defer func() { BatchURL, SingleURL = old, oldSingle }()
 
 	diffs := []diffx.FileDiff{{Ecosystem: "npm", Changes: []diffx.Change{
 		{Name: "a", Ecosystem: "npm", Kind: diffx.Added, New: []string{"1.0.0"}},
@@ -152,9 +187,9 @@ func TestAnnotateGoPrefix(t *testing.T) {
 	srv := fakeServer(t, map[string]versionInfo{
 		"golang.org/x/tools@v0.47.0": {PublishedAt: "2026-06-26T00:00:00Z"},
 	})
-	old := BatchURL
-	BatchURL = srv.URL
-	defer func() { BatchURL = old }()
+	old, oldSingle := BatchURL, SingleURL
+	BatchURL, SingleURL = srv.URL, srv.URL
+	defer func() { BatchURL, SingleURL = old, oldSingle }()
 
 	diffs := []diffx.FileDiff{{Ecosystem: "Go", Changes: []diffx.Change{
 		{Name: "golang.org/x/tools", Ecosystem: "Go", Kind: diffx.Upgraded, Old: []string{"0.45.0"}, New: []string{"0.47.0"}},
@@ -172,9 +207,9 @@ func TestAnnotateServerError(t *testing.T) {
 		http.Error(w, "boom", 500)
 	}))
 	defer srv.Close()
-	old := BatchURL
-	BatchURL = srv.URL
-	defer func() { BatchURL = old }()
+	old, oldSingle := BatchURL, SingleURL
+	BatchURL, SingleURL = srv.URL, srv.URL
+	defer func() { BatchURL, SingleURL = old, oldSingle }()
 
 	diffs := []diffx.FileDiff{{Ecosystem: "npm", Changes: []diffx.Change{
 		{Name: "a", Ecosystem: "npm", Kind: diffx.Added, New: []string{"1.0.0"}},
@@ -219,9 +254,9 @@ func TestAnnotateLicenseChange(t *testing.T) {
 		"e@1.5.0": {PublishedAt: "2020-06-01T00:00:00Z", Licenses: []string{"MIT"}},
 		"e@2.0.0": {PublishedAt: "2021-01-01T00:00:00Z", Licenses: []string{"BUSL-1.1"}},
 	})
-	old := BatchURL
-	BatchURL = srv.URL
-	defer func() { BatchURL = old }()
+	old, oldSingle := BatchURL, SingleURL
+	BatchURL, SingleURL = srv.URL, srv.URL
+	defer func() { BatchURL, SingleURL = old, oldSingle }()
 
 	diffs := []diffx.FileDiff{{Path: "package-lock.json", Ecosystem: "npm", Changes: []diffx.Change{
 		{Name: "husky", Ecosystem: "npm", Kind: diffx.Upgraded, Old: []string{"4.3.8"}, New: []string{"5.0.9"}},
@@ -270,6 +305,8 @@ func TestAnnotateSingleRequests(t *testing.T) {
 			json.NewEncoder(w).Encode(versionInfo{
 				PublishedAt: "2025-01-01T00:00:00Z", IsDeprecated: true, DeprecatedReason: "use new-thing",
 			})
+		case "/systems/NPM/packages/gone":
+			http.NotFound(w, r) // whole package unknown → no unlisted flag
 		default:
 			t.Errorf("unexpected path %s", r.URL.EscapedPath())
 			http.NotFound(w, r)
@@ -296,7 +333,58 @@ func TestAnnotateSingleRequests(t *testing.T) {
 	if cs[1].PublishedAt != "" {
 		t.Errorf("gone: expected no metadata, got %q", cs[1].PublishedAt)
 	}
+	if cs[1].Unlisted {
+		t.Errorf("gone: package unknown to deps.dev entirely must not be flagged unlisted")
+	}
 	if !cs[2].Deprecated || cs[2].DeprecatedReason != "use new-thing" {
 		t.Errorf("old-thing: deprecated=%v reason=%q", cs[2].Deprecated, cs[2].DeprecatedReason)
+	}
+}
+
+// TestAnnotateUnlisted: an introduced version deps.dev doesn't know, on a
+// package whose other versions ARE listed, is what an unpublished release
+// looks like — it must be flagged. Packages deps.dev doesn't index at all,
+// Go pseudo-versions, and decorated (pnpm-style) version strings must not.
+func TestAnnotateUnlisted(t *testing.T) {
+	pinClock(t, "2026-07-22T12:00:00Z")
+	srv := fakeServer(t, map[string]versionInfo{
+		"flatmap-stream@0.1.0": {PublishedAt: "2018-08-01T00:00:00Z"},
+		// 0.1.1 deliberately absent: unpublished
+		"chalk@5.6.0":              {PublishedAt: "2025-06-01T00:00:00Z"},
+		"golang.org/x/tools@0.1.0": {PublishedAt: "2021-01-01T00:00:00Z"},
+	})
+	old, oldSingle := BatchURL, SingleURL
+	BatchURL, SingleURL = srv.URL, srv.URL
+	defer func() { BatchURL, SingleURL = old, oldSingle }()
+
+	diffs := []diffx.FileDiff{{
+		Path: "package-lock.json", Ecosystem: "npm",
+		Changes: []diffx.Change{
+			{Name: "flatmap-stream", Ecosystem: "npm", Kind: diffx.Added, New: []string{"0.1.1"}},
+			{Name: "private-pkg", Ecosystem: "npm", Kind: diffx.Added, New: []string{"9.9.9"}},
+			{Name: "chalk", Ecosystem: "npm", Kind: diffx.Upgraded, Old: []string{"5.6.0"}, New: []string{"5.6.1(react@18.2.0)"}},
+		},
+	}, {
+		Path: "go.sum", Ecosystem: "Go",
+		Changes: []diffx.Change{
+			{Name: "golang.org/x/tools", Ecosystem: "Go", Kind: diffx.Upgraded,
+				Old: []string{"0.1.0"}, New: []string{"0.0.0-20260101120000-0123456789ab"}},
+		},
+	}}
+	if err := Annotate(diffs, 7); err != nil {
+		t.Fatal(err)
+	}
+	cs := diffs[0].Changes
+	if !cs[0].Unlisted || len(cs[0].UnlistedVersions) != 1 || cs[0].UnlistedVersions[0] != "0.1.1" {
+		t.Errorf("flatmap-stream: want unlisted [0.1.1], got %v %v", cs[0].Unlisted, cs[0].UnlistedVersions)
+	}
+	if cs[1].Unlisted {
+		t.Errorf("private-pkg: package unknown to deps.dev must not be flagged")
+	}
+	if cs[2].Unlisted {
+		t.Errorf("chalk: decorated version strings must not be flagged")
+	}
+	if diffs[1].Changes[0].Unlisted {
+		t.Errorf("Go pseudo-version must not be flagged")
 	}
 }

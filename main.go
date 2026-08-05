@@ -139,7 +139,7 @@ FLAGS
                  Needs GITHUB_TOKEN / gh login, GITLAB_TOKEN (api scope), or
                  BITBUCKET_TOKEN / app password (pullrequest:write).
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
-                 "fresh", "deprecated", or "license"
+                 "fresh", "deprecated", "unlisted", or "license"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
   -author LIST   (queue mode) bot accounts to search for, comma list
                  (GitHub default "app/dependabot,app/renovate"; GitLab and
@@ -1074,12 +1074,16 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 			if sum.Deprecated > 0 {
 				return 1
 			}
+		case "unlisted":
+			if sum.Unlisted > 0 {
+				return 1
+			}
 		case "license":
 			if sum.LicenseChanged > 0 {
 				return 1
 			}
 		default:
-			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, or license)", cond))
+			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, or license)", cond))
 		}
 	}
 	return 0

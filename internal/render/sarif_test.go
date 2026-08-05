@@ -45,6 +45,11 @@ func sarifDiffs() []diffx.FileDiff {
 				New: []string{"2.88.2"}, Deprecated: true,
 				DeprecatedReason: "request has been deprecated",
 			},
+			{
+				Name: "event-stream", Ecosystem: "npm", Kind: diffx.Upgraded,
+				Old: []string{"3.3.4"}, New: []string{"3.3.6"},
+				Unlisted: true, UnlistedVersions: []string{"3.3.6"},
+			},
 		},
 	}}
 }
@@ -103,8 +108,8 @@ func TestSARIF(t *testing.T) {
 		t.Errorf("driver = %s %s, want lockvet 0.1.12 (no v prefix)",
 			run.Tool.Driver.Name, run.Tool.Driver.Version)
 	}
-	if len(run.Results) != 4 {
-		t.Fatalf("want 4 results (introduced, unresolved, deprecated, license), got %d", len(run.Results))
+	if len(run.Results) != 5 {
+		t.Fatalf("want 5 results (introduced, unresolved, deprecated, license, unlisted), got %d", len(run.Results))
 	}
 
 	byRule := map[string]int{}
@@ -149,6 +154,16 @@ func TestSARIF(t *testing.T) {
 		t.Errorf("deprecated startLine = %d, want 6 (the node_modules/request line)", got)
 	}
 
+	unl := run.Results[byRule["unlisted-version"]]
+	if unl.Level != "warning" {
+		t.Errorf("unlisted level = %q, want warning", unl.Level)
+	}
+	for _, want := range []string{"event-stream was upgraded to 3.3.6", "version 3.3.6 is unknown to deps.dev", "other versions of the package are listed"} {
+		if !strings.Contains(unl.Message.Text, want) {
+			t.Errorf("unlisted message %q missing %q", unl.Message.Text, want)
+		}
+	}
+
 	lic := run.Results[byRule["license-change"]]
 	if lic.Level != "warning" {
 		t.Errorf("license-change level = %q, want warning", lic.Level)
@@ -178,8 +193,8 @@ func TestSARIF(t *testing.T) {
 	if !sawSec {
 		t.Error("no rule for the introduced vuln")
 	}
-	if len(run.Tool.Driver.Rules) != 4 {
-		t.Errorf("want 4 rules, got %d", len(run.Tool.Driver.Rules))
+	if len(run.Tool.Driver.Rules) != 5 {
+		t.Errorf("want 5 rules, got %d", len(run.Tool.Driver.Rules))
 	}
 
 	// RuleIndex must point at the right rule.

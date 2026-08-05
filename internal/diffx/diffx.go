@@ -51,6 +51,20 @@ type Change struct {
 	Deprecated       bool   `json:"deprecated,omitempty"`
 	DeprecatedReason string `json:"deprecated_reason,omitempty"`
 
+	// Unlisted: at least one incoming version is missing from the
+	// registry metadata (deps.dev) even though other versions of the
+	// same package are listed. That is what an unpublished or deleted
+	// release looks like — registries pull malicious versions, so a
+	// lockfile that still pins one is a red flag. (A release published
+	// minutes ago may also not be indexed yet.)
+	Unlisted         bool     `json:"unlisted,omitempty"`
+	UnlistedVersions []string `json:"unlisted_versions,omitempty"`
+
+	// NonRegistry: the lockfile says this package doesn't come from the
+	// public registry (workspace member, path/git dependency). Suppresses
+	// the unlisted flag; not serialized.
+	NonRegistry bool `json:"-"`
+
 	// License strings as the registry reports them (per side), and
 	// whether the bump changes the license. Only set when deps.dev
 	// knows both sides.
@@ -140,6 +154,9 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		}
 		eco := ecoOf(name)
 		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n}
+		if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
+			c.NonRegistry = true
+		}
 		switch {
 		case len(o) == 0:
 			c.Kind = Added
@@ -451,7 +468,7 @@ func matchAnyOf(res []*regexp.Regexp, names []string) bool {
 type Summary struct {
 	Total, Major, Minor, Patch, Added, Removed, Downgraded int
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
-	Fresh, Deprecated, LicenseChanged                      int
+	Fresh, Deprecated, LicenseChanged, Unlisted            int
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 }
 
@@ -487,6 +504,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.Deprecated {
 				s.Deprecated++
+			}
+			if c.Unlisted {
+				s.Unlisted++
 			}
 			if c.LicenseChanged {
 				s.LicenseChanged++

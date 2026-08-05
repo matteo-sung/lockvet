@@ -14,6 +14,7 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 		Packages map[string]struct {
 			Version              string            `json:"version"`
 			Link                 bool              `json:"link"`
+			Resolved             string            `json:"resolved"`
 			Dependencies         map[string]string `json:"dependencies"`
 			DevDependencies      map[string]string `json:"devDependencies"`
 			OptionalDependencies map[string]string `json:"optionalDependencies"`
@@ -51,6 +52,9 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 				continue // workspace member itself, not an installed package
 			}
 			f.add(name, pkg.Version)
+			if strings.HasPrefix(pkg.Resolved, "git") || strings.HasPrefix(pkg.Resolved, "file:") {
+				f.markNonRegistry(name) // git or local-path dependency
+			}
 			for dep := range pkg.Dependencies {
 				f.addEdge(name, dep)
 			}

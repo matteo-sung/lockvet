@@ -139,6 +139,23 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.Unlisted {
+				idx := addRule(rule{
+					ID:               "unlisted-version",
+					ShortDescription: map[string]string{"text": "Incoming version is missing from the registry index"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#versions-missing-from-the-registry",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "unlisted-version", RuleIndex: idx,
+					Level:     "warning",
+					Message:   map[string]string{"text": fmt.Sprintf("%s, but version %s is unknown to deps.dev even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "unlisted"),
+					},
+				})
+			}
 			if c.Deprecated {
 				idx := addRule(rule{
 					ID:               "deprecated-package",

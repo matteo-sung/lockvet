@@ -47,12 +47,20 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 		f := newFile(p, kind, eco)
 		var name, version string
 		var deps []string
-		hasSource, rootSource := false, false
+		hasSource, rootSource, nonRegistry := false, false, false
 		inPackage := false
 		mode := "" // "", "deps-array", "poetry-deps"
 		flush := func() {
 			if inPackage {
 				f.add(name, version)
+				// Packages that don't come from the public registry:
+				// Cargo.lock: no `source` = workspace member / path dep,
+				// source = "git+..." = git dep. uv.lock / poetry.lock:
+				// explicit git/path/directory/url/editable sources and
+				// alternate indexes (marked while scanning lines).
+				if nonRegistry || (kind == "Cargo.lock" && !hasSource) {
+					f.markNonRegistry(name)
+				}
 				// Which packages count as the project root differs:
 				// Cargo.lock: workspace members have no `source` key.
 				// uv.lock: the project has source = { editable/virtual = "." }.
@@ -68,7 +76,7 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				}
 			}
 			name, version, deps = "", "", nil
-			hasSource, rootSource = false, false
+			hasSource, rootSource, nonRegistry = false, false, false
 		}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)
@@ -102,6 +110,11 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 					if inPackage && line == "[package.dependencies]" {
 						mode = "poetry-deps"
 					}
+					if inPackage && line == "[package.source]" {
+						// poetry: PyPI packages carry no source table at
+						// all; git/directory/file/url/legacy all do.
+						nonRegistry = true
+					}
 				default:
 					flush()
 					inPackage = false
@@ -123,6 +136,11 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				hasSource = true
 				if strings.Contains(line, "editable") || strings.Contains(line, "virtual") {
 					rootSource = true
+				}
+				if strings.Contains(line, "git+") || strings.Contains(line, "git =") ||
+					strings.Contains(line, "path =") || strings.Contains(line, "directory =") ||
+					strings.Contains(line, "url =") || rootSource {
+					nonRegistry = true // not the format's public registry
 				}
 				continue
 			}

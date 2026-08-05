@@ -25,7 +25,8 @@ const mcpLatestProtocol = "2025-06-18"
 
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
-version is, what's deprecated, and license changes — across 29 lockfile
+version is, what's deprecated, what's missing from the registry index
+(unpublished/pulled releases), and license changes — across 29 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
 conda, Julia, Haskell, Terraform, Helm, renv, SBOMs, and more).
 

@@ -498,7 +498,7 @@ jobs:
       - uses: matteo-sung/lockvet@v0.3.3
         # optional:
         # with:
-        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,license"
+        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,license"
         #   fresh-days: '7'      # cooldown window for the fresh flag
         #   changelogs: 'true'   # inline release notes for every bump
         #   sarif: 'true'        # code scanning alerts (see below)
@@ -662,6 +662,41 @@ Every incoming version is checked against its registry (via deps.dev):
 
 Both are gates too: `-fail-on deprecated,license`.
 
+## Versions missing from the registry
+
+When an incoming version is **unknown to the registry index** even though
+other versions of the same package are listed, lockvet says so:
+
+```
++ flatmap-stream 0.1.1  (added)  via event-stream
+    ▲ not in registry index: 0.1.1 unknown to deps.dev though other
+      versions are listed — unpublished/deleted release, or published
+      minutes ago; verify before trusting
+```
+
+Why this matters: **when a registry pulls a malicious release, this is what
+the hole looks like.** Every malicious version in
+[our case studies](docs/case-studies.md) — `event-stream@3.3.6`,
+`flatmap-stream@0.1.1`, `chalk@5.6.1`, `ultralytics@8.3.41` — was
+unpublished after the attack, so any lockfile still pinning one references
+a version its own registry has disowned. lockvet flags that *without
+needing an advisory to exist yet*.
+
+To keep it honest, the flag is deliberately conservative — it stays silent
+for:
+
+- packages the registry doesn't index at all (private registries, uncovered
+  ecosystems) — only packages whose *other* versions are listed can be
+  flagged;
+- workspace members, git and path dependencies (the lockfile itself says
+  they don't come from the registry);
+- Go pseudo-versions and pnpm-style decorated version strings.
+
+A release published minutes ago may also not be indexed yet — the flag
+tells you to *look*, not to panic. Gate on it with `-fail-on unlisted`;
+JSON carries `unlisted` / `unlisted_versions`; SARIF emits an
+`unlisted-version` warning; `queue` sorts affected PRs to the top.
+
 ## Release notes inline (`-changelogs`)
 
 Every bump already links to the verified upstream tag-to-tag diff. Add
@@ -760,7 +795,10 @@ parsers are ~50 lines each.
 5. Every *incoming* version is looked up on deps.dev's batch API for its
    publish date, deprecation status, and license — departing versions are
    looked up too, so a license flip between old and new gets flagged (npm,
-   crates.io, PyPI, Go, Maven, NuGet, RubyGems). Versions younger than `-fresh-days` (default 7) get a
+   crates.io, PyPI, Go, Maven, NuGet, RubyGems). An incoming version the
+   registry doesn't list — while other versions of the package are listed —
+   gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
+   what an unpublished (often malicious) release looks like. Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
    days of publication, so a short cooldown filters most of them out.
 6. Each changed package's source repository (from deps.dev) has its tag list
@@ -787,11 +825,12 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
+| Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|license`) + GitHub Action |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
 | MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, whole queues) |

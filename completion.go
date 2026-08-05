@@ -35,7 +35,7 @@ _lockvet() {
             fi
             return ;;
         -fail-on)
-            COMPREPLY=( $(compgen -W "major vuln downgrade fresh deprecated license" -- "$cur") )
+            COMPREPLY=( $(compgen -W "major vuln downgrade fresh deprecated unlisted license" -- "$cur") )
             return ;;
         -fresh-days|-limit|-only|-author)
             return ;;
@@ -103,7 +103,7 @@ _lockvet() {
         '-changelogs[fetch upstream release notes for every bump]' \
         '-only[only changes whose name or via-chain matches PAT (glob, comma list)]:pattern' \
         '-comment[post the report as a comment on the PR/MR]' \
-        '-fail-on[exit 1 if the diff contains a condition (comma list)]:condition:_values -s , condition major vuln downgrade fresh deprecated license' \
+        '-fail-on[exit 1 if the diff contains a condition (comma list)]:condition:_values -s , condition major vuln downgrade fresh deprecated unlisted license' \
         '-author[queue mode: bot accounts to search for (comma list, "any" ok)]:authors' \
         '-limit[queue mode: vet at most N pull/merge requests (default 30)]:n' \
         '-C[run as if started in dir]:directory:_files -/' \
@@ -162,7 +162,7 @@ complete -c lockvet -o fresh-days -x -d 'flag versions younger than N days (defa
 complete -c lockvet -o changelogs -d 'fetch upstream release notes for every bump'
 complete -c lockvet -o only -x -d 'only changes matching pattern (glob, comma list)'
 complete -c lockvet -o comment -d 'post the report as a PR/MR comment'
-complete -c lockvet -o fail-on -x -a 'major vuln downgrade fresh deprecated license' -d 'exit 1 on findings (comma list)'
+complete -c lockvet -o fail-on -x -a 'major vuln downgrade fresh deprecated unlisted license' -d 'exit 1 on findings (comma list)'
 complete -c lockvet -o author -x -d 'queue mode: bot accounts (comma list, "any" ok)'
 complete -c lockvet -o limit -x -d 'queue mode: vet at most N PRs (default 30)'
 complete -c lockvet -o C -x -a '(__fish_complete_directories)' -d 'run as if started in dir'
@@ -202,8 +202,9 @@ reads two versions of a dependency lockfile and explains the difference:
 what was added, removed, upgraded, or downgraded; which bumps are
 major/breaking; which incoming versions are newly vulnerable (via OSV.dev)
 and which vulnerabilities a bump fixes; how old every incoming release is;
-which packages are deprecated upstream; and which bumps change their
-license.
+which packages are deprecated upstream; which incoming versions their own
+registry no longer lists (what an unpublished malicious release looks
+like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
 It understands 29 lockfile formats across the npm, pnpm, yarn, bun, Cargo,
@@ -282,7 +283,7 @@ reruns update the same comment in place.
 .TP
 .BI \-fail\-on " LIST"
 Exit 1 if the diff contains any of: \fBmajor\fR, \fBvuln\fR,
-\fBdowngrade\fR, \fBfresh\fR, \fBdeprecated\fR, \fBlicense\fR
+\fBdowngrade\fR, \fBfresh\fR, \fBdeprecated\fR, \fBunlisted\fR, \fBlicense\fR
 (comma list).
 .TP
 .BI \-author " LIST"

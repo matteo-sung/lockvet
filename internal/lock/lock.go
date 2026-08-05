@@ -117,10 +117,29 @@ type File struct {
 	// use it: one CycloneDX/SPDX document mixes npm, PyPI, distro
 	// packages and more. nil for ordinary lockfiles.
 	PkgEco map[string]Ecosystem
+
+	// NonRegistry marks packages the lockfile itself says do NOT come
+	// from the format's public registry: workspace members, path and
+	// git dependencies, alternate indexes. Registry-metadata checks
+	// (like the unlisted-version flag) skip them.
+	NonRegistry map[string]bool
 }
 
 func newFile(p, kind string, eco Ecosystem) *File {
 	return &File{Path: p, Kind: kind, Ecosystem: eco, Packages: map[string][]string{}}
+}
+
+// markNonRegistry records that a package does not come from the public
+// registry (workspace member, path or git dependency, alternate index).
+func (f *File) markNonRegistry(name string) {
+	name = Sanitize(name)
+	if name == "" {
+		return
+	}
+	if f.NonRegistry == nil {
+		f.NonRegistry = map[string]bool{}
+	}
+	f.NonRegistry[name] = true
 }
 
 // addEdge records "from depends on to". Self-edges and empty names are dropped.

@@ -33,7 +33,8 @@ func (r QueueRow) noChangesMsg() string {
 
 // verdict classifies a row for sorting and for the leading marker.
 //
-//	0 = introduces vulnerabilities
+//	0 = introduces vulnerabilities or pins a version missing from the
+//	    registry index (what unpublished malware looks like)
 //	1 = needs a look (major, downgrade, fresh, or deprecated)
 //	2 = routine (only minor/patch/added/removed, nothing flagged)
 //	3 = no lockfile changes
@@ -44,7 +45,7 @@ func (r QueueRow) verdict() int {
 		return 4
 	case r.NoChanges:
 		return 3
-	case r.Sum.VulnsIntroduced > 0:
+	case r.Sum.VulnsIntroduced > 0 || r.Sum.Unlisted > 0:
 		return 0
 	case r.Sum.Major > 0 || r.Sum.Downgraded > 0 || r.Sum.Fresh > 0 || r.Sum.Deprecated > 0:
 		return 1

@@ -9,10 +9,10 @@ The short version:
 
 | Incident | Ecosystem | Malicious release live | Advisory published | What flags it today |
 |---|---|---|---|---|
-| [event-stream / flatmap-stream](#1-event-stream--flatmap-stream-2018) (2018) | npm | ~6 weeks undetected | weeks later | ▲ 4 advisories + **new transitive package** made visible |
-| [ultralytics](#2-ultralytics-dec-2024) (Dec 2024) | PyPI | Dec 4, 2024 | Dec 10, 2024 | ▲ [PYSEC-2024-154](https://osv.dev/vulnerability/PYSEC-2024-154) |
-| [chalk + debug takeover](#3-the-chalk--debug-npm-takeover-sept-2025) (Sept 2025) | npm | Sept 8, 2025 (~2 h) | Sept 15, 2025 | ▲ malware advisories on both bumps |
-| [Shai-Hulud worm](#4-the-shai-hulud-worm-sept-2025) (Sept 2025) | npm | Sept 15, 2025 | hours–days later | ▲ [MAL-2025-47141](https://osv.dev/vulnerability/MAL-2025-47141) |
+| [event-stream / flatmap-stream](#1-event-stream--flatmap-stream-2018) (2018) | npm | ~6 weeks undetected | weeks later | ▲ 4 advisories + **not in registry index** + new transitive package made visible |
+| [ultralytics](#2-ultralytics-dec-2024) (Dec 2024) | PyPI | Dec 4, 2024 | Dec 10, 2024 | ▲ [PYSEC-2024-154](https://osv.dev/vulnerability/PYSEC-2024-154) + **not in registry index** |
+| [chalk + debug takeover](#3-the-chalk--debug-npm-takeover-sept-2025) (Sept 2025) | npm | Sept 8, 2025 (~2 h) | Sept 15, 2025 | ▲ malware advisories + **not in registry index** on both bumps |
+| [Shai-Hulud worm](#4-the-shai-hulud-worm-sept-2025) (Sept 2025) | npm | Sept 15, 2025 | hours–days later | ▲ [MAL-2025-47141](https://osv.dev/vulnerability/MAL-2025-47141) + **not in registry index** |
 
 Note the two middle columns. **Advisories lag; release age doesn't.** In every
 one of these incidents there was a window — hours to weeks — where the
@@ -20,7 +20,10 @@ malicious version was live but no advisory existed. A vulnerability scanner
 gives you a green check during exactly that window. The one signal that exists
 at time zero is *how new the version is*, which is why lockvet has a
 [⏱ freshness flag and cooldown gate](#the-pattern-and-what-a-gate-can-actually-do)
-(`-fail-on fresh`).
+(`-fail-on fresh`). A second signal appears the moment the registry pulls the
+malicious version — it stops being listed — and lockvet flags that too
+([`▲ not in registry index`](../README.md#versions-missing-from-the-registry),
+`-fail-on unlisted`); you'll see it on every replay below.
 
 All four replays use `lockvet diff <old> <new>` on two files. In real life
 you'd hit the same reports via `lockvet` (git working tree), `lockvet pr <url>`
@@ -66,13 +69,15 @@ lockvet diff old/package-lock.json new/package-lock.json
 ```text
 new/package-lock.json (npm)
   ↑ event-stream   3.3.4 → 3.3.6  patch  (direct)
+      ▲ not in registry index: 3.3.6 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
       ▲ introduces GHSA-mh6f-8j2x-4483 (critical) Critical severity vulnerability that affects event-stream and flatmap-stream
   + flatmap-stream 0.1.1  (added)  via event-stream
+      ▲ not in registry index: 0.1.1 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
       ▲ introduces GHSA-9x64-5r7x-2q53 (critical) Malicious Package in flatmap-stream
       ▲ introduces GHSA-mh6f-8j2x-4483 (critical) Critical severity vulnerability that affects event-stream and flatmap-stream
       ▲ introduces MAL-2025-20690 Malicious code in flatmap-stream (npm)
 
-2 packages changed · 1 patch · 1 added · 1 direct · 1 transitive · vulnerabilities: 4 introduced, 0 fixed
+2 packages changed · 1 patch · 1 added · 1 direct · 1 transitive · vulnerabilities: 4 introduced, 0 fixed · 2 versions not in registry index
 ```
 
 **What to notice.** Today, OSV lights the whole thing up red. But even
@@ -103,9 +108,10 @@ lockvet diff old/requirements.txt new/requirements.txt
 ```text
 new/requirements.txt (PyPI)
   ↑ ultralytics 8.3.40 → 8.3.41  patch
+      ▲ not in registry index: 8.3.41 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
       ▲ introduces PYSEC-2024-154 A number of releases of ultralytics contained malicious crypto miner software.
 
-1 package changed · 1 patch · vulnerabilities: 1 introduced, 0 fixed
+1 package changed · 1 patch · vulnerabilities: 1 introduced, 0 fixed · 1 version not in registry index
 ```
 
 **What to notice.** Reviewing the upstream source would not have helped —
@@ -147,11 +153,13 @@ lockvet diff old/package-lock.json new/package-lock.json
 ```text
 new/package-lock.json (npm)
   ↑ chalk 5.6.0 → 5.6.1  patch  (direct)
+      ▲ not in registry index: 5.6.1 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
       ▲ introduces MAL-2025-46969 Malicious code in chalk (npm)
   ↑ debug 4.4.1 → 4.4.2  patch  (direct)
+      ▲ not in registry index: 4.4.2 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
       ▲ introduces GHSA-4x49-vf9v-38px (high) debug@4.4.2 contains malware after npm account takeover
 
-2 packages changed · 2 patch · 2 direct · 0 transitive · vulnerabilities: 2 introduced, 0 fixed
+2 packages changed · 2 patch · 2 direct · 0 transitive · vulnerabilities: 2 introduced, 0 fixed · 2 versions not in registry index
 ```
 
 **What to notice.** During the two-hour live window there was no advisory to
@@ -189,9 +197,10 @@ lockvet diff old/package-lock.json new/package-lock.json
 ```text
 new/package-lock.json (npm)
   ↑ @ctrl/tinycolor 4.1.0 → 4.1.1  patch  (direct)
+      ▲ not in registry index: 4.1.1 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
       ▲ introduces MAL-2025-47141 Malicious code in @ctrl/tinycolor (npm)
 
-1 package changed · 1 patch · 1 direct · 0 transitive · vulnerabilities: 1 introduced, 0 fixed
+1 package changed · 1 patch · 1 direct · 0 transitive · vulnerabilities: 1 introduced, 0 fixed · 1 version not in registry index
 ```
 
 **What to notice.** A worm's whole strategy is publishing *lots* of
@@ -223,6 +232,14 @@ So, honestly stated, here is what each lockvet gate buys you:
   `minimumReleaseAge`), and it holds up legitimate releases too. That is the
   price: you trade a few days of latency on all updates for never being in
   the first wave of any of the four attacks above.
+- **`-fail-on unlisted`** works from the moment the registry pulls the
+  malicious version — usually *before* the advisory is written. Notice the
+  `▲ not in registry index` line on **every single replay above**: all six
+  malicious versions were unpublished after their attacks, and a lockfile
+  pinning an unpublished version is exactly what this flag exists for. It
+  won't help at T+0 (the version is still live then), but it closes the gap
+  between takedown and advisory, and it flags any branch or bot PR that was
+  opened during the attack window and is still waiting to merge.
 - **Visibility** catches what no rule can: `(added) via <chain>` rows for
   packages you never asked for, license flips, deprecations, and registry
   ages on every line — in a report short enough that a human actually reads
@@ -230,10 +247,11 @@ So, honestly stated, here is what each lockvet gate buys you:
 
 Two footnotes for the skeptical:
 
-- The registries have since **unpublished** most of these malicious versions,
-  which is why the replays show no release-age annotation next to them —
-  deps.dev no longer has metadata for versions that no longer exist. On the
-  day of each attack, they showed as published minutes-to-hours ago.
+- The registries have since **unpublished** these malicious versions, which
+  is why the replays show a `▲ not in registry index` line instead of a
+  release-age annotation — deps.dev no longer has metadata for versions that
+  no longer exist, and lockvet says so out loud. On the day of each attack
+  they showed as published minutes-to-hours ago instead (the ⏱ fresh flag).
 - Nothing here claims lockvet "would have stopped" these attacks for
   everyone. A tool can only refuse to merge; someone still has to run it.
   The point is that both useful signals — *advisory* and *age* — belong in

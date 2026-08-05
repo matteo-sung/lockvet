@@ -4,6 +4,31 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.4 — 2026-08-05
+
+- **`unlisted` — flag versions their own registry no longer lists.** When
+  an incoming version is unknown to the registry index (deps.dev) even
+  though *other* versions of the same package are listed, the report says
+  so: `▲ not in registry index`. That is what an unpublished or deleted
+  release looks like — registries pull malicious versions, and every
+  malicious version in [the case studies](docs/case-studies.md)
+  (`event-stream@3.3.6`, `flatmap-stream@0.1.1`, `chalk@5.6.1`,
+  `ultralytics@8.3.41`, `@ctrl/tinycolor@4.1.1`, `debug@4.4.2`) now trips
+  it — no advisory needed. Gate with `-fail-on unlisted`; JSON carries
+  `unlisted` / `unlisted_versions`; SARIF emits an `unlisted-version`
+  warning; `queue` sorts affected PRs into the top (most-alarming) tier.
+- Deliberately conservative to stay quiet on legitimate diffs: packages
+  the registry doesn't index at all are never flagged (the *package* must
+  be known, the *version* missing), and lockfile-declared non-registry
+  packages are skipped — Cargo workspace members and git deps (`source`
+  field), npm git/`file:` deps (`resolved` field), poetry `[package.source]`
+  tables, uv git/path/editable sources — plus Go pseudo-versions and
+  pnpm-style decorated version strings. Verified against real-world diffs
+  (helix, zed, fd, ruff, hugo, mastodon, grafana, poetry): zero false flags.
+- Case studies doc updated: all four replays now show the flag, and the
+  honest-gates section explains what `-fail-on unlisted` does and doesn't
+  buy you (it works from registry-takedown time, not T+0).
+
 ## v0.3.3 — 2026-08-05
 
 - **`-changelogs` — upstream release notes inline.** Every bump already

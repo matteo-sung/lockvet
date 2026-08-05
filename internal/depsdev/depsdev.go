@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	neturl "net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -169,6 +170,10 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 	}
 	lics := map[sideKey]sideLic{}
 
+	// Introduced versions deps.dev has never heard of: candidates for the
+	// "unlisted" flag, confirmed against the package's version list below.
+	var suspects []suspect
+
 	now := Now()
 	for start := 0; start < len(reqs); start += chunkSize {
 		end := min(start+chunkSize, len(reqs))
@@ -182,6 +187,11 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 		}
 		for k, info := range infos {
 			if info == nil {
+				s := slots[start+k]
+				vk := reqs[start+k].VersionKey
+				if !s.oldSide && flaggable(vk) && !diffs[s.fd].Changes[s.ci].NonRegistry {
+					suspects = append(suspects, suspect{s.fd, s.ci, vk})
+				}
 				continue // unknown to deps.dev
 			}
 			s := slots[start+k]
@@ -218,6 +228,24 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 				c.AgeDays = age
 				c.Fresh = freshDays > 0 && now.Sub(t) < time.Duration(freshDays)*24*time.Hour
 			}
+		}
+	}
+
+	// Confirm suspects: a version is only called unlisted when the
+	// package endpoint answers with a version list that (a) is non-empty
+	// and (b) genuinely lacks it. A package deps.dev doesn't index at all
+	// (private registry, uncovered scope) is not flagged. Best-effort:
+	// lookup failures flag nothing.
+	if len(suspects) > 0 {
+		known := packageVersions(uniquePackages(suspects))
+		for _, s := range suspects {
+			vs, ok := known[s.vk.System+"\x00"+s.vk.Name]
+			if !ok || len(vs) == 0 || vs[s.vk.Version] {
+				continue
+			}
+			c := &diffs[s.fd].Changes[s.ci]
+			c.Unlisted = true
+			c.UnlistedVersions = append(c.UnlistedVersions, s.vk.Version)
 		}
 	}
 
@@ -342,6 +370,96 @@ func runSingles(reqs []request) ([]*versionInfo, error) {
 		return nil, firstErr
 	}
 	return out, nil
+}
+
+// goPseudoRE matches Go pseudo-versions (v0.0.0-20240101120000-abcdef123456
+// and the vX.Y.Z-0.2024… forms): real versions deps.dev never lists.
+var goPseudoRE = regexp.MustCompile(`\d{14}-[0-9a-f]{12}$`)
+
+// plainVersionRE: version strings we trust enough to call unlisted. Anything
+// carrying pnpm peer-dep suffixes ("1.2.3(react@18.0.0)"), spaces, or other
+// registry-foreign decoration is skipped rather than risk a false alarm.
+var plainVersionRE = regexp.MustCompile(`^[0-9A-Za-z.+~^_-]+$`)
+
+// flaggable reports whether a version deps.dev doesn't know is worth
+// checking against the package's version list.
+func flaggable(vk versionKey) bool {
+	if vk.Version == "" || !plainVersionRE.MatchString(vk.Version) {
+		return false
+	}
+	if vk.System == "GO" && goPseudoRE.MatchString(vk.Version) {
+		return false // pseudo-versions are never listed; that's normal
+	}
+	return true
+}
+
+type pkgKey struct{ system, name string }
+
+// suspect is an introduced version deps.dev has no metadata for.
+type suspect struct {
+	fd, ci int
+	vk     versionKey
+}
+
+func uniquePackages(suspects []suspect) []pkgKey {
+	seen := map[pkgKey]bool{}
+	var out []pkgKey
+	for _, s := range suspects {
+		k := pkgKey{s.vk.System, s.vk.Name}
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// packageVersions fetches each package's known-version set from deps.dev
+// (GET /systems/S/packages/N — CORS-simple, so the wasm build can use it
+// too). Errors and 404s yield no entry, which callers treat as "don't
+// flag". Keyed by system\x00name.
+func packageVersions(pkgs []pkgKey) map[string]map[string]bool {
+	out := make(map[string]map[string]bool, len(pkgs))
+	var mu sync.Mutex
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for _, p := range pkgs {
+		wg.Add(1)
+		go func(p pkgKey) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			u := SingleURL + "/systems/" + neturl.PathEscape(p.system) +
+				"/packages/" + neturl.PathEscape(p.name)
+			resp, err := client.Get(u)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				return
+			}
+			var doc struct {
+				Versions []struct {
+					VersionKey struct {
+						Version string `json:"version"`
+					} `json:"versionKey"`
+				} `json:"versions"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+				return
+			}
+			set := make(map[string]bool, len(doc.Versions))
+			for _, v := range doc.Versions {
+				set[v.VersionKey.Version] = true
+			}
+			mu.Lock()
+			out[p.system+"\x00"+p.name] = set
+			mu.Unlock()
+		}(p)
+	}
+	wg.Wait()
+	return out
 }
 
 func firstLine(s string) string {
