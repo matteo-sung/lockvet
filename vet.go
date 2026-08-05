@@ -22,15 +22,17 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 )
 
 type vetOptions struct {
-	only      string
-	freshDays int
-	noVulns   bool
-	noMeta    bool
+	only       string
+	freshDays  int
+	noVulns    bool
+	noMeta     bool
+	changelogs bool
 }
 
 // vetOutcome is the result of one analysis. When message is non-empty there
@@ -125,6 +127,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		} else {
 			v.metaChecked = true
 			taglink.Annotate(diffs)
+			if o.changelogs {
+				v.warnings = append(v.warnings, relnotes.Annotate(diffs, ghpr.Token())...)
+			}
 		}
 	}
 	v.diffs = diffs

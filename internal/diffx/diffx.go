@@ -64,6 +64,19 @@ type Change struct {
 	SourceRepo string `json:"source_repo,omitempty"`
 	CompareURL string `json:"compare_url,omitempty"` // upstream diff old → new
 	ReleaseURL string `json:"release_url,omitempty"` // release/tag page for new
+
+	// Filled in by the release-notes layer (opt-in via -changelogs):
+	// upstream release notes covering the versions this bump pulls in,
+	// newest first.
+	ReleaseNotes []ReleaseNote `json:"release_notes,omitempty"`
+}
+
+// ReleaseNote is one upstream release's notes, excerpted.
+type ReleaseNote struct {
+	Tag     string `json:"tag"`
+	Title   string `json:"title,omitempty"`
+	URL     string `json:"url"`
+	Excerpt string `json:"excerpt,omitempty"`
 }
 
 // Vuln is a known vulnerability reference.

@@ -25,7 +25,7 @@ _lockvet() {
         cword=$COMP_CWORD
     fi
 
-    local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -only -comment -fail-on -author -limit -C -no-color -version -h"
+    local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -changelogs -only -comment -fail-on -author -limit -C -no-color -version -h"
     local subcmds="pr mr compare queue diff mcp completion man"
 
     case $prev in
@@ -100,6 +100,7 @@ _lockvet() {
         '-no-meta[skip deps.dev metadata (release ages, deprecations, links)]' \
         '-offline[no network calls at all]' \
         '-fresh-days[flag versions published fewer than N days ago (default 7)]:days' \
+        '-changelogs[fetch upstream release notes for every bump]' \
         '-only[only changes whose name or via-chain matches PAT (glob, comma list)]:pattern' \
         '-comment[post the report as a comment on the PR/MR]' \
         '-fail-on[exit 1 if the diff contains a condition (comma list)]:condition:_values -s , condition major vuln downgrade fresh deprecated license' \
@@ -158,6 +159,7 @@ complete -c lockvet -o no-vulns -d 'skip the OSV.dev vulnerability check'
 complete -c lockvet -o no-meta -d 'skip deps.dev metadata (ages, deprecations, links)'
 complete -c lockvet -o offline -d 'no network calls at all'
 complete -c lockvet -o fresh-days -x -d 'flag versions younger than N days (default 7)'
+complete -c lockvet -o changelogs -d 'fetch upstream release notes for every bump'
 complete -c lockvet -o only -x -d 'only changes matching pattern (glob, comma list)'
 complete -c lockvet -o comment -d 'post the report as a PR/MR comment'
 complete -c lockvet -o fail-on -x -a 'major vuln downgrade fresh deprecated license' -d 'exit 1 on findings (comma list)'
@@ -263,6 +265,12 @@ No network calls at all (implies \fB\-no\-vulns \-no\-meta\fR).
 .BI \-fresh\-days " N"
 Flag versions published fewer than \fIN\fR days ago (default 7;
 0 shows ages but never flags).
+.TP
+.B \-changelogs
+Fetch upstream release notes for every bump \(em including the releases a
+multi\-version jump skips over \(em and show them inline. GitHub\-hosted
+upstreams; uses the GitHub API, so \fBGITHUB_TOKEN\fR or a logged\-in
+\fBgh\fR raises the rate limit.
 .TP
 .BI \-only " PATTERN"
 Only show changes whose name \(em or any package in their \fIvia\fR

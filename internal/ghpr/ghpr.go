@@ -283,3 +283,7 @@ func (c *client) rawContents(repo, sha, path string) ([]byte, error) {
 
 // HasToken reports whether a GitHub token is available (env or gh CLI).
 func HasToken() bool { return findToken() != "" }
+
+// Token exposes the discovered GitHub token (or "") to other packages that
+// talk to the GitHub API, e.g. the release-notes fetcher.
+func Token() string { return findToken() }

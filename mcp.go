@@ -145,6 +145,7 @@ func mcpTools() []map[string]any {
 	onlyProp := strProp(`only report packages whose name — or any package in their "via" chain — matches this pattern (glob, case-insensitive, comma list ok, e.g. "@babel/*")`)
 	freshProp := map[string]any{"type": "integer", "description": "flag versions published fewer than N days ago (default 7; 0 shows ages but never flags)"}
 	offlineProp := map[string]any{"type": "boolean", "description": "skip all network lookups (no vulnerability, age, or deprecation data)"}
+	changelogsProp := map[string]any{"type": "boolean", "description": "also fetch upstream release notes for every bump, including the releases a multi-version jump skips over (GitHub-hosted upstreams; GITHUB_TOKEN raises the API rate limit)"}
 	formatProp := map[string]any{"type": "string", "enum": []string{"markdown", "json"}, "description": `output format (default "markdown")`}
 	ro := map[string]any{"readOnlyHint": true, "openWorldHint": true}
 
@@ -162,6 +163,7 @@ func mcpTools() []map[string]any {
 					"only":       onlyProp,
 					"fresh_days": freshProp,
 					"offline":    offlineProp,
+					"changelogs": changelogsProp,
 					"format":     formatProp,
 				},
 				"required": []string{"url"},
@@ -182,6 +184,7 @@ func mcpTools() []map[string]any {
 					"only":       onlyProp,
 					"fresh_days": freshProp,
 					"offline":    offlineProp,
+					"changelogs": changelogsProp,
 					"format":     formatProp,
 				},
 			},
@@ -199,6 +202,7 @@ func mcpTools() []map[string]any {
 					"only":       onlyProp,
 					"fresh_days": freshProp,
 					"offline":    offlineProp,
+					"changelogs": changelogsProp,
 					"format":     formatProp,
 				},
 				"required": []string{"old_path", "new_path"},
@@ -232,19 +236,20 @@ func mcpToolCall(params json.RawMessage) (any, *mcpError) {
 	var call struct {
 		Name string `json:"name"`
 		Args struct {
-			URL       string `json:"url"`
-			Dir       string `json:"dir"`
-			Base      string `json:"base"`
-			Target    string `json:"target"`
-			OldPath   string `json:"old_path"`
-			NewPath   string `json:"new_path"`
-			Scope     string `json:"scope"`
-			Author    string `json:"author"`
-			Limit     int    `json:"limit"`
-			Only      string `json:"only"`
-			FreshDays *int   `json:"fresh_days"`
-			Offline   bool   `json:"offline"`
-			Format    string `json:"format"`
+			URL        string `json:"url"`
+			Dir        string `json:"dir"`
+			Base       string `json:"base"`
+			Target     string `json:"target"`
+			OldPath    string `json:"old_path"`
+			NewPath    string `json:"new_path"`
+			Scope      string `json:"scope"`
+			Author     string `json:"author"`
+			Limit      int    `json:"limit"`
+			Only       string `json:"only"`
+			FreshDays  *int   `json:"fresh_days"`
+			Offline    bool   `json:"offline"`
+			Changelogs bool   `json:"changelogs"`
+			Format     string `json:"format"`
 		} `json:"arguments"`
 	}
 	if err := json.Unmarshal(params, &call); err != nil {
@@ -255,7 +260,7 @@ func mcpToolCall(params json.RawMessage) (any, *mcpError) {
 	if a.FreshDays != nil {
 		freshDays = *a.FreshDays
 	}
-	o := vetOptions{only: a.Only, freshDays: freshDays, noVulns: a.Offline, noMeta: a.Offline}
+	o := vetOptions{only: a.Only, freshDays: freshDays, noVulns: a.Offline, noMeta: a.Offline, changelogs: a.Changelogs}
 	format := a.Format
 	if format == "" {
 		format = "markdown"

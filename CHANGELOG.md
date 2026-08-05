@@ -4,6 +4,23 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.3 — 2026-08-05
+
+- **`-changelogs` — upstream release notes inline.** Every bump already
+  links to the verified tag-to-tag diff; `-changelogs` also *fetches the
+  release notes* from the (verified) GitHub source repo — including the
+  releases a multi-version jump skips over (`1.19.0 → 1.20.1` shows
+  1.19.1, 1.19.2, 1.20.0 *and* 1.20.1; up to 5 per package). Terminal
+  output shows trimmed, sanitized excerpts; `-md` puts each package's
+  notes in a collapsed `<details>` block — a PR comment reads like
+  Dependabot's release-notes section, but for **every** package in the
+  diff, transitives included; JSON carries `release_notes` per change.
+  Works in all modes (local git, `pr`/`mr`/`compare`, `diff`, MCP via
+  `"changelogs": true`) and in the Action (`changelogs: 'true'`).
+  One GitHub API call per repository; `GITHUB_TOKEN` / `gh` login raises
+  the rate limit. Monorepo tag conventions (`pkg@1.2.3`, `pkg-v1.2.3`,
+  Go `dir/v1.2.3`) are matched per package.
+
 ## v0.3.2 — 2026-08-04
 
 - **MCP Registry**: lockvet is published to the official

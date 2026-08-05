@@ -25,6 +25,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/vers"
@@ -126,6 +127,10 @@ FLAGS
   -offline       no network calls at all (= -no-vulns -no-meta)
   -fresh-days N  flag versions published fewer than N days ago (default 7;
                  0 shows ages but never flags)
+  -changelogs    fetch upstream release notes for every bump (incl. the
+                 releases a multi-version jump skips over) and show them
+                 inline. GitHub-hosted upstreams; uses the GitHub API, so
+                 GITHUB_TOKEN / gh login raises the rate limit
   -only PAT      show one package's story: only changes whose name — or any
                  package in their "via" chain — matches PAT. Glob, case-
                  insensitive, comma list ok: -only jiff, -only "@babel/*"
@@ -156,21 +161,22 @@ Data: https://osv.dev (vulnerabilities) · https://deps.dev (release metadata)
 
 func main() {
 	var (
-		md        = flag.Bool("md", false, "")
-		jsonOut   = flag.Bool("json", false, "")
-		sarifOut  = flag.Bool("sarif", false, "")
-		noVulns   = flag.Bool("no-vulns", false, "")
-		noMeta    = flag.Bool("no-meta", false, "")
-		offline   = flag.Bool("offline", false, "")
-		freshDays = flag.Int("fresh-days", 7, "")
-		only      = flag.String("only", "", "")
-		author    = flag.String("author", "", "")
-		limit     = flag.Int("limit", 30, "")
-		comment   = flag.Bool("comment", false, "")
-		failOn    = flag.String("fail-on", "", "")
-		dir       = flag.String("C", ".", "")
-		noColor   = flag.Bool("no-color", false, "")
-		showVer   = flag.Bool("version", false, "")
+		md         = flag.Bool("md", false, "")
+		jsonOut    = flag.Bool("json", false, "")
+		sarifOut   = flag.Bool("sarif", false, "")
+		noVulns    = flag.Bool("no-vulns", false, "")
+		noMeta     = flag.Bool("no-meta", false, "")
+		offline    = flag.Bool("offline", false, "")
+		freshDays  = flag.Int("fresh-days", 7, "")
+		changelogs = flag.Bool("changelogs", false, "")
+		only       = flag.String("only", "", "")
+		author     = flag.String("author", "", "")
+		limit      = flag.Int("limit", 30, "")
+		comment    = flag.Bool("comment", false, "")
+		failOn     = flag.String("fail-on", "", "")
+		dir        = flag.String("C", ".", "")
+		noColor    = flag.Bool("no-color", false, "")
+		showVer    = flag.Bool("version", false, "")
 	)
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	flag.CommandLine.Parse(reorderArgs(os.Args[1:]))
@@ -182,6 +188,9 @@ func main() {
 	if *offline {
 		*noVulns = true
 		*noMeta = true
+	}
+	if *changelogs && *noMeta {
+		fatal("-changelogs needs the deps.dev metadata pass (it supplies each package's source repo) — drop -no-meta/-offline")
 	}
 
 	args := flag.Args()
@@ -268,6 +277,9 @@ func main() {
 		}
 		if *sarifOut {
 			fatal("-sarif is not available in queue mode — run lockvet pr <url> -sarif per PR")
+		}
+		if *changelogs {
+			fatal("-changelogs is not available in queue mode — run lockvet pr <url> -changelogs per PR")
 		}
 		runQueue(args[1], queueOpts{
 			author: *author, limit: *limit,
@@ -566,6 +578,11 @@ func main() {
 		} else {
 			metaChecked = true
 			taglink.Annotate(diffs) // verified changelog/compare links
+			if *changelogs {
+				for _, w := range relnotes.Annotate(diffs, ghpr.Token()) {
+					fmt.Fprintf(os.Stderr, "lockvet: warning: %s\n", w)
+				}
+			}
 		}
 	}
 

@@ -169,6 +169,8 @@ lockvet queue codeberg.org/o  # a Gitea/Forgejo owner or repo, a Bitbucket
 lockvet diff old.cdx.json new.cdx.json   # two files on disk, no git — SBOMs
 lockvet diff Cargo.lock.orig Cargo.lock  # or any two lockfiles (see below)
 
+lockvet -changelogs           # pull upstream release notes inline (see below)
+
 lockvet -fresh-days 14        # widen the "recently published" window (default 7)
 lockvet -fail-on major,vuln   # CI gate: exit 1 on major bumps or new vulns
 lockvet -fail-on fresh        # CI gate: enforce a release cooldown
@@ -494,6 +496,7 @@ jobs:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,license"
         #   fresh-days: '7'      # cooldown window for the fresh flag
+        #   changelogs: 'true'   # inline release notes for every bump
         #   sarif: 'true'        # code scanning alerts (see below)
 ```
 
@@ -655,6 +658,38 @@ Every incoming version is checked against its registry (via deps.dev):
 
 Both are gates too: `-fail-on deprecated,license`.
 
+## Release notes inline (`-changelogs`)
+
+Every bump already links to the verified upstream tag-to-tag diff. Add
+`-changelogs` and lockvet also *fetches the release notes* — including the
+releases a multi-version jump skips over:
+
+```
+↑ body-parser  1.19.0 → 1.20.1  minor  via express  (3y old)
+    ▤ 1.20.1
+        * deps: qs@6.11.0
+        * perf: remove unnecessary object clone
+    ▤ 1.20.0
+        * Fix internal error when inflated body exceeds limit
+        * Prevent loss of async hooks context
+        …
+    ▤ 1.19.2
+    ▤ 1.19.1
+```
+
+So `1.19.0 → 1.20.1` shows what landed in 1.19.1, 1.19.2, 1.20.0, *and*
+1.20.1 (up to 5 releases per package; the compare link covers the rest).
+In `-md` mode each package's notes become a collapsed `<details>` block —
+in a PR comment that reads like Dependabot's release-notes section, except
+it covers **every** package in the diff, transitives included. Works in
+every mode (`pr`, `mr`, `compare`, `diff`, the Action via
+`changelogs: 'true'`, MCP via `"changelogs": true`).
+
+Notes come from GitHub Releases of the (verified) source repo, so
+GitHub-hosted upstreams are covered; excerpts are trimmed and
+control-character-sanitized. Uses the GitHub API — anonymous works for a
+handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
+
 ## Supported lockfiles
 
 | Ecosystem | Files |
@@ -754,7 +789,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
-| See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links) |
+| See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
 | MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, whole queues) |
 | Interactive TUI | ✗ | ✓ | ✗ |
 | Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |
@@ -769,9 +804,8 @@ whatever language your repos are in, with security data inline, in CI.
   audits your *entire* dependency tree. lockvet explains a *change*.
 - Not an updater — Dependabot/Renovate open the PRs; lockvet tells you
   whether to merge them.
-- No changelog *fetching* or interactive TUI (see whatsdiff above) — lockvet
-  links each bump to the verified upstream diff instead, and stays a
-  one-shot command whose output drops straight into a PR comment.
+- No interactive TUI (see whatsdiff above) — lockvet stays a one-shot
+  command whose output drops straight into a PR comment.
 
 ## License
 
