@@ -11,6 +11,10 @@ linkable: [share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#u
 *Real example: a dependabot "patch" bump of `jiff` in [sharkdp/fd](https://github.com/sharkdp/fd)
 quietly added 7 transitive crates — one of them flagged by RUSTSEC.*
 
+**[Would lockvet have caught it?](docs/case-studies.md)** — event-stream,
+the chalk/debug takeover, the Shai-Hulud worm, and the ultralytics miner,
+replayed against real advisories, with reproducible fixtures.
+
 Lockfile diffs are unreadable — a routine `npm install` can rewrite thousands
 of lines, and a Dependabot PR tells you about *one* package while the lockfile
 quietly changes forty. `lockvet` reads the actual lockfile diff and tells you
