@@ -115,6 +115,16 @@ USAGE
   lockvet queue <azure repo url>      repo, e.g. lockvet queue
                                       dev.azure.com/ORG/PROJECT[/_git/REPO].
 
+  lockvet audit [path ...]            vet what the lockfiles pin RIGHT NOW,
+                                      not a change: every pinned version that
+                                      is affected by a known advisory,
+                                      missing from its registry's index
+                                      (unpublished/pulled — often malicious —
+                                      releases), deprecated/retracted/yanked
+                                      upstream, or published only days ago.
+                                      Walks the tree for all 30 formats
+                                      (node_modules/vendor skipped).
+
   lockvet diff <old> <new>            vet two files on disk, no git needed —
                                       two lockfiles, or two SBOMs (CycloneDX
                                       or SPDX JSON, any mix), e.g. syft scans
@@ -124,7 +134,7 @@ USAGE
                                       server (stdio) so AI assistants and
                                       coding agents can vet lockfile
                                       changes: tools vet_url, vet_git,
-                                      vet_files, and queue.
+                                      vet_files, audit, and queue.
 
   lockvet completion bash|zsh|fish    print a shell completion script.
   lockvet man                         print the manual page (roff).
@@ -276,6 +286,16 @@ func main() {
 		return
 	case len(args) > 0 && args[0] == "man":
 		runMan()
+		return
+	case len(args) > 0 && args[0] == "audit":
+		if *comment {
+			fatal("-comment needs a pull or merge request to comment on — audit reports have no PR; pipe -md wherever you need it")
+		}
+		if *changelogs {
+			fatal("-changelogs is not available in audit mode — there is no bump whose release notes would explain anything")
+		}
+		runAudit(args[1:], *dir, vetOptions{only: *only, freshDays: *freshDays, noVulns: *noVulns, noMeta: *noMeta},
+			*md, *jsonOut, *sarifOut, *noColor, *failOn)
 		return
 	case len(args) > 0 && args[0] == "diff":
 		if len(args) != 3 {

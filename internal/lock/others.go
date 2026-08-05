@@ -223,7 +223,7 @@ func normalizePyPI(name string) string {
 func parseGoMod(p string, data []byte) (*File, error) {
 	f := newFile(p, "go.mod", Go)
 	f.RootsKnown = true // go.mod annotates transitive deps with "// indirect"
-	inRequire := false
+	inRequire, inReplace := false, false
 	for _, line := range strings.Split(string(data), "\n") {
 		indirect := false
 		if i := strings.Index(line, "//"); i >= 0 {
@@ -238,8 +238,26 @@ func parseGoMod(p string, data []byte) (*File, error) {
 		case inRequire && line == ")":
 			inRequire = false
 			continue
+		case line == "replace (":
+			inReplace = true
+			continue
+		case inReplace && line == ")":
+			inReplace = false
+			continue
 		}
 		fields := strings.Fields(line)
+		// A replaced module doesn't build from the registry: the required
+		// version is overridden by a local path or another module, so
+		// registry- and advisory-derived claims about it would be wrong
+		// (monorepos require workspace siblings at v0.0.0 + replace).
+		if inReplace && len(fields) >= 3 {
+			f.markNonRegistry(fields[0])
+			continue
+		}
+		if len(fields) >= 4 && fields[0] == "replace" {
+			f.markNonRegistry(fields[1])
+			continue
+		}
 		if inRequire && len(fields) == 2 {
 			f.add(fields[0], strings.TrimPrefix(fields[1], "v"))
 			if !indirect {

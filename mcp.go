@@ -33,9 +33,10 @@ conda, Julia, Haskell, Terraform, Helm, renv, SBOMs, and more).
 Use vet_url for a pull/merge request, compare, or commit URL on GitHub,
 GitLab, Bitbucket, Gitea/Forgejo, or Azure DevOps (no clone needed);
 vet_git for a local git repository; vet_files for two lockfiles or SBOMs on
-disk; queue to triage every open Dependabot/Renovate PR of a repo, user, or
-org at once. Reports are markdown by default; pass format:"json" for
-structured output.`
+disk; audit to check everything a project currently pins (known advisories,
+unlisted/yanked/deprecated versions) rather than a change; queue to triage
+every open Dependabot/Renovate PR of a repo, user, or org at once. Reports
+are markdown by default; pass format:"json" for structured output.`
 
 type mcpRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -192,6 +193,24 @@ func mcpTools() []map[string]any {
 			"annotations": ro,
 		},
 		{
+			"name":  "audit",
+			"title": "Audit what the lockfiles pin right now",
+			"description": "Audit the CURRENT dependency set of a project — not a change: every lockfile under the directory is checked in full. " +
+				"Reports each pinned version that is affected by a known advisory (OSV.dev), missing from its registry's index (what an unpublished or pulled — often malicious — release looks like), deprecated/retracted/yanked/abandoned upstream, or published only days ago. " +
+				"Run it to answer \"is anything we currently depend on known-bad?\" — e.g. after news of a supply-chain attack, or as a periodic hygiene check.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"dir":        strProp("directory to audit (walked recursively; node_modules/vendor/.git skipped; default: current directory)"),
+					"only":       onlyProp,
+					"fresh_days": freshProp,
+					"offline":    offlineProp,
+					"format":     formatProp,
+				},
+			},
+			"annotations": ro,
+		},
+		{
 			"name":        "vet_files",
 			"title":       "Vet two lockfiles or SBOMs on disk",
 			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 30 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
@@ -298,6 +317,14 @@ func mcpToolCall(params json.RawMessage) (any, *mcpError) {
 			return nil, &mcpError{-32602, "vet_files needs old_path and new_path"}
 		}
 		v, err = vetFiles(a.OldPath, a.NewPath, o)
+	case "audit":
+		dir := a.Dir
+		if dir == "" {
+			dir = "."
+		}
+		ao := o
+		ao.changelogs = false
+		v, err = vetAudit(nil, dir, ao)
 	case "queue":
 		if a.Scope == "" {
 			return nil, &mcpError{-32602, "queue needs a scope"}

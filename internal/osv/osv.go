@@ -50,6 +50,13 @@ func Annotate(diffs []diffx.FileDiff) error {
 			if strings.HasPrefix(c.Name, "jsr:") {
 				continue // JSR has no OSV ecosystem; npm won't know the name
 			}
+			if c.NonRegistry && lock.Ecosystem(c.Ecosystem) == lock.Go {
+				// A replaced Go module doesn't build from the registry:
+				// the required version (often the v0.0.0 sentinel, which
+				// sits below every advisory's fixed range) says nothing
+				// about the code actually compiled in.
+				continue
+			}
 			for _, v := range c.Old {
 				queries = append(queries, mkQuery(c.Name, c.Ecosystem, v))
 				slots = append(slots, slot{i, j, "old"})

@@ -245,6 +245,13 @@ func parseYarnLock(p string, data []byte) (*File, error) {
 				}
 				if name := yarnSpecName(spec); name != "" {
 					currentNames = appendUnique(currentNames, name)
+					// npm-protocol alias ("wrap-ansi-cjs@npm:wrap-ansi@^7"):
+					// the recorded name is an alias that doesn't exist on
+					// the registry — the real package is the one after
+					// "npm:". Skip registry-derived claims for the alias.
+					if rest := spec[len(name)+1:]; strings.HasPrefix(rest, "npm:") && strings.Contains(rest[len("npm:"):], "@") {
+						f.markNonRegistry(name)
+					}
 				}
 			}
 			continue

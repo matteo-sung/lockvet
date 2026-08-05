@@ -21,6 +21,17 @@ import (
 // results can point at the exact line that names the package; without it
 // (or when the package isn't found) results point at line 1.
 func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents func(path string) []byte) error {
+	return sarif(w, diffs, toolVersion, contents, false)
+}
+
+// SARIFAudit is SARIF for `lockvet audit`, where every package is reported
+// against the current pin rather than a change ("is pinned at", not "was
+// added at").
+func SARIFAudit(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents func(path string) []byte) error {
+	return sarif(w, diffs, toolVersion, contents, true)
+}
+
+func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents func(path string) []byte, audit bool) error {
 	type rule struct {
 		ID   string `json:"id"`
 		Name string `json:"name,omitempty"`
@@ -104,7 +115,7 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 
 	for _, fd := range diffs {
 		for _, c := range fd.Changes {
-			what := describeChange(c)
+			what := describeChange(c, audit)
 			via := ""
 			if len(c.Via) > 0 {
 				via = " Pulled in via " + strings.Join(c.Via, " › ") + "."
@@ -257,8 +268,11 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 
 // describeChange says what happened to the package in plain words:
 // "lodash was upgraded to 4.17.19", "left-pad was added at 1.3.0", …
-func describeChange(c diffx.Change) string {
+func describeChange(c diffx.Change, audit bool) string {
 	to := strings.Join(c.New, ", ")
+	if audit {
+		return fmt.Sprintf("%s is pinned at %s", c.Name, to)
+	}
 	switch c.Kind {
 	case diffx.Added:
 		return fmt.Sprintf("%s was added at %s", c.Name, to)

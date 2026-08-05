@@ -56,7 +56,7 @@ func TestMCPHandshakeAndToolsList(t *testing.T) {
 	for _, tl := range tools {
 		names = append(names, tl.(map[string]any)["name"].(string))
 	}
-	if got := strings.Join(names, ","); got != "vet_url,vet_git,vet_files,queue" {
+	if got := strings.Join(names, ","); got != "vet_url,vet_git,audit,vet_files,queue" {
 		t.Errorf("tools = %s", got)
 	}
 	for _, tl := range tools {

@@ -130,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.19 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.0 lockvet
 ```
 
 ### Shell completions & man page
@@ -170,6 +170,9 @@ lockvet queue owner/repo      # of an org, user, or single repo (see below)
 lockvet queue gitlab.com/grp  # same for a GitLab group or project,
 lockvet queue codeberg.org/o  # a Gitea/Forgejo owner or repo, a Bitbucket
                               # workspace, or an Azure DevOps project
+
+lockvet audit                 # not a diff: check everything you pin RIGHT NOW
+lockvet audit web/ -fail-on vuln,unlisted   # (see "Audit" below)
 
 lockvet diff old.cdx.json new.cdx.json   # two files on disk, no git — SBOMs
 lockvet diff Cargo.lock.orig Cargo.lock  # or any two lockfiles (see below)
@@ -373,7 +376,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.19
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.0
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -424,6 +427,74 @@ It also works for plain lockfiles outside a repo
 (`bom.json`, `*.cdx.json`, `*.spdx.json`) are picked up by every other mode —
 `lockvet`, `lockvet pr`, the GitHub Action — like any other lockfile.
 
+### Audit what you already pin — `lockvet audit`
+
+Everything above explains a *change*. `lockvet audit` answers the other
+question — **"is anything we currently depend on known-bad?"** — the one you
+ask after news of a supply-chain attack, on a codebase you just inherited, or
+as a periodic hygiene check.
+
+It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
+lockfile it finds — all 30 formats, SBOMs included — and runs the full
+pipeline over the *current* pins. Only findings are shown:
+
+```text
+$ lockvet audit    # in sharkdp/fd
+
+Cargo.lock (crates.io · 126 packages)
+  • anyhow            1.0.102  (direct)  (5mo old)
+      ▲ affected by RUSTSEC-2026-0190 Unsoundness in `Error::downcast_mut()`
+  • crossbeam-epoch   0.9.18  via ignore › crossbeam-deque  (2y old)
+      ▲ affected by RUSTSEC-2026-0204 Invalid pointer dereference in `fmt::Pointer` impl…
+  • proc-macro-error2 2.0.1  via jiff › … › defmt-macros  (23mo old)
+      ▲ affected by RUSTSEC-2026-0173 proc-macro-error2 is unmaintained
+
+audited 126 packages across 1 lockfile · 24 direct, 102 transitive · 3 advisories affecting 3 packages
+```
+
+What an audit flags, per pinned version:
+
+- **known advisories** affecting the version you have today (OSV.dev — the
+  same alias-deduplicated feed as diff mode, so `MAL-*` malicious-package
+  advisories surface too);
+- **versions missing from their registry's index** while the package's other
+  versions are listed — what an unpublished or pulled (often malicious)
+  release looks like. A lockfile that still pins the Sept 2025 `chalk@5.6.1`
+  payload trips this *and* the MAL advisory;
+- **deprecated / retracted / yanked / abandoned** pins, with the upstream
+  reason and suggested replacement, across all the
+  [registry integrations](#how-it-works);
+- **pins published only days ago** (⏱ cooldown, `-fresh-days`).
+
+Everything composes like diff mode: `-md`, `-json`, `-only "@babel/*"`,
+`-fail-on vuln,unlisted`, and `-sarif` — so a scheduled workflow can keep
+Code Scanning alerts on the exact lockfile lines that pin something bad:
+
+```yaml
+# .github/workflows/lockvet-audit.yml — nightly dependency audit
+name: lockvet audit
+on:
+  schedule: [{cron: '14 6 * * *'}]
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.0/install.sh | sh -s -- -b .
+          ./lockvet audit -sarif > audit.sarif || true
+      - uses: github/codeql-action/upload-sarif@v3
+        with: {sarif_file: audit.sarif}
+```
+
+The transition-based signals (⚙ install scripts *added*, ⛨ provenance
+*dropped*) need a before/after pair, so they stay diff-only — an audit
+honestly reports state, not history.
+
 ### Let your AI assistant vet dependencies (MCP server)
 
 `lockvet mcp` runs lockvet as a [Model Context Protocol](https://modelcontextprotocol.io)
@@ -443,18 +514,19 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.19", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.0", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
 
-Four read-only tools, mirroring the CLI:
+Five read-only tools, mirroring the CLI:
 
 | Tool | What it does |
 |---|---|
 | `vet_url` | vet any PR/MR, compare range, or commit by URL — GitHub, GitLab, Bitbucket, Gitea/Forgejo, Azure DevOps, no clone |
 | `vet_git` | vet a local repo: working tree vs `HEAD`, or any revision range |
 | `vet_files` | vet two lockfiles or SBOMs on disk |
+| `audit` | audit everything the project pins *right now* — advisories, unlisted versions, deprecations |
 | `queue` | triage every open Dependabot/Renovate PR of a repo/org in one table |
 
 Reports come back as markdown (or `format: "json"` for structure); forge
@@ -496,7 +568,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.19
+      - uses: matteo-sung/lockvet@v0.4.0
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -523,7 +595,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.19
+      - uses: matteo-sung/lockvet@v0.4.0
         with:
           sarif: 'true'
 ```
@@ -543,7 +615,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.19
+  image: ghcr.io/matteo-sung/lockvet:0.4.0
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -568,7 +640,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.19
+          image: ghcr.io/matteo-sung/lockvet:0.4.0
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -586,7 +658,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.19
+    container: ghcr.io/matteo-sung/lockvet:0.4.0
     steps:
       - checkout: none
       - script: >
@@ -610,7 +682,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.19
+    image: ghcr.io/matteo-sung/lockvet:0.4.0
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -628,7 +700,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.19
+    rev: v0.4.0
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -1030,7 +1102,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
 |---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **29** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **30** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
@@ -1043,10 +1115,11 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
+| Audit the *current* pins, not just a change | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|scripts\|provenance\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
-| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, whole queues) |
+| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, audits, whole queues) |
 | Interactive TUI | ✗ | ✓ | ✗ |
 | Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |
 

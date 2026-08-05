@@ -4,6 +4,34 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.0 — 2026-08-05
+
+- **`lockvet audit` — vet what you pin *right now*, not a change.** Walks
+  the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
+  lockfile in all 30 formats (SBOMs included), and runs the full pipeline
+  over the current dependency set, reporting only findings: pinned versions
+  affected by **known advisories** (OSV.dev, `MAL-*` included), versions
+  **missing from their registry's index** while siblings are listed (the
+  shape of an unpublished/pulled malicious release — a lockfile still
+  pinning Sept 2025's `chalk@5.6.1` trips both flags), **deprecated /
+  retracted / yanked / abandoned** pins with upstream reasons, and pins
+  **published only days ago** (⏱). Composes with `-md`, `-json`, `-only`,
+  `-fail-on vuln,unlisted,…`, and `-sarif` (alerts say "is pinned at", and
+  anchor to the exact lockfile line — a scheduled workflow keeps Code
+  Scanning honest between dependency PRs). Transition-based signals
+  (⚙ install scripts added, ⛨ provenance dropped) stay diff-only: an audit
+  reports state, not history. Also available as the MCP `audit` tool.
+- **False-positive fixes the audit's full-tree coverage surfaced (both
+  affected diff mode too):**
+  - `go.mod` `replace` directives are now honoured: replaced modules
+    (monorepo `require sibling v0.0.0` + `replace` → local path) no longer
+    get unlisted flags or advisories matched against the `v0.0.0` sentinel —
+    which sits below *every* advisory's fixed range and previously pulled in
+    the module's complete historical advisory list.
+  - yarn `npm:` **alias descriptors** (`wrap-ansi-cjs@npm:wrap-ansi@^7`) no
+    longer produce unlisted flags for the alias name, which doesn't exist on
+    the registry.
+
 ## v0.3.19 — 2026-08-05
 
 - **Conan support** — `conan.lock` is lockfile format #30, covering C/C++:

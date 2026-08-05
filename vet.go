@@ -47,6 +47,7 @@ type vetOptions struct {
 	noVulns    bool
 	noMeta     bool
 	changelogs bool
+	noLinks    bool // skip taglink/relnotes (audit mode: links aren't findings)
 }
 
 // vetOutcome is the result of one analysis. When message is non-empty there
@@ -61,6 +62,12 @@ type vetOutcome struct {
 	freshDays    int
 	message      string
 	warnings     []string
+
+	// Audit mode (`lockvet audit`): every package arrived as an Added
+	// change; render findings, not the inventory. contents keeps each
+	// lockfile's raw bytes so SARIF can anchor alerts to exact lines.
+	audit    bool
+	contents map[string][]byte
 }
 
 // markdown renders the outcome the same way `lockvet -md` does.
@@ -69,7 +76,11 @@ func (v *vetOutcome) markdown() string {
 		return v.message
 	}
 	var buf bytes.Buffer
-	render.Markdown(&buf, v.diffs, v.sum, v.vulnsChecked, v.metaChecked, v.freshDays)
+	if v.audit {
+		render.AuditMarkdown(&buf, v.diffs, v.sum, v.vulnsChecked, v.metaChecked, v.freshDays)
+	} else {
+		render.Markdown(&buf, v.diffs, v.sum, v.vulnsChecked, v.metaChecked, v.freshDays)
+	}
 	return buf.String()
 }
 
@@ -79,12 +90,21 @@ func (v *vetOutcome) jsonText() (string, error) {
 		out, err := json.MarshalIndent(map[string]any{"message": v.message}, "", "  ")
 		return string(out), err
 	}
-	out, err := json.MarshalIndent(map[string]any{
+	doc := map[string]any{
 		"base": v.base, "target": v.target,
 		"files": v.diffs, "summary": v.sum,
 		"vulns_checked": v.vulnsChecked,
 		"meta_checked":  v.metaChecked, "fresh_days": v.freshDays,
-	}, "", "  ")
+	}
+	if v.audit {
+		// In an audit every package is reported as an Added change against
+		// nothing: "introduced_vulns" = advisories affecting the pinned
+		// version, "added" = packages pinned.
+		doc["mode"] = "audit"
+		delete(doc, "base")
+		delete(doc, "target")
+	}
+	out, err := json.MarshalIndent(doc, "", "  ")
 	return string(out), err
 }
 
@@ -180,7 +200,7 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		} else if ok {
 			v.metaChecked = true
 		}
-		if v.metaChecked {
+		if v.metaChecked && !o.noLinks {
 			taglink.Annotate(diffs)
 			if o.changelogs {
 				v.warnings = append(v.warnings, relnotes.Annotate(diffs, ghpr.Token())...)

@@ -26,7 +26,7 @@ _lockvet() {
     fi
 
     local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -changelogs -only -comment -fail-on -author -limit -C -no-color -version -h"
-    local subcmds="pr mr compare queue diff mcp completion man"
+    local subcmds="pr mr compare queue audit diff mcp completion man"
 
     case $prev in
         -C)
@@ -63,7 +63,7 @@ _lockvet() {
     case $sub in
         completion)
             COMPREPLY=( $(compgen -W "bash zsh fish" -- "$cur") ) ;;
-        diff)
+        audit|diff)
             if declare -F _filedir >/dev/null 2>&1; then _filedir; else
                 COMPREPLY=( $(compgen -f -- "$cur") )
             fi ;;
@@ -84,6 +84,7 @@ _lockvet() {
         'mr:vet a GitLab merge request by URL, no clone'
         'compare:vet any two revisions or a single commit of a remote repo'
         'queue:triage every open Dependabot/Renovate PR of a repo, user, or org'
+        'audit:vet what the lockfiles pin right now — advisories, unlisted, deprecated'
         'diff:vet two lockfiles or SBOM files on disk, no git'
         'mcp:run as a Model Context Protocol server (stdio) for AI assistants'
         'completion:print a shell completion script (bash, zsh, or fish)'
@@ -119,6 +120,7 @@ _lockvet() {
         rest)
             case $line[1] in
                 completion) _values 'shell' bash zsh fish ;;
+                audit) _files ;;
                 diff) _files ;;
             esac
             ;;
@@ -143,12 +145,14 @@ complete -c lockvet -n __fish_use_subcommand -a pr -d 'vet a GitHub/Bitbucket/Az
 complete -c lockvet -n __fish_use_subcommand -a mr -d 'vet a GitLab merge request by URL'
 complete -c lockvet -n __fish_use_subcommand -a compare -d 'vet two revisions or a commit of a remote repo'
 complete -c lockvet -n __fish_use_subcommand -a queue -d 'triage every open Dependabot/Renovate PR in one table'
+complete -c lockvet -n __fish_use_subcommand -a audit -d 'vet what the lockfiles pin right now (advisories, unlisted, deprecated)'
 complete -c lockvet -n __fish_use_subcommand -a diff -d 'vet two lockfiles or SBOMs on disk'
 complete -c lockvet -n __fish_use_subcommand -a mcp -d 'run as a Model Context Protocol server (stdio)'
 complete -c lockvet -n __fish_use_subcommand -a completion -d 'print a shell completion script'
 complete -c lockvet -n __fish_use_subcommand -a man -d 'print the manual page (roff)'
 
 complete -c lockvet -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
+complete -c lockvet -n '__fish_seen_subcommand_from audit' -F
 complete -c lockvet -n '__fish_seen_subcommand_from diff' -F
 
 # Flags (Go-style single-dash long options)
@@ -191,6 +195,9 @@ lockvet \- explain any lockfile change before you merge it
 .B lockvet queue
 \fIowner\fR | \fIowner/repo\fR | \fIforge-URL\fR
 .br
+.B lockvet audit
+[\fIpath\fR ...]
+.br
 .B lockvet diff
 \fIold-file\fR \fInew-file\fR
 .br
@@ -232,6 +239,13 @@ remote repository \(em accepts forge compare/commit URLs.
 Triage every open Dependabot/Renovate PR of a repo, user, org, group,
 workspace, or project in one table, sorted most-alarming first.
 .TP
+.B lockvet audit
+Vet what the lockfiles pin \fIright now\fR, not a change: walks the tree
+(skipping node_modules, vendor, .git) and reports every pinned version that
+is affected by a known advisory, missing from its registry's index
+(unpublished/pulled \(em often malicious \(em releases), deprecated,
+retracted, or yanked upstream, or published only days ago.
+.TP
 .B lockvet diff
 Vet two files on disk with no git: two lockfiles, or two CycloneDX/SPDX
 JSON SBOMs (e.g. syft scans of two container images).
@@ -239,7 +253,7 @@ JSON SBOMs (e.g. syft scans of two container images).
 .B lockvet mcp
 Run as a Model Context Protocol server on stdio, so AI assistants and
 coding agents can vet lockfile changes: tools \fBvet_url\fR, \fBvet_git\fR,
-\fBvet_files\fR, and \fBqueue\fR.
+\fBvet_files\fR, \fBaudit\fR, and \fBqueue\fR.
 .SH OPTIONS
 .TP
 .B \-md
@@ -342,6 +356,8 @@ Compare two releases of someone else's repo:
 .B lockvet compare sharkdp/fd v10.2.0...v10.3.0
 .TP
 Diff two container images by SBOM:
+.B lockvet audit
+.br
 .B lockvet diff old.cdx.json new.cdx.json
 .SH SEE ALSO
 Project page and full documentation:
