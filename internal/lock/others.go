@@ -295,6 +295,11 @@ var (
 func parseGemfileLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "Gemfile.lock", RubyGems)
 	inSpecs, inDependencies := false, false
+	// Specs under GIT / PATH / PLUGIN SOURCE sections come from a
+	// repository or the local disk, not rubygems.org — their versions
+	// (a pinned fork, an unreleased bump) may not exist on the registry
+	// at all, so registry-derived signals must skip them.
+	nonRegistrySection := false
 	currentSpec := ""
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
@@ -307,6 +312,7 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 			continue
 		case line != "" && line[0] != ' ': // new top-level section (GEM, PLATFORMS, ...)
 			inSpecs, inDependencies = false, false
+			nonRegistrySection = line != "GEM"
 			continue
 		}
 		if inDependencies {
@@ -321,6 +327,9 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 		}
 		if m := gemSpecRe.FindStringSubmatch(line); m != nil {
 			f.add(m[1], m[2])
+			if nonRegistrySection {
+				f.markNonRegistry(m[1])
+			}
 			currentSpec = m[1]
 			continue
 		}

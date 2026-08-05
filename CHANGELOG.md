@@ -4,6 +4,32 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.9 — 2026-08-05
+
+- **RubyGems completes the registry-signal quartet** (npm · PyPI ·
+  crates.io · RubyGems). One anonymous GET per changed gem against the
+  compact index — the same Fastly-cached endpoint Bundler itself uses:
+  - **`unlisted` flags are now registry-verified for RubyGems.** A yank
+    removes the release from the index entirely, so a bump onto a yanked
+    or admin-deleted gem keeps the flag: replaying the 2019
+    `strong_password` 0.0.7 hijack trips it today (now
+    [case study #5](docs/case-studies.md#5-strong_password-2019--the-one-a-human-caught)).
+  - **Release ages backfilled from the index's own `created_at`** when
+    deps.dev hasn't caught up yet, so a gem published minutes ago still
+    gets its ⏱ fresh flag — the exact window the cooldown gate exists for.
+  - **`⛨ provenance dropped` now covers RubyGems**
+    ([sigstore attestations](https://guides.rubygems.org/trusted-publishing/)),
+    with the same three noise gates as npm/PyPI/crates.io. Attestation
+    adoption on RubyGems is still small, so the gates stay silent today —
+    protection switches on automatically as gems start attesting.
+- **Gemfile.lock `GIT` / `PATH` / `PLUGIN SOURCE` gems are now marked
+  non-registry** — a pinned fork's version that never existed on
+  rubygems.org can no longer produce a false `unlisted` flag, and
+  registry lookups skip them entirely.
+- Neither RubyGems endpoint sends CORS headers, so the browser playground
+  keeps its previous deps.dev-only behaviour for RubyGems; the CLI does
+  the full check.
+
 ## v0.3.8 — 2026-08-05
 
 - **crates.io joins the registry-signal lineup.** The native build reads

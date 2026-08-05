@@ -12,7 +12,8 @@ linkable: [share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#u
 quietly added 7 transitive crates — one of them flagged by RUSTSEC.*
 
 **[Would lockvet have caught it?](docs/case-studies.md)** — event-stream,
-the chalk/debug takeover, the Shai-Hulud worm, and the ultralytics miner,
+the chalk/debug takeover, the Shai-Hulud worm, the ultralytics miner, and
+the strong_password gem hijack,
 replayed against real advisories, with reproducible fixtures.
 
 Lockfile diffs are unreadable — a routine `npm install` can rewrite thousands
@@ -698,14 +699,18 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI and crates.io packages the flag is **double-checked
-against the registry itself**: deps.dev can lag the registries by days,
-so before claiming anything lockvet fetches the package's real version
-list from `registry.npmjs.org` / PyPI's simple API / the crates.io
-sparse index and clears the flag for any version the registry serves.
-What survives is a version the registry itself no longer lists — and on
-crates.io that distinction has teeth: yanked versions *stay in the
-index*, deleted (malicious) ones vanish from it entirely.
+For npm, PyPI, crates.io and RubyGems packages the flag is
+**double-checked against the registry itself**: deps.dev can lag the
+registries by days, so before claiming anything lockvet fetches the
+package's real version list from `registry.npmjs.org` / PyPI's simple
+API / the crates.io sparse index / the RubyGems compact index and
+clears the flag for any version the registry serves. What survives is a
+version the registry itself no longer lists — and that distinction has
+teeth: on crates.io yanked versions *stay in the index* while deleted
+(malicious) ones vanish entirely, and on RubyGems a yank removes the
+release from the index altogether, so a bump onto a yanked or
+admin-deleted gem keeps the flag (replaying the 2019 `strong_password`
+0.0.7 hijack trips it today).
 
 A release published minutes ago may also not be indexed yet — the flag
 tells you to *look*, not to panic. Gate on it with `-fail-on unlisted`;
@@ -746,7 +751,8 @@ either have no install hooks or don't expose them in registry metadata).
 A growing share of npm packages publish with [sigstore provenance
 attestations](https://docs.npmjs.com/generating-provenance-statements),
 PyPI projects with [PEP 740 attestations](https://peps.python.org/pep-0740/),
-and crates.io crates via [trusted publishing](https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html)
+crates.io crates via [trusted publishing](https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html),
+and RubyGems releases with [sigstore attestations](https://guides.rubygems.org/trusted-publishing/)
 — cryptographic proof (or, for crates.io, a registry-recorded guarantee)
 that the release was built and published by the project's own CI from
 its public repo. That proof has a useful
@@ -782,11 +788,14 @@ Gate on it with `-fail-on provenance`; JSON carries `provenance_dropped`
 / `unattested_versions`; SARIF emits a `provenance-dropped` warning;
 `queue` sorts affected PRs to the top. Comes from the same registry
 documents as the install-scripts and unlisted checks — no extra
-requests. Covers npm, PyPI and crates.io (for PyPI a version only
-counts as attested when *every* file of the release carries provenance,
-and only a release with *no* attested files is ever flagged — mixed
-uploads are a publishing setup, not a signal; for crates.io the
-registry's `trustpub_data` on each version is the source of truth).
+requests. Covers npm, PyPI, crates.io and RubyGems (for PyPI a version
+only counts as attested when *every* file of the release carries
+provenance, and only a release with *no* attested files is ever flagged
+— mixed uploads are a publishing setup, not a signal; for crates.io the
+registry's `trustpub_data` on each version is the source of truth; for
+RubyGems it's the per-release attestations API — adoption there is
+still small, so today the gates simply stay silent, and protection
+switches on automatically as gems start attesting).
 
 ## Release notes inline (`-changelogs`)
 
@@ -890,13 +899,16 @@ parsers are ~50 lines each.
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
-   PyPI and crates.io the flag is double-checked against the registry
-   itself, which also tells lockvet when a bump [suddenly adds install
-   scripts](#install-scripts-added-by-a-bump) or [silently drops
+   PyPI, crates.io and RubyGems the flag is double-checked against the
+   registry itself, which also tells lockvet when a bump [suddenly adds
+   install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
    release was yanked or its project archived or quarantined). Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
-   days of publication, so a short cooldown filters most of them out.
+   days of publication, so a short cooldown filters most of them out. For
+   RubyGems the compact index's own `created_at` times fill in ages
+   deps.dev hasn't indexed yet, so a gem published minutes ago still gets
+   its ⏱ flag.
 6. Each changed package's source repository (from deps.dev) has its tag list
    fetched over git's smart-HTTP protocol — one anonymous GET per repo, the
    same request `git ls-remote` makes. Old and new versions are matched
@@ -906,8 +918,8 @@ parsers are ~50 lines each.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
-crates.io metadata fetches for changed packages of those ecosystems, and
-the anonymous git tag listings above.
+crates.io / RubyGems metadata fetches for changed packages of those
+ecosystems, and the anonymous git tag listings above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 

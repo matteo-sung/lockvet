@@ -20,6 +20,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
@@ -598,6 +599,9 @@ func main() {
 		if err := cargoreg.Annotate(diffs); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: crates.io registry check skipped: %v\n", err)
 		}
+		if err := gemreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: RubyGems registry check skipped: %v\n", err)
+		}
 	}
 
 	sum := diffx.Summarize(diffs)
@@ -994,6 +998,9 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if err := cargoreg.Annotate(combined); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: crates.io registry check skipped: %v\n", err)
+		}
+		if err := gemreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: RubyGems registry check skipped: %v\n", err)
 		}
 	}
 

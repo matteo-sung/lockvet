@@ -248,3 +248,39 @@ DEPENDENCIES
 		t.Error("dependency constraint lines must be skipped")
 	}
 }
+
+func TestGemfileLockNonRegistrySources(t *testing.T) {
+	f := parseWith(t, "Gemfile.lock", `GIT
+  remote: https://github.com/someone/fork.git
+  revision: abc123
+  specs:
+    patched-gem (9.9.9)
+
+PATH
+  remote: engines/local
+  specs:
+    local-engine (0.1.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (3.0.0)
+
+DEPENDENCIES
+  local-engine!
+  patched-gem!
+  rack
+`)
+	wantPkg(t, f, "patched-gem", "9.9.9")
+	wantPkg(t, f, "local-engine", "0.1.0")
+	wantPkg(t, f, "rack", "3.0.0")
+	if !f.NonRegistry["patched-gem"] {
+		t.Error("GIT-sourced gems must be marked non-registry")
+	}
+	if !f.NonRegistry["local-engine"] {
+		t.Error("PATH-sourced gems must be marked non-registry")
+	}
+	if f.NonRegistry["rack"] {
+		t.Error("GEM-sourced gems must not be marked non-registry")
+	}
+}

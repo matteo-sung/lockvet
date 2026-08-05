@@ -1,6 +1,6 @@
 # Would lockvet have caught it?
 
-Four real supply-chain attacks, replayed against `lockvet`. Every example is
+Five real supply-chain attacks, replayed against `lockvet`. Every example is
 reproducible on your machine: the fixtures are inline below, the output is
 unedited, and the advisories come live from [OSV.dev](https://osv.dev) at run
 time — nothing here is mocked.
@@ -13,6 +13,7 @@ The short version:
 | [ultralytics](#2-ultralytics-dec-2024) (Dec 2024) | PyPI | Dec 4, 2024 | Dec 10, 2024 | ▲ [PYSEC-2024-154](https://osv.dev/vulnerability/PYSEC-2024-154) + **not in registry index** |
 | [chalk + debug takeover](#3-the-chalk--debug-npm-takeover-sept-2025) (Sept 2025) | npm | Sept 8, 2025 (~2 h) | Sept 15, 2025 | ▲ malware advisories + **not in registry index** on both bumps |
 | [Shai-Hulud worm](#4-the-shai-hulud-worm-sept-2025) (Sept 2025) | npm | Sept 15, 2025 | hours–days later | ▲ [MAL-2025-47141](https://osv.dev/vulnerability/MAL-2025-47141) + **not in registry index** |
+| [strong_password](#5-strong_password-2019--the-one-a-human-caught) (2019) | RubyGems | ~1 week undetected | after discovery | ▲ [CVE-2019-13354](https://osv.dev/vulnerability/GHSA-5h5r-ffc4-c455) + **not in registry index** |
 
 Note the two middle columns. **Advisories lag; release age doesn't.** In every
 one of these incidents there was a window — hours to weeks — where the
@@ -25,7 +26,7 @@ malicious version — it stops being listed — and lockvet flags that too
 ([`▲ not in registry index`](../README.md#versions-missing-from-the-registry),
 `-fail-on unlisted`); you'll see it on every replay below.
 
-All four replays use `lockvet diff <old> <new>` on two files. In real life
+All five replays use `lockvet diff <old> <new>` on two files. In real life
 you'd hit the same reports via `lockvet` (git working tree), `lockvet pr <url>`
 (a Dependabot/Renovate PR), or the [GitHub Action](../README.md#in-ci-review-dependabotrenovate-prs-automatically).
 
@@ -219,13 +220,61 @@ instead).
 
 ---
 
+## 5. strong_password (2019) — the one a human caught
+
+The RubyGems classic. On June 25, 2019 an attacker who had taken over a
+dormant RubyGems account published `strong_password` 0.0.7 with a backdoor
+that fetched and ran code from Pastebin in production Rails apps. It sat
+undetected for a week — until developer Tute Costa, carefully upgrading 25
+gems for his app, noticed 0.0.7 had **no changelog and no matching commit
+in the upstream repo**, and unraveled the whole thing. RubyGems pulled the
+release and reassigned the gem
+([CVE-2019-13354](https://osv.dev/vulnerability/GHSA-5h5r-ffc4-c455)).
+
+```sh
+mkdir -p old new
+cat > old/Gemfile.lock <<'EOF'
+GEM
+  remote: https://rubygems.org/
+  specs:
+    strong_password (0.0.6)
+
+DEPENDENCIES
+  strong_password
+EOF
+sed 's/0\.0\.6/0.0.7/' old/Gemfile.lock > new/Gemfile.lock
+lockvet diff old/Gemfile.lock new/Gemfile.lock
+```
+
+```text
+new/Gemfile.lock (RubyGems)
+  ↑ strong_password 0.0.6 → 0.0.7  patch  (direct)
+      ▲ not in registry index: 0.0.7 unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces GHSA-5h5r-ffc4-c455 (critical) strong_password Ruby gem malicious version causing Remote Code Execution vulnerability
+
+1 package changed · 1 patch · 1 direct · 0 transitive · vulnerabilities: 1 introduced, 0 fixed · 1 version not in registry index
+```
+
+The `▲ not in registry index` line is registry-verified: RubyGems yanks
+remove the release from the compact index entirely, so a lockfile that
+still pins one keeps the flag forever.
+
+**What to notice.** This attack was defeated by a human doing exactly what
+lockvet automates: reading the dependency diff, one bump at a time, and
+asking "where did this release come from?". Costa's review took a day of
+careful work across 25 gems. During the live week, `0.0.7` was days old
+with a years-older predecessor — a `-fail-on fresh` cooldown holds that
+bump automatically, no heroics required.
+
+---
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:
 
 1. **T+0** — malicious version published. No advisory exists. Scanners pass.
 2. **T+hours…weeks** — advisory published (2 h of silence for chalk, 6 days
-   for ultralytics, ~6 weeks for event-stream).
+   for ultralytics, a week for strong_password, ~6 weeks for event-stream).
 3. **Forever after** — scanners flag it, but the harvest already happened in
    step 2.
 

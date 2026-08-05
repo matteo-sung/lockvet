@@ -17,6 +17,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
@@ -144,6 +145,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if err := cargoreg.Annotate(diffs); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("crates.io registry check skipped: %v", err))
+		}
+		if err := gemreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("RubyGems registry check skipped: %v", err))
 		}
 	}
 	v.diffs = diffs
