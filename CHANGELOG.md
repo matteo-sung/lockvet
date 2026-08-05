@@ -4,6 +4,31 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.5 — 2026-08-05
+
+- **`⚙ install scripts added` — flag npm bumps that gain
+  execution-on-install.** lockvet now asks the npm registry which versions
+  run install scripts (`preinstall`/`install`/`postinstall`) and flags a
+  bump whose incoming version runs them while the outgoing version ran
+  none — the transition the Shai-Hulud worm and plenty of smaller npm
+  attacks used to deliver their payload, visible in registry metadata at
+  T+0 with no advisory needed. Only transitions are flagged (brand-new
+  deps with scripts and packages that always had them stay quiet: zero
+  flags across 92-change npm/cli and 165-change React release diffs).
+  Gate with `-fail-on scripts`; JSON carries `install_scripts_added` /
+  `scripted_versions`; SARIF emits an `install-scripts-added` warning;
+  `queue` sorts affected PRs into the top tier.
+- **`unlisted` is now double-checked against the npm registry itself.**
+  deps.dev can lag npm by days (real case: a version published 12 days
+  earlier still missing from its index), so before flagging an npm version
+  lockvet fetches the package's real version list from
+  `registry.npmjs.org` and clears anything npm actually serves. All six
+  case-study malware versions keep their flag (they are genuinely gone
+  from npm); indexing-lag false positives disappear. Zero extra requests:
+  the same metadata document powers both checks.
+- Queue summary line now says what the top tier means:
+  `N alarming (vulns/unlisted/install scripts)`.
+
 ## v0.3.4 — 2026-08-05
 
 - **`unlisted` — flag versions their own registry no longer lists.** When

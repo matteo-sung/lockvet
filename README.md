@@ -129,7 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.4 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.5 lockvet
 ```
 
 ### Shell completions & man page
@@ -372,7 +372,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.4
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.5
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -442,7 +442,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.4", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.5", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -495,10 +495,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.4
+      - uses: matteo-sung/lockvet@v0.3.5
         # optional:
         # with:
-        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,license"
+        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,license"
         #   fresh-days: '7'      # cooldown window for the fresh flag
         #   changelogs: 'true'   # inline release notes for every bump
         #   sarif: 'true'        # code scanning alerts (see below)
@@ -522,7 +522,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.4
+      - uses: matteo-sung/lockvet@v0.3.5
         with:
           sarif: 'true'
 ```
@@ -542,7 +542,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.4
+  image: ghcr.io/matteo-sung/lockvet:0.3.5
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -567,7 +567,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.4
+          image: ghcr.io/matteo-sung/lockvet:0.3.5
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -585,7 +585,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.4
+    container: ghcr.io/matteo-sung/lockvet:0.3.5
     steps:
       - checkout: none
       - script: >
@@ -609,7 +609,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.4
+    image: ghcr.io/matteo-sung/lockvet:0.3.5
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -627,7 +627,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.4
+    rev: v0.3.5
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -692,10 +692,45 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
+For npm packages the flag is **double-checked against the npm registry
+itself**: deps.dev can lag npm by days, so before claiming anything lockvet
+fetches the package's real version list from `registry.npmjs.org` and clears
+the flag for any version npm serves. What survives is a version the npm
+registry itself no longer lists.
+
 A release published minutes ago may also not be indexed yet — the flag
 tells you to *look*, not to panic. Gate on it with `-fail-on unlisted`;
 JSON carries `unlisted` / `unlisted_versions`; SARIF emits an
 `unlisted-version` warning; `queue` sorts affected PRs to the top.
+
+## Install scripts added by a bump
+
+npm packages can run arbitrary code at install time (`preinstall` /
+`install` / `postinstall`). Most packages never do — so a routine-looking
+bump that suddenly **adds** install scripts deserves a hard look before you
+merge. Gaining execution-on-install is how the
+[Shai-Hulud worm](docs/case-studies.md#4-the-shai-hulud-worm-sept-2025)
+and plenty of smaller npm attacks delivered their payload.
+
+lockvet asks the npm registry which versions run install scripts and flags
+the transition:
+
+```
+↑ core-js 2.6.5 → 2.6.6  patch  (direct)
+    ⚙ install scripts added: 2.6.6 the old version ran no install scripts,
+      this one does — a favourite payload vehicle for hijacked npm
+      packages; review before trusting
+```
+
+Only *transitions* are flagged, so the signal stays quiet: a brand-new
+dependency with install scripts is ordinary (native builds), and a package
+that has always had them tells you nothing new. In a 92-change `npm/cli`
+release diff and a 165-change React one, it flags nothing at all.
+
+Gate on it with `-fail-on scripts`; JSON carries `install_scripts_added` /
+`scripted_versions`; SARIF emits an `install-scripts-added` warning;
+`queue` sorts affected PRs to the top. npm-only for now (other ecosystems
+either have no install hooks or don't expose them in registry metadata).
 
 ## Release notes inline (`-changelogs`)
 
@@ -798,7 +833,10 @@ parsers are ~50 lines each.
    crates.io, PyPI, Go, Maven, NuGet, RubyGems). An incoming version the
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
-   what an unpublished (often malicious) release looks like. Versions younger than `-fresh-days` (default 7) get a
+   what an unpublished (often malicious) release looks like (for npm the
+   flag is double-checked against `registry.npmjs.org` itself, which also
+   tells lockvet when a bump [suddenly adds install
+   scripts](#install-scripts-added-by-a-bump)). Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
    days of publication, so a short cooldown filters most of them out.
 6. Each changed package's source repository (from deps.dev) has its tag list
@@ -809,7 +847,8 @@ parsers are ~50 lines each.
    verified matches become compare / release links — so every link works.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
-queries (package names + versions) and the anonymous git tag listings above.
+queries (package names + versions), anonymous npm-registry metadata fetches
+for changed npm packages, and the anonymous git tag listings above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 
@@ -819,18 +858,19 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
 |---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **25** across 18 ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **29** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
+| Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|license`) + GitHub Action |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|scripts\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
 | MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, whole queues) |

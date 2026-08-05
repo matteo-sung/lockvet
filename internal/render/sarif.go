@@ -156,6 +156,23 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.ScriptsAdded {
+				idx := addRule(rule{
+					ID:               "install-scripts-added",
+					ShortDescription: map[string]string{"text": "Bump adds install scripts where the old version ran none"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#install-scripts-added-by-a-bump",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "install-scripts-added", RuleIndex: idx,
+					Level:     "warning",
+					Message:   map[string]string{"text": fmt.Sprintf("%s: version %s runs install scripts (preinstall/install/postinstall) while the outgoing version ran none. Gaining execution-on-install in an ordinary-looking bump is how several real npm supply-chain attacks shipped their payload; review the release before trusting it.%s", what, strings.Join(c.ScriptedVersions, ", "), via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "scripts"),
+					},
+				})
+			}
 			if c.Deprecated {
 				idx := addRule(rule{
 					ID:               "deprecated-package",

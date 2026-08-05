@@ -209,6 +209,14 @@ flag on day zero, and the malware advisories within a day or two. If you
 triage bot PRs with [`lockvet queue`](../README.md#triage-your-whole-dependabot-queue-at-once),
 the affected ones sort straight to the top.
 
+One more signal would have fired **while 4.1.1 was still live**: the worm
+delivered its payload through a `postinstall` hook added to packages that
+never ran install scripts before. That transition is exactly what the
+[`⚙ install scripts added`](../README.md#install-scripts-added-by-a-bump)
+flag looks for (it can't retro-fire in this replay — npm has since deleted
+the version, so its metadata is gone — which is why the `▲` line appears
+instead).
+
 ---
 
 ## The pattern, and what a gate can actually do
@@ -240,6 +248,13 @@ So, honestly stated, here is what each lockvet gate buys you:
   won't help at T+0 (the version is still live then), but it closes the gap
   between takedown and advisory, and it flags any branch or bot PR that was
   opened during the attack window and is still waiting to merge.
+- **`-fail-on scripts`** also works **at T+0**, with no advisory and no
+  cooldown latency: at the moment a Shai-Hulud-style release goes live, the
+  npm registry's own metadata already shows the new version running install
+  scripts where the old one ran none. It's narrow (npm only, and attacks
+  that don't need install hooks — chalk's browser payload, say — walk past
+  it), but when it fires it is loud, and legitimate none→some transitions
+  are rare enough to review by hand.
 - **Visibility** catches what no rule can: `(added) via <chain>` rows for
   packages you never asked for, license flips, deprecations, and registry
   ages on every line — in a report short enough that a human actually reads

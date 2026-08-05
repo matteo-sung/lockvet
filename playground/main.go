@@ -48,6 +48,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -288,6 +289,11 @@ func run(opts js.Value) (js.Value, error) {
 						strings.Replace(w, "set GITHUB_TOKEN", "paste a GitHub API token under Options", 1))
 				}
 			}
+		}
+	}
+	if !req.noMeta {
+		if err := npmreg.Annotate(diffs); err != nil {
+			warnings = append(warnings, fmt.Sprintf("install-script check skipped: %v", err))
 		}
 	}
 

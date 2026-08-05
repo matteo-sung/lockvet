@@ -24,6 +24,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -139,7 +140,7 @@ FLAGS
                  Needs GITHUB_TOKEN / gh login, GITLAB_TOKEN (api scope), or
                  BITBUCKET_TOKEN / app password (pullrequest:write).
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
-                 "fresh", "deprecated", "unlisted", or "license"
+                 "fresh", "deprecated", "unlisted", "scripts", or "license"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
   -author LIST   (queue mode) bot accounts to search for, comma list
                  (GitHub default "app/dependabot,app/renovate"; GitLab and
@@ -585,6 +586,11 @@ func main() {
 			}
 		}
 	}
+	if !*noMeta {
+		if err := npmreg.Annotate(diffs); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: install-script check skipped: %v\n", err)
+		}
+	}
 
 	sum := diffx.Summarize(diffs)
 
@@ -971,6 +977,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 			metaChecked = true
 		}
 	}
+	if !o.noMeta {
+		if err := npmreg.Annotate(combined); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: install-script check skipped: %v\n", err)
+		}
+	}
 
 	// Build, sort, and render the rows.
 	rows := make([]render.QueueRow, len(entries))
@@ -1078,12 +1089,16 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 			if sum.Unlisted > 0 {
 				return 1
 			}
+		case "scripts", "install-scripts":
+			if sum.ScriptsAdded > 0 {
+				return 1
+			}
 		case "license":
 			if sum.LicenseChanged > 0 {
 				return 1
 			}
 		default:
-			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, or license)", cond))
+			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, scripts, or license)", cond))
 		}
 	}
 	return 0

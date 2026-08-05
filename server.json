@@ -8,11 +8,11 @@
     "source": "github"
   },
   "websiteUrl": "https://matteo-sung.github.io/lockvet/",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/matteo-sung/lockvet:0.3.4",
+      "identifier": "ghcr.io/matteo-sung/lockvet:0.3.5",
       "transport": {
         "type": "stdio"
       },

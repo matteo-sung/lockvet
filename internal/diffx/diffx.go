@@ -60,6 +60,15 @@ type Change struct {
 	Unlisted         bool     `json:"unlisted,omitempty"`
 	UnlistedVersions []string `json:"unlisted_versions,omitempty"`
 
+	// ScriptsAdded: the outgoing version ran no install scripts, the
+	// incoming one does (npm only; preinstall/install/postinstall, per
+	// the registry's hasInstallScript). Adding execution-on-install in
+	// an ordinary-looking bump is how several real npm supply-chain
+	// attacks shipped their payload. ScriptedVersions lists the
+	// incoming versions that carry scripts.
+	ScriptsAdded     bool     `json:"install_scripts_added,omitempty"`
+	ScriptedVersions []string `json:"scripted_versions,omitempty"`
+
 	// NonRegistry: the lockfile says this package doesn't come from the
 	// public registry (workspace member, path/git dependency). Suppresses
 	// the unlisted flag; not serialized.
@@ -469,6 +478,7 @@ type Summary struct {
 	Total, Major, Minor, Patch, Added, Removed, Downgraded int
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
 	Fresh, Deprecated, LicenseChanged, Unlisted            int
+	ScriptsAdded                                           int // npm bumps that newly run install scripts
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 }
 
@@ -507,6 +517,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.Unlisted {
 				s.Unlisted++
+			}
+			if c.ScriptsAdded {
+				s.ScriptsAdded++
 			}
 			if c.LicenseChanged {
 				s.LicenseChanged++

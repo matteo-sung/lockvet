@@ -147,6 +147,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			if c.Unlisted {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
 			}
+			if c.ScriptsAdded {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("⚙ install scripts added: "+join(c.ScriptedVersions)), s.dim("the old version ran no install scripts, this one does — a favourite payload vehicle for hijacked npm packages; review before trusting"))
+			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● license change:"), s.dim(c.OldLicense+" → "+c.NewLicense))
 			}
@@ -271,6 +274,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 			out += " · " + s.yellow(fmt.Sprintf("%s changed", plural(sum.LicenseChanged, "license")))
 		}
 	}
+	if sum.ScriptsAdded > 0 {
+		out += " · " + s.bred(pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add")+" install scripts")
+	}
 	return out
 }
 
@@ -319,6 +325,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			bits = append(bits, fmt.Sprintf("**%s changed** ⚖️", plural(sum.LicenseChanged, "license")))
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev))\n", strings.Join(bits, ", "))
+	}
+	if sum.ScriptsAdded > 0 {
+		fmt.Fprintf(w, "\nInstall scripts: **%s install scripts** ⚙ where the outgoing version ran none (via the npm registry)\n", pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add"))
 	}
 	ageCol := ""
 	if metaChecked {
@@ -386,6 +395,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			}
 			if c.Unlisted {
 				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | unknown to deps.dev though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
+			}
+			if c.ScriptsAdded {
+				fmt.Fprintf(w, "| ⚙ | ↳ install scripts added | | %s | the old version ran no install scripts — a favourite payload vehicle for hijacked npm packages |%s\n", esc(join(c.ScriptedVersions)), padCell)
 			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "| ⚖️ | ↳ license change | | | %s |%s\n", esc(c.OldLicense+" → "+c.NewLicense), padCell)

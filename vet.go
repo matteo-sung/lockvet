@@ -21,6 +21,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -130,6 +131,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 			if o.changelogs {
 				v.warnings = append(v.warnings, relnotes.Annotate(diffs, ghpr.Token())...)
 			}
+		}
+	}
+	if !o.noMeta {
+		if err := npmreg.Annotate(diffs); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("install-script check skipped: %v", err))
 		}
 	}
 	v.diffs = diffs

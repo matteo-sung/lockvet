@@ -25,7 +25,7 @@ const mcpLatestProtocol = "2025-06-18"
 
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
-version is, what's deprecated, what's missing from the registry index
+version is, what's deprecated, what's missing from the registry index, what suddenly runs install scripts
 (unpublished/pulled releases), and license changes — across 29 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
 conda, Julia, Haskell, Terraform, Helm, renv, SBOMs, and more).
@@ -155,7 +155,7 @@ func mcpTools() []map[string]any {
 			"name":  "vet_url",
 			"title": "Vet a pull request, compare range, or commit by URL",
 			"description": "Explain the lockfile/dependency changes of a pull/merge request, compare range, or commit on GitHub, GitLab, Bitbucket Cloud, Gitea/Forgejo (incl. Codeberg), or Azure DevOps — no clone needed. " +
-				"Reports every added/removed/bumped package with semver severity, vulnerabilities introduced/fixed/unresolved (OSV.dev), release age, deprecations, license changes, direct-vs-transitive origin with via-chains, and verified upstream changelog/diff links. " +
+				"Reports every added/removed/bumped package with semver severity, vulnerabilities introduced/fixed/unresolved (OSV.dev), release age, deprecations, license changes, unlisted versions and npm install-script transitions, direct-vs-transitive origin with via-chains, and verified upstream changelog/diff links. " +
 				"Accepts PR/MR URLs, compare URLs, commit URLs, or shorthands like owner/repo#123 (GitHub) and group/project!123 (GitLab). Uses GITHUB_TOKEN / GITLAB_TOKEN / BITBUCKET_TOKEN / GITEA_TOKEN / AZURE_DEVOPS_TOKEN from the environment when present; public repos work unauthenticated.",
 			"inputSchema": map[string]any{
 				"type": "object",
