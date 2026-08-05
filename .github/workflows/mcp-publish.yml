@@ -1,0 +1,35 @@
+name: mcp-publish
+
+# Publishes server.json to the official MCP Registry via GitHub Actions
+# OIDC (no browser login). Run manually after the docker workflow for the
+# corresponding tag is green — the registry validates the OCI package, so
+# the ghcr image referenced by server.json must already exist.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC token for registry auth (io.github.* namespace)
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry (OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish
+
+      - name: Verify listing
+        run: |
+          sleep 5
+          ver=$(jq -r .version server.json)
+          curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.matteo-sung/lockvet" \
+            | jq -e --arg v "$ver" '.servers[] | select(.version==$v) | {name, version, status}'
