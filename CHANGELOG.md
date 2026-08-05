@@ -4,6 +4,42 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.16 — 2026-08-05
+
+- **Terraform/OpenTofu providers join the registry lineup** (npm · PyPI ·
+  crates.io · RubyGems · Packagist · NuGet · Hex · Go · Pub · CocoaPods ·
+  Terraform) — another blank spot filled outright: neither OSV nor
+  deps.dev has any Terraform system, so `.terraform.lock.hcl` diffs
+  carried no registry data at all until now.
+  - **Release ages and the ⏱ cooldown flag** from the registries'
+    per-version publish times — Dependabot/Renovate provider bumps now
+    show how old the incoming release is, and `-fail-on fresh` gates
+    them.
+  - **Deprecation lane** for providers the registry warns about,
+    providers delisted from registry.terraform.io, providers blocked by
+    the OpenTofu registry (block reason included), and HashiCorp's
+    archived providers with their suggested replacement (`This provider
+    has been archived. Please use the templatefile function or the
+    Cloudinit provider instead`).
+  - **Registry-verified unlisted detection.** The registry's version
+    list endpoints cap at 500 entries (the AWS provider has more), so a
+    version absent from the list is re-checked against the per-version
+    endpoint and only flagged after the registry itself answers 404.
+    That distinction is real: HashiCorp pulled AWS provider 5.71.0
+    after a regression — it is still tagged on GitHub, and a lockfile
+    pinning it gets the ▲ flag. In a 162-commit replay across three
+    infra repos it was the *only* flag raised.
+  - **Verified changelog links and `-changelogs`** via each provider's
+    source repository (from the registry), including intermediate
+    releases.
+  - Routing follows the lockfile: default-host providers are asked about
+    on registry.terraform.io, `registry.opentofu.org/…` pins on
+    api.opentofu.org, and custom/private registry hosts are left alone.
+  - Playground: registry.terraform.io sends no CORS headers, so the
+    browser build gets ages + changelog links from the CORS-open
+    OpenTofu mirror instead — and, because a mirror can lag, makes no
+    unlisted or deprecation claims there.
+
 ## v0.3.15 — 2026-08-05
 
 - **CocoaPods joins the registry lineup** (npm · PyPI · crates.io ·

@@ -268,6 +268,42 @@ bump automatically, no heroics required.
 
 ---
 
+## 6. AWS provider 5.71.0 (2024) — pulled, but not malware
+
+Not every pulled release is an attack, and the flag doesn't care why.
+In October 2024 HashiCorp shipped Terraform provider `hashicorp/aws`
+5.71.0 and then **removed it from the registry** — "removed due to an
+issue with the release, and will not be re-released", per the
+maintainers in
+[#39694](https://github.com/hashicorp/terraform-provider-aws/issues/39694);
+its changes shipped again as 5.72.0 days later. The `v5.71.0` tag still
+exists on GitHub — but the registry answers 404 for that exact version
+while serving 5.70.0 and 5.72.0 just fine.
+
+Dependabot had already opened lockfile bumps onto 5.71.0 across real
+repos before the pull. Replay one:
+
+```sh
+mkdir -p a b
+printf 'provider "registry.terraform.io/hashicorp/aws" {\n  version = "5.70.0"\n}\n' > a/.terraform.lock.hcl
+printf 'provider "registry.terraform.io/hashicorp/aws" {\n  version = "5.71.0"\n}\n' > b/.terraform.lock.hcl
+lockvet diff a/.terraform.lock.hcl b/.terraform.lock.hcl
+```
+
+```
+b/.terraform.lock.hcl (Terraform)
+  ↑ hashicorp/aws 5.70.0 → 5.71.0  minor
+      ▲ not in registry index: 5.71.0 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+
+1 package changed · 1 minor · 1 version not in registry index
+```
+
+The unlisted check is registry-verified here: the Terraform registry's
+version *list* endpoints cap at 500 entries (the AWS provider has more),
+so lockvet only claims ▲ after the registry itself answered 404 for the
+exact version. In a 162-commit replay of three real infrastructure
+repos' lockfile history, this was the only ▲ raised — and it was right.
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:

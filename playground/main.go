@@ -60,6 +60,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
+	"github.com/matteo-sung/lockvet/internal/tfreg"
 )
 
 var version = "dev" // set via -ldflags at build time
@@ -75,6 +76,9 @@ func main() {
 	// from the mirror directly. trunk (publish dates) has no CORS at all.
 	podreg.SpecsURL = "https://cdn.jsdelivr.net/cocoa"
 	podreg.UseTrunk = false
+	// registry.terraform.io sends no CORS headers; the OpenTofu mirror
+	// (api.opentofu.org) is CORS-open and provides ages + source links.
+	tfreg.UseTerraformRegistry = false
 	js.Global().Set("lockvetRun", js.FuncOf(runPromise))
 	js.Global().Set("lockvetVersion", version)
 	select {}
@@ -319,6 +323,13 @@ func run(opts js.Value) (js.Value, error) {
 		// (no ages in the browser — trunk sends no CORS headers).
 		if ok, err := podreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("CocoaPods registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// Terraform providers: ages + source links via the CORS-open
+		// OpenTofu mirror (no unlisted/deprecation claims from a mirror).
+		if ok, err := tfreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Terraform registry check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

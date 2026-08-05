@@ -35,6 +35,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/taglink"
+	"github.com/matteo-sung/lockvet/internal/tfreg"
 )
 
 type vetOptions struct {
@@ -158,6 +159,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if ok, err := podreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("CocoaPods registry check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := tfreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("Terraform registry check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}

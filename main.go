@@ -38,6 +38,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/taglink"
+	"github.com/matteo-sung/lockvet/internal/tfreg"
 	"github.com/matteo-sung/lockvet/internal/vers"
 )
 
@@ -612,6 +613,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := tfreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Terraform registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if metaChecked {
 			taglink.Annotate(diffs) // verified changelog/compare links
 			if *changelogs {
@@ -1043,6 +1049,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := podreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: CocoaPods registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := tfreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Terraform registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

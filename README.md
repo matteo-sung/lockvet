@@ -130,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.15 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.16 lockvet
 ```
 
 ### Shell completions & man page
@@ -373,7 +373,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.15
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.16
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -443,7 +443,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.15", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.16", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -496,7 +496,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.15
+      - uses: matteo-sung/lockvet@v0.3.16
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -523,7 +523,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.15
+      - uses: matteo-sung/lockvet@v0.3.16
         with:
           sarif: 'true'
 ```
@@ -543,7 +543,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.15
+  image: ghcr.io/matteo-sung/lockvet:0.3.16
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -568,7 +568,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.15
+          image: ghcr.io/matteo-sung/lockvet:0.3.16
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -586,7 +586,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.15
+    container: ghcr.io/matteo-sung/lockvet:0.3.16
     steps:
       - checkout: none
       - script: >
@@ -610,7 +610,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.15
+    image: ghcr.io/matteo-sung/lockvet:0.3.16
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -628,7 +628,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.15
+    rev: v0.3.16
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -682,6 +682,12 @@ Every incoming version is checked against its registry (via deps.dev):
   podspec on the CDN — `pod trunk deprecate` rewrites it for every version —
   including the named successor
   (`● deprecated upstream: deprecated on CocoaPods; in favor of FirebaseCrashlytics`).
+  Terraform/OpenTofu providers get theirs from the registries themselves:
+  providers the registry warns about, providers delisted from
+  registry.terraform.io, providers the OpenTofu registry has blocked, and
+  HashiCorp's archived providers — replacement suggestion included
+  (`● deprecated upstream: This provider has been archived. Please use the
+  templatefile function or the Cloudinit provider instead`).
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -727,21 +733,27 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, CocoaPods and Go packages
+For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, CocoaPods and Go
+packages — and Terraform/OpenTofu providers —
 the flag is **double-checked against the registry itself**: deps.dev can lag
 the registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
 API / the crates.io sparse index / the RubyGems compact index /
 Packagist's Composer metadata endpoint / NuGet's registration index /
 hex.pm's and pub.dev's packages APIs / the sharded CocoaPods CDN index
-(the same file `pod install` resolves against) / the Go module proxy and
+(the same file `pod install` resolves against) / the Go module proxy /
+the Terraform registry's per-version endpoint and the OpenTofu registry's
+version index, and
 clears the flag for any version the registry serves. What survives is a
 version the registry itself no longer lists — and that distinction has
 teeth: on crates.io yanked versions *stay in the index* while deleted
 (malicious) ones vanish entirely, and on RubyGems a yank removes the
 release from the index altogether, so a bump onto a yanked or
 admin-deleted gem keeps the flag (replaying the 2019 `strong_password`
-0.0.7 hijack trips it today).
+0.0.7 hijack trips it today). It isn't only malware, either: HashiCorp
+pulled AWS provider 5.71.0 from the Terraform registry after a
+regression — the tag still exists on GitHub, and a lockfile pinning
+5.71.0 gets the ▲ flag from the registry's own 404.
 
 NuGet is the one registry where "unlisted" is a *native* concept, and
 lockvet splits it the way NuGet does: a stable version **absent from the
@@ -891,7 +903,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Haskell | `stack.yaml.lock`, `cabal.project.freeze`, `cabal.config` (Stackage pins) — Hackage advisories (`HSEC-…`) |
 | Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]`; ages/retirements/unlisted from hex.pm (git/path packages exempt) |
 | Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — pip packages inside get full PyPI vulnerability/age data |
-| Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — default-registry hosts stripped, registry links for terraform.io & OpenTofu providers |
+| Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — release ages, archived/delisted/blocked-provider flags, verified changelog links and the registry-verified unlisted check straight from the Terraform & OpenTofu registries (custom registry hosts exempt) |
 | Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
 | Nix | `flake.lock` |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
@@ -910,14 +922,15 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart and iOS are the exceptions: deps.dev has no
-Composer, Hex, Pub or CocoaPods system at all, so lockvet asks Packagist, hex.pm,
-pub.dev and the CocoaPods registry directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, iOS and Terraform are the exceptions: deps.dev has no
+Composer, Hex, Pub, CocoaPods or Terraform system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, the CocoaPods registry and the Terraform/OpenTofu registries directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
-CocoaPods deprecated pods with their named replacement),
+CocoaPods deprecated pods with their named replacement, archived/delisted
+Terraform providers),
 changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock` and `Podfile.lock` too (plus license
-changes for Composer and CocoaPods; Hex and pub.dev keep no per-release license history,
+`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `Podfile.lock` and `.terraform.lock.hcl` too (plus license
+changes for Composer and CocoaPods; Hex, pub.dev and the Terraform registry keep no per-release license history,
 so that one check is honestly skipped there).
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
@@ -960,7 +973,9 @@ parsers are ~50 lines each.
    its ⏱ flag; NuGet registration `published` times do the same for .NET
    packages; for Composer, Hex and Dart packages the ages come straight from
    Packagist, hex.pm and pub.dev, which deps.dev doesn't cover at all;
-   pods get theirs from the CocoaPods trunk API's per-version timestamps; Go tags cut
+   pods get theirs from the CocoaPods trunk API's per-version timestamps;
+Terraform/OpenTofu providers from the registries' per-version publish
+times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
    minutes ago get theirs from the module proxy's `.info` endpoint, and
    pseudo-versions carry their commit time in the version string itself,
    so those age for free. The proxy's latest `go.mod` also supplies
@@ -977,7 +992,7 @@ parsers are ~50 lines each.
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
 crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev /
-CocoaPods-CDN-and-trunk / Go-module-proxy
+CocoaPods-CDN-and-trunk / Go-module-proxy / Terraform-and-OpenTofu-registry
 metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.
