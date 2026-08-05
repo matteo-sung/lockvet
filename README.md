@@ -129,7 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.5 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.6 lockvet
 ```
 
 ### Shell completions & man page
@@ -372,7 +372,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.5
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.6
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -442,7 +442,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.5", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.6", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -495,10 +495,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.5
+      - uses: matteo-sung/lockvet@v0.3.6
         # optional:
         # with:
-        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,license"
+        #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
         #   fresh-days: '7'      # cooldown window for the fresh flag
         #   changelogs: 'true'   # inline release notes for every bump
         #   sarif: 'true'        # code scanning alerts (see below)
@@ -522,7 +522,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.5
+      - uses: matteo-sung/lockvet@v0.3.6
         with:
           sarif: 'true'
 ```
@@ -542,7 +542,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.5
+  image: ghcr.io/matteo-sung/lockvet:0.3.6
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -567,7 +567,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.5
+          image: ghcr.io/matteo-sung/lockvet:0.3.6
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -585,7 +585,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.5
+    container: ghcr.io/matteo-sung/lockvet:0.3.6
     steps:
       - checkout: none
       - script: >
@@ -609,7 +609,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.5
+    image: ghcr.io/matteo-sung/lockvet:0.3.6
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -627,7 +627,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.5
+    rev: v0.3.6
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -731,6 +731,41 @@ Gate on it with `-fail-on scripts`; JSON carries `install_scripts_added` /
 `scripted_versions`; SARIF emits an `install-scripts-added` warning;
 `queue` sorts affected PRs to the top. npm-only for now (other ecosystems
 either have no install hooks or don't expose them in registry metadata).
+
+## Provenance dropped by a bump
+
+A growing share of npm packages publish with [sigstore provenance
+attestations](https://docs.npmjs.com/generating-provenance-statements) —
+cryptographic proof that the tarball was built by the project's own CI
+from its public repo. That proof has a useful property for reviewers:
+**a stolen npm token can publish, but it can't make the project's
+pipeline attest the release.**
+
+So when a package that consistently attests suddenly publishes a version
+with no provenance, lockvet flags it:
+
+```
+↑ acme 1.4.2 → 1.4.3  patch  (direct)  (2d old)
+    ⛨ provenance dropped: 1.4.3 every previous version was published with
+      sigstore provenance, this one wasn't — legitimate CI keeps
+      attesting, a stolen npm token can't; verify the release
+```
+
+Three conditions keep it near-silent: the outgoing version must be
+attested, the package's provenance practice must be *established* (the
+top stable versions below the incoming one all attested — one-off
+adopters don't count), and the incoming release must be **young
+(≤ 30 days)** — this is a while-it's-happening tripwire for the window
+before advisories exist, not an audit of history. Under those rules it
+flags nothing at all across current bumps of ~100 top npm packages —
+and would fire the moment a token thief ships a release outside the
+project's CI.
+
+Gate on it with `-fail-on provenance`; JSON carries `provenance_dropped`
+/ `unattested_versions`; SARIF emits a `provenance-dropped` warning;
+`queue` sorts affected PRs to the top. Comes from the same npm registry
+document as the install-scripts check — no extra requests. npm-only
+(no other registry exposes attestations in bulk metadata yet).
 
 ## Release notes inline (`-changelogs`)
 
@@ -836,7 +871,8 @@ parsers are ~50 lines each.
    what an unpublished (often malicious) release looks like (for npm the
    flag is double-checked against `registry.npmjs.org` itself, which also
    tells lockvet when a bump [suddenly adds install
-   scripts](#install-scripts-added-by-a-bump)). Versions younger than `-fresh-days` (default 7) get a
+   scripts](#install-scripts-added-by-a-bump) or [silently drops sigstore
+   provenance](#provenance-dropped-by-a-bump)). Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
    days of publication, so a short cooldown filters most of them out.
 6. Each changed package's source repository (from deps.dev) has its tag list
@@ -866,11 +902,12 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
 | Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
+| Flag young releases that silently drop sigstore provenance | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|scripts\|license`) + GitHub Action |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|scripts\|provenance\|license`) + GitHub Action |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
 | MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, whole queues) |

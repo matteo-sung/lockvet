@@ -1,14 +1,18 @@
 // Package npmreg asks the npm registry whether versions run install
-// scripts (preinstall / install / postinstall). A bump that ADDS install
-// scripts where the outgoing version ran none is how several real npm
-// supply-chain attacks delivered their payload (Shai-Hulud's postinstall
-// worm being the loudest), so lockvet flags that transition.
+// scripts (preinstall / install / postinstall) and whether they were
+// published with sigstore provenance attestations. A bump that ADDS
+// install scripts where the outgoing version ran none is how several
+// real npm supply-chain attacks delivered their payload (Shai-Hulud's
+// postinstall worm being the loudest); a bump that DROPS provenance
+// where every previous version had it is what publishing with a stolen
+// token looks like (a token thief can publish, but cannot make the
+// project's CI attest the release). lockvet flags both transitions.
 //
 // One GET per changed package fetches the abbreviated metadata document
-// (Accept: application/vnd.npm.install-v1+json), which carries a
-// per-version hasInstallScript field. The endpoint answers with
-// Access-Control-Allow-Origin: * and the Accept header is CORS-safelisted,
-// so the wasm build can use it too.
+// (Accept: application/vnd.npm.install-v1+json), which carries
+// per-version hasInstallScript and dist.attestations fields. The
+// endpoint answers with Access-Control-Allow-Origin: * and the Accept
+// header is CORS-safelisted, so the wasm build can use it too.
 package npmreg
 
 import (
@@ -16,15 +20,21 @@ import (
 	"fmt"
 	"net/http"
 	neturl "net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/vers"
 )
 
 // RegistryURL is a var so tests can point it at a fake server.
 var RegistryURL = "https://registry.npmjs.org"
+
+// provenanceMaxAgeDays: incoming versions older than this never get the
+// provenance-dropped flag (see the age gate in Annotate).
+const provenanceMaxAgeDays = 30
 
 var client = &http.Client{Timeout: 20 * time.Second}
 
@@ -36,6 +46,14 @@ var client = &http.Client{Timeout: 20 * time.Second}
 //     transitions are flagged: a brand-new dependency with install
 //     scripts is ordinary (native builds), and a package that has always
 //     had them tells you nothing new.
+//   - It sets ProvenanceDropped / UnattestedVersions on bumps whose
+//     incoming version carries no sigstore provenance attestation while
+//     EVERY known outgoing version did. Again transitions only, and the
+//     strictest one: packages that never attested, or attest only
+//     sometimes, are never flagged (the top stable versions below the
+//     incoming one must all be attested), and only releases younger
+//     than ~a month are flagged at all — this is a while-it's-happening
+//     signal, not an audit of history.
 //   - It re-verifies Unlisted flags (set by the deps.dev layer, which can
 //     lag npm by days) against the registry itself: a version npm serves
 //     is not unlisted, no matter what deps.dev thinks. Versions the npm
@@ -80,46 +98,63 @@ func Annotate(diffs []diffx.FileDiff) error {
 			names = append(names, n)
 		}
 	}
-	scripts, err := fetchScripts(names)
+	meta, err := fetchMeta(names)
 	if err != nil {
 		return err
 	}
 
 	for name, slots := range byPkg {
-		known, ok := scripts[name]
+		known, ok := meta[name]
 		if !ok || len(known) == 0 {
 			continue // package not on the registry, or fetch failed
 		}
 		for _, s := range slots {
 			c := &diffs[s.fd].Changes[s.ci]
 			oldSeen, oldScripted := false, false
+			oldAllAttested := true
 			old := map[string]bool{}
 			for _, v := range c.Old {
 				v = cleanVersion(v)
 				old[v] = true
-				if has, ok := known[v]; ok {
+				if info, ok := known[v]; ok {
 					oldSeen = true
-					oldScripted = oldScripted || has
+					oldScripted = oldScripted || info.scripts
+					oldAllAttested = oldAllAttested && info.attested
 				}
 			}
-			if !oldSeen || oldScripted {
-				// Old side unknown (can't call it a transition) or the
-				// package already ran scripts before this change.
-				continue
+			if !oldSeen {
+				continue // old side unknown: can't call anything a transition
 			}
-			var added []string
+			var added, unattested []string
 			for _, v := range c.New {
 				v = cleanVersion(v)
 				if old[v] {
 					continue
 				}
-				if known[v] {
+				info, ok := known[v]
+				if !ok {
+					continue // incoming version not on the registry (unlisted handles that)
+				}
+				if info.scripts && !oldScripted {
 					added = append(added, v)
+				}
+				if !info.attested && oldAllAttested && establishedProvenance(known, v) {
+					unattested = append(unattested, v)
 				}
 			}
 			if len(added) > 0 {
 				c.ScriptsAdded = true
 				c.ScriptedVersions = added
+			}
+			// Age gate: the provenance flag is a while-it's-happening
+			// signal — a stolen token is caught in days, and an
+			// unattested release that has survived a month is a
+			// maintainer's regular (if untidy) practice, not an attack
+			// in progress. Unknown age (deps.dev hasn't indexed the
+			// version yet) means brand new, so it stays flagged.
+			if len(unattested) > 0 && (c.PublishedAt == "" || c.AgeDays <= provenanceMaxAgeDays) {
+				c.ProvenanceDropped = true
+				c.UnattestedVersions = unattested
 			}
 		}
 	}
@@ -127,7 +162,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 	// lacks. A 404 for the whole package (no doc entry) keeps every flag —
 	// the package is gone from npm, which is worse.
 	for name, slots := range verify {
-		known, ok := scripts[name]
+		known, ok := meta[name]
 		if !ok || len(known) == 0 {
 			continue
 		}
@@ -146,6 +181,38 @@ func Annotate(diffs []diffx.FileDiff) error {
 	return nil
 }
 
+// establishedProvenance reports whether the package's provenance practice
+// was established right below the incoming version: the highest 3 stable
+// (non-prerelease) versions strictly below it must ALL be attested, and at
+// least 2 such versions must exist. This keeps one-off adopters quiet
+// (a package that attested only its last release or two never had a
+// practice to drop) while packages that consistently attest — the ones
+// where a silent drop means something — stay covered.
+func establishedProvenance(known map[string]verInfo, incoming string) bool {
+	var below []string
+	for v := range known {
+		if strings.Contains(v, "-") { // npm semver: prerelease
+			continue
+		}
+		if vers.Compare(v, incoming) < 0 {
+			below = append(below, v)
+		}
+	}
+	sort.Slice(below, func(i, j int) bool { return vers.Compare(below[i], below[j]) > 0 })
+	if len(below) > 3 {
+		below = below[:3]
+	}
+	if len(below) < 2 {
+		return false
+	}
+	for _, v := range below {
+		if !known[v].attested {
+			return false
+		}
+	}
+	return true
+}
+
 // cleanVersion strips lockfile decoration (pnpm peer-dep suffixes like
 // "1.2.3(react@18.0.0)") so versions match registry keys.
 func cleanVersion(v string) string {
@@ -155,12 +222,18 @@ func cleanVersion(v string) string {
 	return strings.TrimSpace(v)
 }
 
-// fetchScripts downloads each package's abbreviated metadata a few at a
-// time and returns version -> hasInstallScript per package. 404s (and
+// verInfo is what lockvet keeps per registry version.
+type verInfo struct {
+	scripts  bool // runs preinstall / install / postinstall
+	attested bool // published with sigstore provenance attestations
+}
+
+// fetchMeta downloads each package's abbreviated metadata a few at a
+// time and returns version -> verInfo per package. 404s (and
 // undecodable answers) simply yield no entry; other HTTP failures abort
 // with an error so callers can warn once.
-func fetchScripts(names []string) (map[string]map[string]bool, error) {
-	out := make(map[string]map[string]bool, len(names))
+func fetchMeta(names []string) (map[string]map[string]verInfo, error) {
+	out := make(map[string]map[string]verInfo, len(names))
 	var mu sync.Mutex
 	var firstErr error
 	sem := make(chan struct{}, 8)
@@ -197,14 +270,20 @@ func fetchScripts(names []string) (map[string]map[string]bool, error) {
 				var doc struct {
 					Versions map[string]struct {
 						HasInstallScript bool `json:"hasInstallScript"`
+						Dist             struct {
+							Attestations json.RawMessage `json:"attestations"`
+						} `json:"dist"`
 					} `json:"versions"`
 				}
 				if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
 					return
 				}
-				set := make(map[string]bool, len(doc.Versions))
+				set := make(map[string]verInfo, len(doc.Versions))
 				for v, info := range doc.Versions {
-					set[v] = info.HasInstallScript
+					set[v] = verInfo{
+						scripts:  info.HasInstallScript,
+						attested: len(info.Dist.Attestations) > 0 && string(info.Dist.Attestations) != "null",
+					}
 				}
 				mu.Lock()
 				out[name] = set

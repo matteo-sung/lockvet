@@ -69,6 +69,15 @@ type Change struct {
 	ScriptsAdded     bool     `json:"install_scripts_added,omitempty"`
 	ScriptedVersions []string `json:"scripted_versions,omitempty"`
 
+	// ProvenanceDropped: every known outgoing version of this package
+	// was published with sigstore provenance attestations, the incoming
+	// one wasn't (npm only). Legitimate CI keeps attesting; a stolen npm
+	// token can publish but cannot make the project's pipeline attest,
+	// so a silent drop is worth a look before trusting the release.
+	// UnattestedVersions lists the incoming versions without provenance.
+	ProvenanceDropped  bool     `json:"provenance_dropped,omitempty"`
+	UnattestedVersions []string `json:"unattested_versions,omitempty"`
+
 	// NonRegistry: the lockfile says this package doesn't come from the
 	// public registry (workspace member, path/git dependency). Suppresses
 	// the unlisted flag; not serialized.
@@ -479,6 +488,7 @@ type Summary struct {
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
 	Fresh, Deprecated, LicenseChanged, Unlisted            int
 	ScriptsAdded                                           int // npm bumps that newly run install scripts
+	ProvenanceDropped                                      int // npm bumps that silently stop attesting provenance
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 }
 
@@ -520,6 +530,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.ScriptsAdded {
 				s.ScriptsAdded++
+			}
+			if c.ProvenanceDropped {
+				s.ProvenanceDropped++
 			}
 			if c.LicenseChanged {
 				s.LicenseChanged++

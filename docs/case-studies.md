@@ -255,6 +255,16 @@ So, honestly stated, here is what each lockvet gate buys you:
   that don't need install hooks — chalk's browser payload, say — walk past
   it), but when it fires it is loud, and legitimate none→some transitions
   are rare enough to review by hand.
+- **`-fail-on provenance`** is a second **T+0** tripwire, for the packages
+  that publish with [sigstore provenance](https://docs.npmjs.com/generating-provenance-statements):
+  a stolen npm token can publish a release, but it cannot make the
+  project's CI attest it, so the fake release shows up with the
+  attestation missing where every previous release had one. None of the
+  2018–2025 packages above attested *at the time* (the flag is only as
+  broad as provenance adoption — though `@ctrl/tinycolor` started
+  attesting right after Shai-Hulud), but for the growing set that do —
+  and it skews toward exactly the high-value targets attackers pick —
+  this turns their own supply-chain hygiene into your alarm.
 - **Visibility** catches what no rule can: `(added) via <chain>` rows for
   packages you never asked for, license flips, deprecations, and registry
   ages on every line — in a report short enough that a human actually reads

@@ -150,6 +150,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⚙ install scripts added: "+join(c.ScriptedVersions)), s.dim("the old version ran no install scripts, this one does — a favourite payload vehicle for hijacked npm packages; review before trusting"))
 			}
+			if c.ProvenanceDropped {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("⛨ provenance dropped: "+join(c.UnattestedVersions)), s.dim("every previous version was published with sigstore provenance, this one wasn't — legitimate CI keeps attesting, a stolen npm token can't; verify the release"))
+			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● license change:"), s.dim(c.OldLicense+" → "+c.NewLicense))
 			}
@@ -277,6 +280,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 	if sum.ScriptsAdded > 0 {
 		out += " · " + s.bred(pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add")+" install scripts")
 	}
+	if sum.ProvenanceDropped > 0 {
+		out += " · " + s.bred(pluralVerb(sum.ProvenanceDropped, "bump drops", "bumps drop")+" provenance")
+	}
 	return out
 }
 
@@ -328,6 +334,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	}
 	if sum.ScriptsAdded > 0 {
 		fmt.Fprintf(w, "\nInstall scripts: **%s install scripts** ⚙ where the outgoing version ran none (via the npm registry)\n", pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add"))
+	}
+	if sum.ProvenanceDropped > 0 {
+		fmt.Fprintf(w, "\nProvenance: **%s sigstore provenance** ⛨ where every previous version attested (via the npm registry)\n", pluralVerb(sum.ProvenanceDropped, "bump drops", "bumps drop"))
 	}
 	ageCol := ""
 	if metaChecked {
@@ -398,6 +407,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "| ⚙ | ↳ install scripts added | | %s | the old version ran no install scripts — a favourite payload vehicle for hijacked npm packages |%s\n", esc(join(c.ScriptedVersions)), padCell)
+			}
+			if c.ProvenanceDropped {
+				fmt.Fprintf(w, "| ⛨ | ↳ provenance dropped | | %s | every previous version was published with sigstore provenance, this one wasn't — verify the release |%s\n", esc(join(c.UnattestedVersions)), padCell)
 			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "| ⚖️ | ↳ license change | | | %s |%s\n", esc(c.OldLicense+" → "+c.NewLicense), padCell)

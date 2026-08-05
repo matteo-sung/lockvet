@@ -4,6 +4,29 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.6 — 2026-08-05
+
+- **`⛨ provenance dropped` — flag young npm releases published without
+  sigstore provenance where every previous release attested.** A stolen
+  npm token can publish, but it can't make the project's CI attest the
+  release — so a package that consistently publishes [provenance
+  attestations](https://docs.npmjs.com/generating-provenance-statements)
+  suddenly shipping an unattested version is exactly what a token-theft
+  attack looks like at T+0, before any advisory exists. Three conditions
+  keep it near-silent: the outgoing pin must be attested, the package's
+  practice must be established (top stable versions below the incoming one
+  all attested — one-off adopters never flag), and the release must be
+  young (≤ 30 days — this is a while-it's-happening tripwire, not an
+  audit of history; it stays quiet on historical bumps like `chokidar
+  4.0.1 → 4.0.2` or `axios 1.13.2 → 1.13.3` where a single manual publish
+  broke an attested streak long ago). Zero flags across current bumps of
+  ~100 top npm packages. Reads the same npm registry document as the
+  install-scripts check — no extra requests, works in the browser
+  playground too. Gate with `-fail-on provenance`; JSON carries
+  `provenance_dropped` / `unattested_versions`; SARIF emits a
+  `provenance-dropped` warning; `queue` sorts affected PRs into the top
+  tier.
+
 ## v0.3.5 — 2026-08-05
 
 - **`⚙ install scripts added` — flag npm bumps that gain

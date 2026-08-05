@@ -11,7 +11,7 @@ branding:
 
 inputs:
   fail-on:
-    description: 'Fail the check on: "major", "vuln", "downgrade", "fresh", "deprecated", "unlisted", "scripts", "license" (comma list). Empty = never fail.'
+    description: 'Fail the check on: "major", "vuln", "downgrade", "fresh", "deprecated", "unlisted", "scripts", "provenance", "license" (comma list). Empty = never fail.'
     required: false
     default: ''
   fresh-days:

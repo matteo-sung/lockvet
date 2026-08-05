@@ -173,6 +173,23 @@ func SARIF(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.ProvenanceDropped {
+				idx := addRule(rule{
+					ID:               "provenance-dropped",
+					ShortDescription: map[string]string{"text": "Bump drops sigstore provenance where every previous version attested"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#provenance-dropped-by-a-bump",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "provenance-dropped", RuleIndex: idx,
+					Level:     "warning",
+					Message:   map[string]string{"text": fmt.Sprintf("%s: version %s carries no sigstore provenance attestation while every previous version of the package was published with one. Legitimate CI keeps attesting its releases; a stolen npm token can publish but cannot make the project's pipeline attest. Verify the release before trusting it.%s", what, strings.Join(c.UnattestedVersions, ", "), via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "provenance"),
+					},
+				})
+			}
 			if c.Deprecated {
 				idx := addRule(rule{
 					ID:               "deprecated-package",

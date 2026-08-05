@@ -181,3 +181,108 @@ func TestAnnotateVerifiesUnlisted(t *testing.T) {
 		t.Errorf("added change: flag should clear when npm lists the version, got %v", cs[4].UnlistedVersions)
 	}
 }
+
+// fakeRegistryAttest serves docs where each entry maps
+// version -> published-with-provenance.
+func fakeRegistryAttest(t *testing.T, pkgs map[string]map[string]bool) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Path[1:]
+		vs, ok := pkgs[name]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		type dist struct {
+			Attestations map[string]string `json:"attestations,omitempty"`
+		}
+		type ver struct {
+			Dist dist `json:"dist"`
+		}
+		doc := struct {
+			Versions map[string]ver `json:"versions"`
+		}{Versions: map[string]ver{}}
+		for v, attested := range vs {
+			d := dist{}
+			if attested {
+				d.Attestations = map[string]string{"url": "https://registry.npmjs.org/-/npm/v1/attestations/" + name + "@" + v}
+			}
+			doc.Versions[v] = ver{Dist: d}
+		}
+		json.NewEncoder(w).Encode(doc)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestAnnotateProvenanceTransitions(t *testing.T) {
+	srv := fakeRegistryAttest(t, map[string]map[string]bool{
+		"drops-provenance": {"0.8.0": true, "0.9.0": true, "1.0.0": true, "2.0.0": false},
+		"keeps-provenance": {"0.9.0": true, "1.0.0": true, "2.0.0": true},
+		"never-attested":   {"0.9.0": false, "1.0.0": false, "2.0.0": false},
+		"gains-provenance": {"0.9.0": false, "1.0.0": false, "2.0.0": true},
+		"mixed-old":        {"0.8.0": true, "0.9.0": false, "1.0.0": true, "2.0.0": false},
+		"new-unpublished":  {"0.9.0": true, "1.0.0": true},
+		"one-off-adopter":  {"3.6.0": false, "4.0.0": true, "4.0.1": true, "4.0.2": false},
+		"short-history":    {"1.0.0": true, "2.0.0": false},
+		"pre-noise":        {"0.8.0": true, "0.9.0": true, "1.0.0": true, "2.0.0-beta.1": true, "2.0.0": false},
+	})
+	oldURL := RegistryURL
+	RegistryURL = srv.URL
+	defer func() { RegistryURL = oldURL }()
+
+	diffs := []diffx.FileDiff{{Path: "package-lock.json", Changes: []diffx.Change{
+		change("drops-provenance", []string{"1.0.0"}, []string{"2.0.0"}),
+		change("keeps-provenance", []string{"1.0.0"}, []string{"2.0.0"}),
+		change("never-attested", []string{"1.0.0"}, []string{"2.0.0"}),
+		change("gains-provenance", []string{"1.0.0"}, []string{"2.0.0"}),
+		change("mixed-old", []string{"0.9.0", "1.0.0"}, []string{"2.0.0"}),
+		change("new-unpublished", []string{"1.0.0"}, []string{"2.0.0"}),
+		change("one-off-adopter", []string{"4.0.1"}, []string{"4.0.2"}),
+		change("short-history", []string{"1.0.0"}, []string{"2.0.0"}),
+		change("pre-noise", []string{"1.0.0"}, []string{"2.0.0"}),
+	}}}
+	if err := Annotate(diffs); err != nil {
+		t.Fatal(err)
+	}
+	cs := diffs[0].Changes
+	if !cs[0].ProvenanceDropped || len(cs[0].UnattestedVersions) != 1 || cs[0].UnattestedVersions[0] != "2.0.0" {
+		t.Errorf("drops-provenance: want flag [2.0.0], got %v %v", cs[0].ProvenanceDropped, cs[0].UnattestedVersions)
+	}
+	if !cs[8].ProvenanceDropped {
+		t.Errorf("pre-noise: want flag (prereleases must not count toward the stable window), got none")
+	}
+	for i, name := range []string{"", "keeps-provenance", "never-attested", "gains-provenance", "mixed-old", "new-unpublished", "one-off-adopter", "short-history"} {
+		if i == 0 {
+			continue
+		}
+		if cs[i].ProvenanceDropped {
+			t.Errorf("%s: unexpectedly flagged", name)
+		}
+	}
+}
+
+func TestProvenanceAgeGate(t *testing.T) {
+	srv := fakeRegistryAttest(t, map[string]map[string]bool{
+		"stale-drop": {"0.8.0": true, "0.9.0": true, "1.0.0": true, "2.0.0": false},
+		"young-drop": {"0.8.0": true, "0.9.0": true, "1.0.0": true, "2.0.0": false},
+	})
+	oldURL := RegistryURL
+	RegistryURL = srv.URL
+	defer func() { RegistryURL = oldURL }()
+
+	stale := change("stale-drop", []string{"1.0.0"}, []string{"2.0.0"})
+	stale.PublishedAt, stale.AgeDays = "2025-01-01T00:00:00Z", 400
+	young := change("young-drop", []string{"1.0.0"}, []string{"2.0.0"})
+	young.PublishedAt, young.AgeDays = "2026-08-01T00:00:00Z", 4
+	diffs := []diffx.FileDiff{{Path: "package-lock.json", Changes: []diffx.Change{stale, young}}}
+	if err := Annotate(diffs); err != nil {
+		t.Fatal(err)
+	}
+	if diffs[0].Changes[0].ProvenanceDropped {
+		t.Error("stale-drop: a 400-day-old release must not be flagged")
+	}
+	if !diffs[0].Changes[1].ProvenanceDropped {
+		t.Error("young-drop: a 4-day-old release must be flagged")
+	}
+}
