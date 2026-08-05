@@ -14,35 +14,89 @@ import (
 //   - Alamofire (5.4.4)
 //   - Firebase/Core (8.9.0):
 //     - FirebaseCore (= 8.9.0)
+// DEPENDENCIES:
+//   - Alamofire (~> 5.4)
+// SPEC REPOS:
+//   trunk:
+//     - Alamofire
+// EXTERNAL SOURCES:
+//   LocalPod:
+//     :path: "../LocalPod"
 //
-// Only top-level entries (two-space indent) carry resolved versions;
-// deeper lines are dependency *requirements*, not pins. Subspecs like
-// Firebase/Core resolve to the parent pod's version; OSV advisories use
-// the base pod name, so we record that.
+// Only top-level PODS entries (two-space indent) carry resolved versions;
+// deeper lines are dependency *requirements*, not pins — but they name the
+// dependencies, so they build the via-chain graph. Subspecs like
+// Firebase/Core resolve to the parent pod's version; OSV advisories and
+// the trunk registry use the base pod name, so everything collapses to
+// that. DEPENDENCIES lists the Podfile's own pods (roots). Pods pinned
+// from git/path (EXTERNAL SOURCES) or served by a private specs repo
+// (any SPEC REPOS key besides trunk / the legacy CocoaPods/Specs mirror)
+// are NonRegistry: registry-metadata checks skip them.
 
-var podLineRe = regexp.MustCompile(`^  - "?([^" (]+)"? \(([^()]+)\)`)
+var (
+	podLineRe    = regexp.MustCompile(`^  - "?([^" (]+)"? \(([^()]+)\)`)
+	podDepRe     = regexp.MustCompile(`^ {4,}- "?([^" (]+)"?`)
+	podEntryRe   = regexp.MustCompile(`^  - "?([^" (]+)"?`)
+	podSrcKeyRe  = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
+	podSrcPodRe  = regexp.MustCompile(`^ {4}- "?([^" (]+)"?`)
+	podExtKeyRe  = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
+	podPublicSrc = regexp.MustCompile(`(?i)^(trunk|.*github\.com[:/]cocoapods/specs.*)$`)
+)
+
+// twoSpaceIndent reports whether the line is indented by exactly two
+// spaces (a section key), not deeper (a nested attribute or list item).
+func twoSpaceIndent(s string) bool {
+	return strings.HasPrefix(s, "  ") && len(s) > 2 && s[2] != ' '
+}
+
+// podBase collapses a subspec (Firebase/Core) to its base pod (Firebase).
+func podBase(name string) string {
+	if i := strings.IndexByte(name, '/'); i > 0 {
+		return name[:i]
+	}
+	return name
+}
 
 func parsePodfileLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "Podfile.lock", CocoaPods)
-	inPods := false
+	section := ""
+	parent := ""      // current top-level pod in PODS
+	srcPublic := true // whether the current SPEC REPOS key is the public registry
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimRight(line, "\r")
-		if trimmed == "PODS:" {
-			inPods = true
+		if len(trimmed) > 0 && trimmed[0] != ' ' {
+			section = strings.TrimSuffix(trimmed, ":")
+			parent = ""
 			continue
 		}
-		if inPods && len(trimmed) > 0 && trimmed[0] != ' ' {
-			break // next top-level section (DEPENDENCIES:, SPEC REPOS:, ...)
-		}
-		if !inPods {
-			continue
-		}
-		if m := podLineRe.FindStringSubmatch(trimmed); m != nil {
-			name := m[1]
-			if i := strings.IndexByte(name, '/'); i > 0 {
-				name = name[:i] // subspec -> base pod
+		switch section {
+		case "PODS":
+			if m := podLineRe.FindStringSubmatch(trimmed); m != nil {
+				parent = podBase(m[1])
+				f.add(parent, m[2])
+			} else if m := podDepRe.FindStringSubmatch(trimmed); m != nil && parent != "" {
+				f.addEdge(parent, podBase(m[1]))
 			}
-			f.add(name, m[2])
+		case "DEPENDENCIES":
+			if m := podEntryRe.FindStringSubmatch(trimmed); m != nil {
+				f.addRoot(podBase(m[1]))
+			}
+		case "SPEC REPOS":
+			if m := podSrcPodRe.FindStringSubmatch(trimmed); m != nil {
+				if !srcPublic {
+					f.markNonRegistry(podBase(m[1]))
+				}
+			} else if twoSpaceIndent(trimmed) {
+				if m := podSrcKeyRe.FindStringSubmatch(trimmed); m != nil {
+					srcPublic = podPublicSrc.MatchString(m[1])
+				}
+			}
+		case "EXTERNAL SOURCES":
+			if twoSpaceIndent(trimmed) {
+				if m := podExtKeyRe.FindStringSubmatch(trimmed); m != nil {
+					f.markNonRegistry(podBase(m[1]))
+				}
+			}
 		}
 	}
 	return f, nil

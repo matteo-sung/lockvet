@@ -352,10 +352,11 @@ Data sources:
 (vulnerabilities),
 .I https://deps.dev
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
-NuGet, hex.pm and pub.dev registries and the Go module proxy themselves
+NuGet, hex.pm and pub.dev registries, the CocoaPods CDN and trunk API,
+and the Go module proxy themselves
 (version listings, install scripts, provenance, Go retractions, and — for
-Composer, Hex and Dart — ages and deprecations, which deps.dev does not
-carry).
+Composer, Hex, Dart and CocoaPods — ages and deprecations, which deps.dev
+does not carry).
 `
 
 // runCompletion handles `lockvet completion <shell>` and `lockvet man`.

@@ -55,6 +55,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
+	"github.com/matteo-sung/lockvet/internal/podreg"
 	"github.com/matteo-sung/lockvet/internal/pubreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
@@ -69,6 +70,10 @@ func main() {
 	cargoreg.UseAPI = true
 	// repo.packagist.org (p2) sends no CORS headers; packagist.org does.
 	phpreg.UseAPI = true
+	// cdn.cocoapods.org answers with a CORS-less redirect; its jsDelivr
+	// mirror is CORS-open. trunk (publish dates) has no CORS at all.
+	podreg.CDNURL = "https://cdn.jsdelivr.net/cocoa"
+	podreg.UseTrunk = false
 	js.Global().Set("lockvetRun", js.FuncOf(runPromise))
 	js.Global().Set("lockvetVersion", version)
 	select {}
@@ -306,6 +311,13 @@ func run(opts js.Value) (js.Value, error) {
 		// pub.dev's API is CORS-open — same route as the CLI.
 		if ok, err := pubreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("pub.dev registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// CocoaPods: CDN index + podspecs via the jsDelivr mirror
+		// (no ages in the browser — trunk sends no CORS headers).
+		if ok, err := podreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("CocoaPods registry check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

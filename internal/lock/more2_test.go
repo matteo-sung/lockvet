@@ -1,6 +1,9 @@
 package lock
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestPodfileLock(t *testing.T) {
 	f := mustParse(t, "Podfile.lock", `PODS:
@@ -16,6 +19,19 @@ func TestPodfileLock(t *testing.T) {
 
 DEPENDENCIES:
   - Alamofire (~> 5.4)
+  - Firebase/Core
+  - LocalPod (from `+"`"+`../LocalPod`+"`"+`)
+
+SPEC REPOS:
+  trunk:
+    - AFNetworking
+    - Alamofire
+  "https://github.com/acme/private-specs.git":
+    - GoogleUtilities
+
+EXTERNAL SOURCES:
+  LocalPod:
+    :path: "../LocalPod"
 
 SPEC CHECKSUMS:
   Alamofire: f3b09a368f1582ab751b3fff5460276e0d2cf5c9
@@ -31,6 +47,31 @@ COCOAPODS: 1.11.2
 		"GoogleUtilities": {"7.7.0"},
 		"Firebase":        {"8.9.0"},
 	})
+	if !f.RootsKnown {
+		t.Fatal("roots not recorded")
+	}
+	wantRoots := []string{"Alamofire", "Firebase", "LocalPod"}
+	if fmt.Sprint(f.Roots) != fmt.Sprint(wantRoots) {
+		t.Errorf("roots = %v, want %v", f.Roots, wantRoots)
+	}
+	// Subspec deps collapse to base pods; self-edges (AFNetworking →
+	// AFNetworking/NSURLSession) are dropped.
+	if got := f.Deps["Firebase"]; len(got) != 1 || got[0] != "FirebaseCore" {
+		t.Errorf("Firebase deps = %v", got)
+	}
+	if got := f.Deps["AFNetworking"]; len(got) != 0 {
+		t.Errorf("AFNetworking deps = %v (self-edges should drop)", got)
+	}
+	// git/path pods and private-specs-repo pods are NonRegistry.
+	if !f.NonRegistry["LocalPod"] {
+		t.Error("LocalPod (EXTERNAL SOURCES) not marked NonRegistry")
+	}
+	if !f.NonRegistry["GoogleUtilities"] {
+		t.Error("GoogleUtilities (private specs repo) not marked NonRegistry")
+	}
+	if f.NonRegistry["Alamofire"] || f.NonRegistry["AFNetworking"] {
+		t.Error("trunk pods wrongly marked NonRegistry")
+	}
 }
 
 func TestDenoLockV4(t *testing.T) {

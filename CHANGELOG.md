@@ -4,6 +4,41 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.15 — 2026-08-05
+
+- **CocoaPods joins the registry lineup** (npm · PyPI · crates.io ·
+  RubyGems · Packagist · NuGet · Hex · Go · Pub · CocoaPods) — and it is
+  the biggest blank spot filled yet: neither OSV *nor* deps.dev has a
+  CocoaPods system, so until now `Podfile.lock` diffs were explained with
+  no registry data at all. lockvet now reads the registry the same way
+  `pod install` does:
+  - **Registry-verified unlisted detection** from the sharded CDN index
+    (`all_pods_versions_*.txt` — the exact file CocoaPods resolves
+    against): an incoming version missing while the pod's other versions
+    are listed is what a deleted or moderated release looks like.
+  - **Release ages and the ⏱ cooldown flag** from the trunk API's
+    per-version publish timestamps.
+  - **Deprecated pods** land in the deprecation lane with the podspec's
+    named successor (`● deprecated upstream: deprecated on CocoaPods; in
+    favor of FirebaseCrashlytics` — a live catch on `Fabric`).
+    `pod trunk deprecate` rewrites every version's podspec, so the
+    incoming version's spec carries the verdict.
+  - **License changes** old → new from the two versions' podspecs, and
+    the **upstream source repo** from `source.git` feeds the tag-verified
+    changelog/compare-link layer (Firebase's monorepo links resolve).
+- **`Podfile.lock` parsing got the full treatment** while at it:
+  - **Via-chains**: the PODS section's requirement lines build the
+    dependency graph, and DEPENDENCIES supplies the roots — pod bumps now
+    say `(direct)` or `via Firebase › FirebaseCore` like npm and Cargo
+    diffs do, and `-only <pod>` follows the chains.
+  - **NonRegistry exemptions**: pods pinned from git/path (`EXTERNAL
+    SOURCES`) or served by a private specs repo (any `SPEC REPOS` key
+    besides trunk) are exempt from registry checks — Signal-iOS's
+    git-pinned `LibSignalClient` stays quiet, no false ▲.
+- The browser playground reads the CDN through its CORS-open jsDelivr
+  mirror (podspecs + version index; trunk sends no CORS headers, so
+  in-browser pod reports carry no ages).
+
 ## v0.3.14 — 2026-08-05
 
 - **pub.dev joins the registry lineup** (npm · PyPI · crates.io ·

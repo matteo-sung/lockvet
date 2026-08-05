@@ -678,7 +678,10 @@ Every incoming version is checked against its registry (via deps.dev):
   retracted shows the rationale comment from the module's own `go.mod`
   (`● deprecated upstream: retracted: https://github.com/klauspost/compress/issues/1114`),
   and modules with a `// Deprecated:` notice are flagged even before
-  deps.dev re-indexes them.
+  deps.dev re-indexes them. CocoaPods deprecations come from the pod's own
+  podspec on the CDN — `pod trunk deprecate` rewrites it for every version —
+  including the named successor
+  (`● deprecated upstream: deprecated on CocoaPods; in favor of FirebaseCrashlytics`).
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -724,13 +727,14 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub and Go packages
+For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, CocoaPods and Go packages
 the flag is **double-checked against the registry itself**: deps.dev can lag
 the registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
 API / the crates.io sparse index / the RubyGems compact index /
 Packagist's Composer metadata endpoint / NuGet's registration index /
-hex.pm's and pub.dev's packages APIs / the Go module proxy and
+hex.pm's and pub.dev's packages APIs / the sharded CocoaPods CDN index
+(the same file `pod install` resolves against) / the Go module proxy and
 clears the flag for any version the registry serves. What survives is a
 version the registry itself no longer lists — and that distinction has
 teeth: on crates.io yanked versions *stay in the index* while deleted
@@ -881,7 +885,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Java / JVM | `gradle.lockfile` |
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
-| iOS / CocoaPods | `Podfile.lock` |
+| iOS / CocoaPods | `Podfile.lock` — release ages, deprecated-pod flags, license changes and the unlisted check straight from the CocoaPods CDN and trunk registry (git/path pods and private specs repos exempt) |
 | R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
 | Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
 | Haskell | `stack.yaml.lock`, `cabal.project.freeze`, `cabal.config` (Stackage pins) — Hackage advisories (`HSEC-…`) |
@@ -894,7 +898,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 
 Notes: direct/`via …` origin labels appear where the lockfile records its
 dependency graph: npm, pnpm, yarn, Cargo, uv, poetry, Composer, Bundler,
-renv, pixi/conda-lock, Julia manifests, Gleam, and Go modules (go.mod's `// indirect` markers give direct/transitive,
+renv, pixi/conda-lock, Julia manifests, Gleam, CocoaPods, and Go modules (go.mod's `// indirect` markers give direct/transitive,
 without chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
 Gradle, …) skip the label.
 Deno's `jsr:` packages, CocoaPods, conda channels, Terraform providers,
@@ -906,13 +910,14 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world and Dart are the exceptions: deps.dev has no
-Composer, Hex or Pub system at all, so lockvet asks Packagist, hex.pm and
-pub.dev directly — release ages, deprecation warnings (Composer `abandoned`,
-Hex retirements, pub.dev discontinued packages and retracted versions),
+skip those checks. PHP, the BEAM world, Dart and iOS are the exceptions: deps.dev has no
+Composer, Hex, Pub or CocoaPods system at all, so lockvet asks Packagist, hex.pm,
+pub.dev and the CocoaPods registry directly — release ages, deprecation warnings (Composer `abandoned`,
+Hex retirements, pub.dev discontinued packages and retracted versions,
+CocoaPods deprecated pods with their named replacement),
 changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml` and `pubspec.lock` too (plus license
-changes for Composer; Hex and pub.dev keep no per-release license history,
+`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock` and `Podfile.lock` too (plus license
+changes for Composer and CocoaPods; Hex and pub.dev keep no per-release license history,
 so that one check is honestly skipped there).
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
@@ -954,7 +959,8 @@ parsers are ~50 lines each.
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
    its ⏱ flag; NuGet registration `published` times do the same for .NET
    packages; for Composer, Hex and Dart packages the ages come straight from
-   Packagist, hex.pm and pub.dev, which deps.dev doesn't cover at all; Go tags cut
+   Packagist, hex.pm and pub.dev, which deps.dev doesn't cover at all;
+   pods get theirs from the CocoaPods trunk API's per-version timestamps; Go tags cut
    minutes ago get theirs from the module proxy's `.info` endpoint, and
    pseudo-versions carry their commit time in the version string itself,
    so those age for free. The proxy's latest `go.mod` also supplies
@@ -970,7 +976,8 @@ parsers are ~50 lines each.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
-crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev / Go-module-proxy
+crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev /
+CocoaPods-CDN-and-trunk / Go-module-proxy
 metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.
