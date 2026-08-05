@@ -49,14 +49,25 @@ func TestMixLock(t *testing.T) {
   "phoenix": {:hex, :phoenix, "1.7.10", "cffd", [:mix], [{:castore, ">= 0.0.0", [hex: :castore]}], "hexpm", "aaa"},
   "plug": {:hex, :plug, "1.15.2", "bbb", [:mix], [], "hexpm", "ccc"},
   "my_git_dep": {:git, "https://github.com/x/y.git", "deadbeef", []},
+  "acme_core": {:hex, :acme_core, "0.3.1", "ddd", [:mix], [{:plug, "~> 1.0", [hex: :plug, repo: "hexpm"]}], "acme", "eee"},
+  "chatterbox": {:hex, :ts_chatterbox, "0.16.0", "fff", [:rebar3], [], "hexpm", "ggg"},
 }
 `)
 	if f.Ecosystem != Hex {
 		t.Errorf("ecosystem = %s", f.Ecosystem)
 	}
 	wantPkgs(t, f, map[string][]string{
-		"phoenix": {"1.7.10"}, "plug": {"1.15.2"},
+		// ts_chatterbox: the Hex package name (after :hex), not the OTP
+		// app name keying the map, is what registries and OSV know.
+		"phoenix": {"1.7.10"}, "plug": {"1.15.2"}, "acme_core": {"0.3.1"},
+		"ts_chatterbox": {"0.16.0"},
 	})
+	if !f.NonRegistry["acme_core"] {
+		t.Errorf("acme_core (private hex repo) should be NonRegistry")
+	}
+	if f.NonRegistry["phoenix"] || f.NonRegistry["plug"] {
+		t.Errorf("hexpm entries must stay registry: %v", f.NonRegistry)
+	}
 }
 
 func TestPubspecLock(t *testing.T) {

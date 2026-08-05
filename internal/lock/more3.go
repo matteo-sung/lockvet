@@ -239,6 +239,12 @@ func parseGleamManifest(p string, data []byte) (*File, error) {
 			continue
 		}
 		f.add(name, version)
+		// Gleam can also resolve packages from git or a local path;
+		// those never appear on hex.pm and must not trip registry
+		// signals.
+		if m := gleamSourceRe.FindStringSubmatch(line); m != nil && m[1] != "hex" {
+			f.markNonRegistry(name)
+		}
 		if m := gleamReqArrayRe.FindStringSubmatch(line); m != nil {
 			for _, item := range strings.Split(m[1], ",") {
 				if d := strings.Trim(strings.TrimSpace(item), `"`); d != "" {
@@ -251,6 +257,7 @@ func parseGleamManifest(p string, data []byte) (*File, error) {
 }
 
 var gleamVersionRe = regexp.MustCompile(`version\s*=\s*"([^"]+)"`)
+var gleamSourceRe = regexp.MustCompile(`source\s*=\s*"([^"]+)"`)
 
 // sniffManifestTOML routes the ambiguous basename: Julia writes
 // Manifest.toml (and historically some tooling lowercases it), Gleam

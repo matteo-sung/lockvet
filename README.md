@@ -662,7 +662,11 @@ Every incoming version is checked against its registry (via deps.dev):
   replacement package deps.dev drops
   (`● deprecated upstream: legacy; use Azure.Storage.Common instead`), and
   [author-unlisted](https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages)
-  versions surface in this lane as well.
+  versions surface in this lane as well. Hex
+  [retirements](https://hexdocs.pm/hex/Mix.Tasks.Hex.Retire.html) — the BEAM
+  world's per-version deprecation — land here too, straight from hex.pm,
+  with the maintainer's reason and message
+  (`● deprecated upstream: retired: deprecated — Not really maintained, please check out Tesla`).
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -708,12 +712,13 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI, crates.io, RubyGems, Packagist and NuGet packages the flag
-is **double-checked against the registry itself**: deps.dev can lag the
-registries by days, so before claiming anything lockvet fetches the
+For npm, PyPI, crates.io, RubyGems, Packagist, NuGet and Hex packages the
+flag is **double-checked against the registry itself**: deps.dev can lag
+the registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
 API / the crates.io sparse index / the RubyGems compact index /
-Packagist's Composer metadata endpoint / NuGet's registration index and
+Packagist's Composer metadata endpoint / NuGet's registration index /
+hex.pm's packages API and
 clears the flag for any version the registry serves. What survives is a
 version the registry itself no longer lists — and that distinction has
 teeth: on crates.io yanked versions *stay in the index* while deleted
@@ -859,7 +864,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Go | `go.mod` |
 | PHP | `composer.lock` |
 | Ruby | `Gemfile.lock` |
-| Elixir | `mix.lock` |
+| Elixir | `mix.lock` — release ages, retirements and the unlisted check straight from hex.pm; renamed forks (`{:hex, :ts_chatterbox, …}`) resolve under their real Hex package name |
 | Dart / Flutter | `pubspec.lock` |
 | Java / JVM | `gradle.lockfile` |
 | .NET | `packages.lock.json` |
@@ -868,7 +873,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
 | Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
 | Haskell | `stack.yaml.lock`, `cabal.project.freeze`, `cabal.config` (Stackage pins) — Hackage advisories (`HSEC-…`) |
-| Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]` |
+| Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]`; ages/retirements/unlisted from hex.pm (git/path packages exempt) |
 | Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — pip packages inside get full PyPI vulnerability/age data |
 | Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — default-registry hosts stripped, registry links for terraform.io & OpenTofu providers |
 | Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
@@ -889,10 +894,13 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP is the exception: deps.dev has no Composer system at
-all, so lockvet asks Packagist directly — release ages, abandoned-package
-warnings, license changes, changelog links and the unlisted check all work
-for `composer.lock` too.
+skip those checks. PHP and the BEAM world are the exceptions: deps.dev has no
+Composer or Hex system at all, so lockvet asks Packagist and hex.pm directly —
+release ages, deprecation warnings (Composer `abandoned`, Hex retirements),
+changelog links and the unlisted check all work for `composer.lock`,
+`mix.lock` and Gleam's `manifest.toml` too (plus license changes for
+Composer; Hex keeps no per-release license history, so that one check is
+honestly skipped for Elixir).
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
 
@@ -922,7 +930,7 @@ parsers are ~50 lines each.
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
-   PyPI, crates.io, RubyGems, Packagist and NuGet the flag is
+   PyPI, crates.io, RubyGems, Packagist, NuGet and Hex the flag is
    double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
    install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
@@ -932,8 +940,8 @@ parsers are ~50 lines each.
    RubyGems the compact index's own `created_at` times fill in ages
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
    its ⏱ flag; NuGet registration `published` times do the same for .NET
-   packages; for Composer packages the ages come straight from Packagist,
-   which deps.dev doesn't cover at all.
+   packages; for Composer and Hex packages the ages come straight from
+   Packagist and hex.pm, which deps.dev doesn't cover at all.
 6. Each changed package's source repository (from deps.dev) has its tag list
    fetched over git's smart-HTTP protocol — one anonymous GET per repo, the
    same request `git ls-remote` makes. Old and new versions are matched
@@ -943,8 +951,9 @@ parsers are ~50 lines each.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
-crates.io / RubyGems / Packagist / NuGet metadata fetches for changed
-packages of those ecosystems, and the anonymous git tag listings above.
+crates.io / RubyGems / Packagist / NuGet / hex.pm metadata fetches for
+changed packages of those ecosystems, and the anonymous git tag listings
+above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 

@@ -22,6 +22,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
+	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
@@ -139,6 +140,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		// the metadata layer (ages, abandoned, licenses, unlisted).
 		if ok, err := phpreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Packagist registry check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := hexreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("hex.pm registry check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}

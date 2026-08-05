@@ -48,6 +48,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
+	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
@@ -291,6 +292,12 @@ func run(opts js.Value) (js.Value, error) {
 		// metadata layer (its packages endpoint is CORS-open).
 		if ok, err := phpreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("Packagist registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// hex.pm's API is CORS-open — same route as the CLI.
+		if ok, err := hexreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("hex.pm registry check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

@@ -4,6 +4,42 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.12 — 2026-08-05
+
+- **Hex joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·
+  Packagist · NuGet · Hex) — and like Packagist, hex.pm isn't a
+  double-check here, it's the *whole* metadata layer: deps.dev has no Hex
+  system, so until now Elixir and Gleam diffs had vulnerability data but
+  no ages, no deprecations, nothing. One anonymous GET per changed
+  package against hex.pm's CORS-open packages API (the browser playground
+  gets every signal too):
+  - **Release ages and the ⏱ cooldown flag** from each release's
+    `inserted_at` — `-fail-on fresh` now works for the BEAM world.
+  - **Retired releases land in the deprecation lane** with the
+    maintainer's reason and message (`● deprecated upstream: retired:
+    deprecated — Not really maintained, please check out Tesla`);
+    `-fail-on deprecated` gates them.
+  - **Registry-verified unlisted detection**: hex.pm deletes releases
+    only in the first hour (or by admin action against malware) — an
+    incoming version missing while the package's other versions are
+    listed earns the ▲ flag.
+  - **Changelog links**: the upstream repo from the package's links
+    powers verified tag-to-tag compare links and `-changelogs`.
+  - Hex keeps no per-release license history, so license-change
+    detection is honestly skipped for this ecosystem.
+- **mix.lock renamed forks resolve correctly**: the lockfile's map key is
+  the OTP *application* name, but the Hex *package* name is the atom
+  after `:hex` — for renamed forks like `"chatterbox": {:hex,
+  :ts_chatterbox, …}` lockvet now reports (and queries OSV/hex.pm for)
+  `ts_chatterbox`, fixing both phantom ▲ flags and advisories matched
+  against the wrong package's versions.
+- **Private Hex repos exempt**: `mix.lock` entries resolved from a
+  non-`"hexpm"` repo, and Gleam `manifest.toml` packages with git/path
+  sources, are never judged against hex.pm.
+- Rate limit note: hex.pm allows 100 anonymous requests/minute; lockvet
+  sends one per changed package and surfaces a hint (set `HEX_API_KEY`)
+  if you ever hit it.
+
 ## v0.3.11 — 2026-08-05
 
 - **NuGet joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·

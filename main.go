@@ -25,6 +25,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
+	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
@@ -593,6 +594,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := hexreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: hex.pm registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if metaChecked {
 			taglink.Annotate(diffs) // verified changelog/compare links
 			if *changelogs {
@@ -1006,6 +1012,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 	if !o.noMeta {
 		if ok, err := phpreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Packagist registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := hexreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: hex.pm registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

@@ -37,14 +37,25 @@ func parsePipfileLock(p string, data []byte) (*File, error) {
 //	"phoenix": {:hex, :phoenix, "1.7.10", "aaaaaaaa...", [:mix], [...], "hexpm", "bbbb..."},
 //
 // Only :hex entries carry a registry version; :git/:path entries are skipped.
+// The map key is the OTP application name; the Hex PACKAGE name is the
+// atom after :hex — they differ for renamed forks ("chatterbox": {:hex,
+// :ts_chatterbox, ...}), and the package name is what hex.pm and OSV
+// know, so that is the name lockvet reports. Entries resolved from a
+// private/self-hosted Hex repo (the repo element after the deps list is
+// not "hexpm") are NonRegistry — hex.pm knows nothing about them and
+// must not judge their versions.
 
-var mixHexRe = regexp.MustCompile(`^\s*"([^"]+)":\s*\{:hex,\s*:[^,]+,\s*"([^"]+)"`)
+var mixHexRe = regexp.MustCompile(`^\s*"([^"]+)":\s*\{:hex,\s*:([A-Za-z0-9_]+),\s*"([^"]+)"`)
+var mixRepoRe = regexp.MustCompile(`\],\s*"([^"]+)"(?:,\s*"[0-9a-fA-F]+")?\},?\s*$`)
 
 func parseMixLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "mix.lock", Hex)
 	for _, line := range strings.Split(string(data), "\n") {
 		if m := mixHexRe.FindStringSubmatch(line); m != nil {
-			f.add(m[1], m[2])
+			f.add(m[2], m[3])
+			if r := mixRepoRe.FindStringSubmatch(line); r != nil && r[1] != "hexpm" {
+				f.markNonRegistry(m[2])
+			}
 		}
 	}
 	return f, nil
