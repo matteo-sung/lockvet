@@ -130,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.10 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.11 lockvet
 ```
 
 ### Shell completions & man page
@@ -373,7 +373,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.10
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.11
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -443,7 +443,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.10", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.11", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -496,7 +496,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.10
+      - uses: matteo-sung/lockvet@v0.3.11
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -523,7 +523,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.10
+      - uses: matteo-sung/lockvet@v0.3.11
         with:
           sarif: 'true'
 ```
@@ -543,7 +543,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.10
+  image: ghcr.io/matteo-sung/lockvet:0.3.11
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -568,7 +568,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.10
+          image: ghcr.io/matteo-sung/lockvet:0.3.11
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -586,7 +586,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.10
+    container: ghcr.io/matteo-sung/lockvet:0.3.11
     steps:
       - checkout: none
       - script: >
@@ -610,7 +610,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.10
+    image: ghcr.io/matteo-sung/lockvet:0.3.11
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -628,7 +628,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.10
+    rev: v0.3.11
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -657,7 +657,12 @@ Every incoming version is checked against its registry (via deps.dev):
   packages get the same treatment straight from Packagist: a bump onto an
   [abandoned](https://getcomposer.org/doc/04-schema.md#abandoned) package
   is flagged with the maintainer's suggested replacement
-  (`● deprecated upstream: abandoned; use symfony/mailer instead`).
+  (`● deprecated upstream: abandoned; use symfony/mailer instead`). NuGet
+  deprecations come straight from the registration index too, including the
+  replacement package deps.dev drops
+  (`● deprecated upstream: legacy; use Azure.Storage.Common instead`), and
+  [author-unlisted](https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages)
+  versions surface in this lane as well.
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -703,12 +708,12 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm, PyPI, crates.io, RubyGems and Packagist packages the flag is
-**double-checked against the registry itself**: deps.dev can lag the
+For npm, PyPI, crates.io, RubyGems, Packagist and NuGet packages the flag
+is **double-checked against the registry itself**: deps.dev can lag the
 registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
 API / the crates.io sparse index / the RubyGems compact index /
-Packagist's Composer metadata endpoint and
+Packagist's Composer metadata endpoint / NuGet's registration index and
 clears the flag for any version the registry serves. What survives is a
 version the registry itself no longer lists — and that distinction has
 teeth: on crates.io yanked versions *stay in the index* while deleted
@@ -716,6 +721,16 @@ teeth: on crates.io yanked versions *stay in the index* while deleted
 release from the index altogether, so a bump onto a yanked or
 admin-deleted gem keeps the flag (replaying the 2019 `strong_password`
 0.0.7 hijack trips it today).
+
+NuGet is the one registry where "unlisted" is a *native* concept, and
+lockvet splits it the way NuGet does: a stable version **absent from the
+registration index entirely** — what an admin-deleted (malicious) package
+looks like — keeps the ▲ flag, while a version its author merely
+[unlisted](https://learn.microsoft.com/en-us/nuget/nuget-org/policies/deleting-packages)
+(hidden from search, still restorable) lands in the deprecation lane
+instead. Absent *prereleases* are cleared rather than flagged: on NuGet
+those are overwhelmingly CI-feed daily builds (Roslyn nightlies and
+friends) that `packages.lock.json` cannot attribute to their real feed.
 
 A release published minutes ago may also not be indexed yet — the flag
 tells you to *look*, not to panic. Gate on it with `-fail-on unlisted`;
@@ -907,8 +922,8 @@ parsers are ~50 lines each.
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
-   PyPI, crates.io, RubyGems and Packagist the flag is double-checked against the
-   registry itself, which also tells lockvet when a bump [suddenly adds
+   PyPI, crates.io, RubyGems, Packagist and NuGet the flag is
+   double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
    install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
    release was yanked or its project archived or quarantined). Versions younger than `-fresh-days` (default 7) get a
@@ -916,8 +931,9 @@ parsers are ~50 lines each.
    days of publication, so a short cooldown filters most of them out. For
    RubyGems the compact index's own `created_at` times fill in ages
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
-   its ⏱ flag; for Composer packages the ages come straight from
-   Packagist, which deps.dev doesn't cover at all.
+   its ⏱ flag; NuGet registration `published` times do the same for .NET
+   packages; for Composer packages the ages come straight from Packagist,
+   which deps.dev doesn't cover at all.
 6. Each changed package's source repository (from deps.dev) has its tag list
    fetched over git's smart-HTTP protocol — one anonymous GET per repo, the
    same request `git ls-remote` makes. Old and new versions are matched
@@ -927,8 +943,8 @@ parsers are ~50 lines each.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
 queries (package names + versions), anonymous npm-registry / PyPI /
-crates.io / RubyGems / Packagist metadata fetches for changed packages of
-those ecosystems, and the anonymous git tag listings above.
+crates.io / RubyGems / Packagist / NuGet metadata fetches for changed
+packages of those ecosystems, and the anonymous git tag listings above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 

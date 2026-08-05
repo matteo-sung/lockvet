@@ -50,6 +50,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
+	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
@@ -313,6 +314,11 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		if err := cargoreg.Annotate(diffs); err != nil {
 			warnings = append(warnings, fmt.Sprintf("crates.io registry check skipped: %v", err))
+		}
+		// api.nuget.org allows cross-origin requests: full NuGet signals
+		// in the browser too.
+		if err := nugetreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("NuGet registry check skipped: %v", err))
 		}
 	}
 

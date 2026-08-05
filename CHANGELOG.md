@@ -4,6 +4,34 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.11 — 2026-08-05
+
+- **NuGet joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·
+  Packagist · NuGet). One anonymous GET per changed package against the
+  registration index — the same metadata endpoint `dotnet restore` reads,
+  CORS-open, so the browser playground gets every signal too:
+  - **Unlisted, the way NuGet itself means it.** NuGet is the one
+    registry where "unlisted" is a native concept: a *stable* incoming
+    version absent from the registration index entirely — what an
+    admin-deleted (malicious) package looks like — gets the ▲ flag,
+    registry-verified; a version its author merely unlisted
+    (`listed:false`, hidden from search but still restorable) lands in
+    the deprecation lane instead.
+  - **Fewer false ▲ flags than before, not more**: absent *prereleases*
+    are now cleared rather than flagged — on NuGet those are
+    overwhelmingly CI-feed daily builds (Roslyn nightlies and friends)
+    that `packages.lock.json` cannot attribute to their real feed. The
+    deps.dev-only layer used to flag them.
+  - **Deprecations with the replacement package deps.dev drops**:
+    `● deprecated upstream: legacy; use Azure.Storage.Common instead`
+    (deps.dev relays only the bare reason).
+  - **Release-age backfill** from registration `published` times when
+    deps.dev lags (NuGet's 1900-01-01 unlisted sentinel is ignored), and
+    **license-change fallback** from per-version `licenseExpression`.
+  - Packages with long version histories page their registration index;
+    lockvet fetches only the pages whose version range covers a version
+    the diff mentions.
+
 ## v0.3.10 — 2026-08-05
 
 - **PHP finally gets real metadata: Packagist joins the registry lineup**

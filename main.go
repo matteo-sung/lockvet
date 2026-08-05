@@ -27,6 +27,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
+	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
@@ -612,6 +613,9 @@ func main() {
 		if err := gemreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: RubyGems registry check skipped: %v\n", err)
 		}
+		if err := nugetreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: NuGet registry check skipped: %v\n", err)
+		}
 	}
 
 	sum := diffx.Summarize(diffs)
@@ -1016,6 +1020,9 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if err := gemreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: RubyGems registry check skipped: %v\n", err)
+		}
+		if err := nugetreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: NuGet registry check skipped: %v\n", err)
 		}
 	}
 

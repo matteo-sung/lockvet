@@ -24,6 +24,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
+	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
@@ -158,6 +159,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if err := gemreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("RubyGems registry check skipped: %v", err))
+		}
+		if err := nugetreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("NuGet registry check skipped: %v", err))
 		}
 	}
 	v.diffs = diffs
