@@ -256,10 +256,14 @@ So, honestly stated, here is what each lockvet gate buys you:
   it), but when it fires it is loud, and legitimate none→some transitions
   are rare enough to review by hand.
 - **`-fail-on provenance`** is a second **T+0** tripwire, for the packages
-  that publish with [sigstore provenance](https://docs.npmjs.com/generating-provenance-statements):
-  a stolen npm token can publish a release, but it cannot make the
+  that publish with [sigstore provenance](https://docs.npmjs.com/generating-provenance-statements)
+  on npm or [PEP 740 attestations](https://peps.python.org/pep-0740/) on
+  PyPI: a stolen publish token can ship a release, but it cannot make the
   project's CI attest it, so the fake release shows up with the
-  attestation missing where every previous release had one. None of the
+  attestation missing where every previous release had one. (It's a
+  *token-theft* tripwire specifically: ultralytics-style attacks that
+  poison the project's own build pipeline produce validly-attested
+  malware — the attestation only proves the files came from that CI.) None of the
   2018–2025 packages above attested *at the time* (the flag is only as
   broad as provenance adoption — though `@ctrl/tinycolor` started
   attesting right after Shai-Hulud), but for the growing set that do —
