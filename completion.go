@@ -207,9 +207,9 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 29 lockfile formats across the npm, pnpm, yarn, bun, Cargo,
+It understands 30 lockfile formats across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex, pub, Gradle, NuGet,
-Swift, CocoaPods, Deno, Nix, conda, R, Julia, Haskell, Gleam,
+Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, and Helm ecosystems, plus CycloneDX and SPDX JSON
 SBOMs \(em all in one static binary.
 .SH MODES
@@ -353,10 +353,10 @@ Data sources:
 .I https://deps.dev
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
 NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
-the Terraform and OpenTofu registries,
+the Terraform and OpenTofu registries, ConanCenter,
 the Go module proxy, and the Maven repositories (Central and Google) themselves
 (version listings, install scripts, provenance, Go retractions, Maven
-relocations, and — for Composer, Hex, Dart, JSR, CocoaPods and Terraform —
+relocations, and — for Composer, Hex, Dart, JSR, CocoaPods, Conan and Terraform —
 ages and deprecations, which deps.dev does not carry).
 `
 

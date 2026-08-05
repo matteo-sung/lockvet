@@ -4,6 +4,33 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.19 — 2026-08-05
+
+- **Conan support** — `conan.lock` is lockfile format #30, covering C/C++:
+  - **Conan 2 flat lockfiles** (`requires` / `build_requires` /
+    `python_requires` / `config_requires`) and **Conan 1 graph locks**
+    (whose node graph gives direct/`via …` origin labels) both parse;
+    references pinned with a user/channel are marked non-registry and
+    never checked against ConanCenter.
+  - **Release ages and the ⏱ cooldown flag straight from ConanCenter**
+    (the live `center2.conan.io` remote — the frozen legacy remote would
+    misdate everything recent). A version is dated by its *oldest*
+    recipe revision, so recipe re-exports don't make five-year-old
+    releases look fresh. `-fail-on fresh` works for C/C++ diffs.
+  - Deliberately **no unlisted claims**: a Conan reference doesn't
+    record which remote it came from, and real projects layer private
+    remotes over ConanCenter for the same package names — absence from
+    ConanCenter proves nothing.
+  - OSV's `ConanCenter` ecosystem is queried too; it is near-empty
+    today, so advisories will surface on `conan.lock` diffs
+    automatically as it fills in. Markdown output links package names
+    to conan.io/center recipe pages.
+  - ConanCenter sends no CORS headers, so the browser playground skips
+    the registry layer for Conan (diffs still parse and classify).
+- New animated demo: the Sept 2025 chalk+debug npm takeover replayed
+  during its two-hour live window
+  ([docs/supplychain-demo.gif](docs/supplychain-demo.gif)).
+
 ## v0.3.18 — 2026-08-05
 
 - **JSR joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·

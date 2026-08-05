@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.matteo-sung/lockvet",
   "title": "lockvet",
-  "description": "Explain any lockfile change: bumps, new & fixed vulns, release ages, deprecations — 29 formats",
+  "description": "Explain any lockfile change: bumps, new & fixed vulns, release ages, deprecations — 30 formats",
   "repository": {
     "url": "https://github.com/matteo-sung/lockvet",
     "source": "github"
   },
   "websiteUrl": "https://matteo-sung.github.io/lockvet/",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/matteo-sung/lockvet:0.3.18",
+      "identifier": "ghcr.io/matteo-sung/lockvet:0.3.19",
       "transport": {
         "type": "stdio"
       },

@@ -60,6 +60,12 @@ const (
 	// "GitHub Actions").
 	GitHubActions Ecosystem = "GitHub Actions"
 
+	// Conan covers conan.lock (C/C++). "ConanCenter" is a valid OSV
+	// ecosystem (currently near-empty — advisories will surface here
+	// automatically if it fills in); deps.dev has no Conan system, so
+	// internal/conanreg is the metadata layer for these lockfiles.
+	Conan Ecosystem = "ConanCenter"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -73,7 +79,8 @@ const (
 func (e Ecosystem) HasOSV() bool {
 	switch e {
 	case NPM, CratesIO, PyPI, Go, Packagist, RubyGems, Hex, Pub, Maven,
-		NuGet, SwiftURL, GitHubActions, CRAN, Bioconductor, Julia, Hackage:
+		NuGet, SwiftURL, GitHubActions, CRAN, Bioconductor, Julia, Hackage,
+		Conan:
 		return true
 	}
 	// Release-qualified distro ecosystems derived from SBOM purl
@@ -296,6 +303,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"stack.yaml.lock", Hackage, parseStackYamlLock}
 	case "cabal.project.freeze", "cabal.config":
 		return &Parser{"cabal.project.freeze", Hackage, parseCabalFreeze}
+	case "conan.lock":
+		return &Parser{"conan.lock", Conan, parseConanLock}
 	}
 	base := path.Base(p)
 	// conda-lock supports named unified lockfiles (chipyard keeps
@@ -345,6 +354,6 @@ func KnownBasenames() []string {
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
-		"bom.json", "sbom.json",
+		"conan.lock", "bom.json", "sbom.json",
 	}
 }

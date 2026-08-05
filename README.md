@@ -60,12 +60,12 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, or a whole
   Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 29 lockfile formats:
+- **across every ecosystem, in one static binary** — 30 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
-  Gradle, NuGet, Swift Package Manager, CocoaPods, R/renv, conda/pixi,
-  Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu, Helm,
-  Nix flakes — plus CycloneDX & SPDX SBOMs
+  Gradle, NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
+  conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
+  Helm, Nix flakes — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -130,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.18 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.19 lockvet
 ```
 
 ### Shell completions & man page
@@ -373,7 +373,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.18
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.19
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -443,7 +443,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.18", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.19", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -496,7 +496,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.18
+      - uses: matteo-sung/lockvet@v0.3.19
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -523,7 +523,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.18
+      - uses: matteo-sung/lockvet@v0.3.19
         with:
           sarif: 'true'
 ```
@@ -543,7 +543,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.18
+  image: ghcr.io/matteo-sung/lockvet:0.3.19
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -568,7 +568,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.18
+          image: ghcr.io/matteo-sung/lockvet:0.3.19
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -586,7 +586,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.18
+    container: ghcr.io/matteo-sung/lockvet:0.3.19
     steps:
       - checkout: none
       - script: >
@@ -610,7 +610,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.18
+    image: ghcr.io/matteo-sung/lockvet:0.3.19
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -628,7 +628,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.18
+    rev: v0.3.19
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -913,6 +913,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Java / JVM | `gradle.lockfile` — bumps onto [relocation stubs](https://maven.apache.org/guides/mini/guide-relocation.html) (`mysql:mysql-connector-java` → `com.mysql:mysql-connector-j`) land in the deprecation lane, and unlisted checks are verified against Maven Central and Google's Maven repository |
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
+| C / C++ | `conan.lock` (Conan 2 flat lockfiles and Conan 1 graph locks) — release ages straight from ConanCenter, dated by each version's oldest recipe revision so re-exports don't make old releases look fresh (refs with a user/channel exempt; a ref doesn't record its remote, so no unlisted claims) |
 | iOS / CocoaPods | `Podfile.lock` — release ages, deprecated-pod flags, license changes and the unlisted check straight from the CocoaPods CDN and trunk registry (git/path pods and private specs repos exempt) |
 | R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
 | Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
@@ -931,16 +932,18 @@ without chains). Formats that only pin flat versions (`requirements.txt`, `mix.l
 Gradle, …) skip the label.
 Deno's `jsr:` packages, CocoaPods, conda channels, Terraform providers,
 Helm charts, and Nix flakes have no OSV.dev ecosystem (yet), so those
-diffs are explained without vulnerability data — but pip/pypi packages inside `pixi.lock` / `conda-lock.yml` are
+diffs are explained without vulnerability data (Conan HAS one —
+"ConanCenter" — which is still near-empty; advisories will surface on
+`conan.lock` diffs automatically as it fills in) — but pip/pypi packages inside `pixi.lock` / `conda-lock.yml` are
 matched against PyPI advisories like any other Python lockfile.
 SBOM packages keep their own ecosystem per purl; OS packages get OSV data
 when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart, JSR, iOS and Terraform are the exceptions: deps.dev has no
-Composer, Hex, Pub, JSR, CocoaPods or Terraform system at all, so lockvet asks Packagist, hex.pm,
-pub.dev, jsr.io, the CocoaPods registry and the Terraform/OpenTofu registries directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++ and Terraform are the exceptions: deps.dev has no
+Composer, Hex, Pub, JSR, CocoaPods, Conan or Terraform system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, jsr.io, the CocoaPods registry, ConanCenter and the Terraform/OpenTofu registries directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
 JSR yanked versions and archived packages,
 CocoaPods deprecated pods with their named replacement, archived/delisted
@@ -949,6 +952,9 @@ changelog links and the unlisted check all work for `composer.lock`,
 `mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock` and `.terraform.lock.hcl` too (plus license
 changes for Composer and CocoaPods; Hex, pub.dev, jsr.io and the Terraform registry keep no per-release license history,
 so that one check is honestly skipped there).
+`conan.lock` gets release ages only: a Conan reference doesn't record
+which remote it came from, so absence from ConanCenter proves nothing and
+lockvet makes no unlisted or deprecation claims there.
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically.
 
@@ -1011,7 +1017,7 @@ times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
 queries (package names + versions), anonymous npm-registry / PyPI /
 crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev / jsr.io /
 CocoaPods-CDN-and-trunk / Go-module-proxy / Terraform-and-OpenTofu-registry /
-Maven-Central-and-Google-Maven
+Maven-Central-and-Google-Maven / ConanCenter
 metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.

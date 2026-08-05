@@ -37,6 +37,8 @@ func FuzzAllParsers(f *testing.F) {
 		"version: 7\npackages:\n- conda: https://x/a-1.0-b_0.conda\n  depends:\n  - b >=1\n- pypi: https://x/c-2.0-py3-none-any.whl\n  name: c\n  version: '2.0'\n  requires_dist:\n  - d>=1\n",
 		"version: 4\npackages:\n- kind: conda\n  name: a\n  version: '1.0'\n  depends:\n  - b 1.0 x\n",
 		"version: 1\npackage:\n- name: a\n  version: '1.0'\n  manager: conda\n  dependencies:\n    b: '>=1'\n  hash:\n    md5: x\n",
+		"{\"version\":\"0.5\",\"requires\":[\"zlib/1.3.1#abc%123.4\",\"pkg/1.0@user/ch\"]}",
+		"{\"graph_lock\":{\"nodes\":{\"0\":{\"requires\":[\"1\"]},\"1\":{\"ref\":\"a/1.0#r\",\"requires\":[]}}},\"version\":\"0.4\"}",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

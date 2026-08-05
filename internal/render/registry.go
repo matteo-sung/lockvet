@@ -95,6 +95,11 @@ func registryLink(c diffx.Change) string {
 		return "https://www.nuget.org/packages/" + name + "/" + v
 	case "CocoaPods":
 		return "https://cocoapods.org/pods/" + name
+	case "ConanCenter":
+		if v == "" {
+			return "https://conan.io/center/recipes/" + name
+		}
+		return "https://conan.io/center/recipes/" + name + "?version=" + v
 	case "Julia":
 		// JuliaHub's General-registry pages are versioned.
 		if v == "" {
