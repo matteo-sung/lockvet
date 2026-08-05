@@ -160,6 +160,8 @@
         <input type="text" id="only" spellcheck="false" placeholder='e.g. jiff or @babel/* (glob, comma list ok)'>
         <label for="fresh">flag fresher than</label>
         <input type="number" id="fresh" value="7" min="0" style="width:90px"> 
+        <label for="changelogs">release notes</label>
+        <label style="font-weight:normal"><input type="checkbox" id="changelogs"> fetch upstream release notes for every bump (GitHub-hosted upstreams; slower)</label>
         <label for="token">API token</label>
         <input type="password" id="token" autocomplete="off" placeholder="optional — raises the forge's anonymous rate limit; kept in memory only">
         <div class="opthelp">The token is sent only to the forge the URL points at, never anywhere else.</div>
@@ -264,6 +266,7 @@
     return {
       only: $("only").value, token: $("token").value,
       freshDays: Math.max(0, parseInt($("fresh").value, 10) || 0),
+      changelogs: $("changelogs").checked,
     };
   }
   async function runUrl() {
@@ -341,6 +344,7 @@
     p.set("url", url);
     if (opts.only) p.set("only", opts.only);
     if (opts.freshDays !== 7) p.set("fresh", String(opts.freshDays));
+    if (opts.changelogs) p.set("changelogs", "1");
     history.replaceState(null, "", "#" + p.toString());
   }
   function clearHash() {
@@ -356,6 +360,7 @@
     $("url").value = url;
     $("only").value = p.get("only") || "";
     if (p.has("fresh")) $("fresh").value = p.get("fresh");
+    $("changelogs").checked = p.get("changelogs") === "1";
     runUrl();
     return true;
   }

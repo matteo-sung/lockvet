@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/vers"
 )
 
@@ -39,6 +40,12 @@ const (
 
 // APIBase is swappable for tests.
 var APIBase = "https://api.github.com"
+
+// Fallback also queries changes that lack a taglink-verified ReleaseURL
+// but whose deps.dev source repo is on github.com, resolving the tag
+// against the fetched release list itself. Used by the wasm playground,
+// where taglink cannot run (git smart-HTTP has no CORS headers).
+var Fallback = false
 
 var client = &http.Client{Timeout: 15 * time.Second}
 
@@ -67,7 +74,18 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 			c := &diffs[i].Changes[j]
 			owner, repo, tag := parseReleaseURL(c.ReleaseURL)
 			if owner == "" {
-				continue
+				if !Fallback {
+					continue
+				}
+				// No taglink-verified tag (e.g. running in the browser,
+				// where the git smart-HTTP tag check can't happen): fall
+				// back to the GitHub source repo and resolve the tag
+				// against the release list itself once fetched.
+				owner, repo = parseGitHubRepo(c.SourceRepo)
+				if owner == "" || len(c.New) != 1 || c.Kind == diffx.Removed {
+					continue
+				}
+				tag = "" // resolved from the release list below
 			}
 			key := owner + "/" + repo
 			w := byRepo[key]
@@ -108,7 +126,14 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 					continue
 				}
 				for k, c := range w.changes {
-					c.ReleaseNotes = notesFor(c, w.tags[k], rels)
+					tag := w.tags[k]
+					if tag == "" { // Fallback path: match against release tags.
+						tag = resolveFromReleases(c, rels)
+						if tag == "" {
+							continue
+						}
+					}
+					c.ReleaseNotes = notesFor(c, tag, rels)
 				}
 			}
 		}()
@@ -146,6 +171,41 @@ func parseReleaseURL(raw string) (owner, repo, tag string) {
 		return "", "", ""
 	}
 	return segs[0], segs[1], t
+}
+
+// parseGitHubRepo extracts owner/repo from a github.com source-repo URL
+// like https://github.com/OWNER/REPO (as deps.dev reports them).
+func parseGitHubRepo(raw string) (owner, repo string) {
+	if raw == "" {
+		return "", ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() != "github.com" {
+		return "", ""
+	}
+	segs := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(segs) < 2 || segs[0] == "" || segs[1] == "" {
+		return "", ""
+	}
+	return segs[0], strings.TrimSuffix(segs[1], ".git")
+}
+
+// resolveFromReleases finds the release tag marking a change's new version
+// by trying the usual tag-naming conventions against the fetched release
+// list (the Fallback path's substitute for taglink's verified tag set).
+func resolveFromReleases(c *diffx.Change, rels []release) string {
+	tags := make(map[string]bool, len(rels))
+	for _, r := range rels {
+		if !r.Draft {
+			tags[r.TagName] = true
+		}
+	}
+	for _, cand := range taglink.Candidates(c, c.New[0]) {
+		if tags[cand] {
+			return cand
+		}
+	}
+	return ""
 }
 
 // fetchReleases lists a repository's most recent releases (one call).

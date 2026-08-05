@@ -136,3 +136,78 @@ func TestAnnotateSkipsNonGitHub(t *testing.T) {
 		}
 	}
 }
+
+func TestAnnotateFallback(t *testing.T) {
+	s := srv(t, map[string][]release{
+		"o/r": {
+			{TagName: "v2.0.0", Name: "two", Body: "big", HTMLURL: "u2"},
+			{TagName: "v1.0.0", Body: "old", HTMLURL: "u1"},
+		},
+		"o/mono": {
+			{TagName: "pkg-v0.3.0", Body: "mono release", HTMLURL: "um"},
+		},
+	}, 0)
+	defer s.Close()
+	oldBase := APIBase
+	APIBase = s.URL
+	defer func() { APIBase = oldBase }()
+
+	mk := func(name, old, new, srcRepo string) diffx.Change {
+		c := change(name, old, new, "")
+		c.SourceRepo = srcRepo
+		return c
+	}
+	diffs := []diffx.FileDiff{{Changes: []diffx.Change{
+		mk("r", "1.0.0", "2.0.0", "https://github.com/o/r"),
+		mk("pkg", "0.2.0", "0.3.0", "https://github.com/o/mono"),
+		mk("g", "1.0.0", "1.1.0", "https://gitlab.com/o/g"), // non-GitHub: skipped
+		mk("missing", "1.0.0", "9.9.9", "https://github.com/o/r"),
+	}}}
+
+	// Fallback off (the CLI default): nothing without a ReleaseURL is queried.
+	if w := Annotate(diffs, ""); len(w) != 0 {
+		t.Fatalf("warnings: %v", w)
+	}
+	for _, c := range diffs[0].Changes {
+		if len(c.ReleaseNotes) != 0 {
+			t.Fatalf("fallback off but notes fetched: %+v", c)
+		}
+	}
+
+	Fallback = true
+	defer func() { Fallback = false }()
+	if w := Annotate(diffs, ""); len(w) != 0 {
+		t.Fatalf("warnings: %v", w)
+	}
+	got := diffs[0].Changes
+	if len(got[0].ReleaseNotes) != 1 || got[0].ReleaseNotes[0].Tag != "v2.0.0" {
+		t.Errorf("plain v-tag not resolved: %+v", got[0].ReleaseNotes)
+	}
+	if len(got[1].ReleaseNotes) != 1 || got[1].ReleaseNotes[0].Tag != "pkg-v0.3.0" {
+		t.Errorf("release-please tag not resolved: %+v", got[1].ReleaseNotes)
+	}
+	if len(got[2].ReleaseNotes) != 0 {
+		t.Errorf("non-GitHub repo queried: %+v", got[2].ReleaseNotes)
+	}
+	if len(got[3].ReleaseNotes) != 0 {
+		t.Errorf("unmatched version got notes: %+v", got[3].ReleaseNotes)
+	}
+}
+
+func TestParseGitHubRepo(t *testing.T) {
+	cases := []struct {
+		in, owner, repo string
+	}{
+		{"https://github.com/o/r", "o", "r"},
+		{"https://github.com/o/r.git", "o", "r"},
+		{"https://gitlab.com/o/r", "", ""},
+		{"", "", ""},
+		{"https://github.com/o", "", ""},
+	}
+	for _, c := range cases {
+		o, r := parseGitHubRepo(c.in)
+		if o != c.owner || r != c.repo {
+			t.Errorf("parseGitHubRepo(%q) = %q,%q; want %q,%q", c.in, o, r, c.owner, c.repo)
+		}
+	}
+}

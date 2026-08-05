@@ -19,6 +19,8 @@
 //	only:      -only filter pattern ("" = all)
 //	freshDays: like -fresh-days (default 7)
 //	noVulns, noMeta: like the CLI flags
+//	changelogs: like -changelogs (upstream release notes; GitHub-hosted
+//	           upstreams; a GitHub token raises the API rate limit)
 //
 // result (a plain object):
 //
@@ -47,6 +49,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/osv"
+	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 )
 
@@ -100,6 +103,7 @@ type request struct {
 	only             string
 	freshDays        int
 	noVulns, noMeta  bool
+	changelogs       bool
 }
 
 func decode(opts js.Value) request {
@@ -124,17 +128,18 @@ func decode(opts js.Value) request {
 		return b
 	}
 	req := request{
-		mode:      str("mode"),
-		url:       strings.TrimSpace(str("url")),
-		token:     strings.TrimSpace(str("token")),
-		oldName:   str("oldName"),
-		newName:   str("newName"),
-		oldData:   data("oldData"),
-		newData:   data("newData"),
-		only:      strings.TrimSpace(str("only")),
-		freshDays: 7,
-		noVulns:   boolean("noVulns"),
-		noMeta:    boolean("noMeta"),
+		mode:       str("mode"),
+		url:        strings.TrimSpace(str("url")),
+		token:      strings.TrimSpace(str("token")),
+		oldName:    str("oldName"),
+		newName:    str("newName"),
+		oldData:    data("oldData"),
+		newData:    data("newData"),
+		only:       strings.TrimSpace(str("only")),
+		freshDays:  7,
+		noVulns:    boolean("noVulns"),
+		noMeta:     boolean("noMeta"),
+		changelogs: boolean("changelogs"),
 	}
 	if v := opts.Get("freshDays"); v.Type() == js.TypeNumber {
 		req.freshDays = v.Int()
@@ -271,10 +276,19 @@ func run(opts js.Value) (js.Value, error) {
 			warnings = append(warnings, fmt.Sprintf("release-metadata check skipped: %v", err))
 		} else {
 			metaChecked = true
+			// taglink (verified changelog links) is skipped in the
+			// browser — git smart-HTTP endpoints don't allow cross-origin
+			// requests. The CLI has them. Release notes instead resolve
+			// tags against the GitHub release list itself (relnotes.Fallback).
+			if req.changelogs {
+				relnotes.Fallback = true
+				relnotes.MaxRepos = 25 // stay inside the browser's anonymous API quota
+				for _, w := range relnotes.Annotate(diffs, os.Getenv("GITHUB_TOKEN")) {
+					warnings = append(warnings,
+						strings.Replace(w, "set GITHUB_TOKEN", "paste a GitHub API token under Options", 1))
+				}
+			}
 		}
-		// Note: taglink (verified changelog links) is skipped in the
-		// browser — git smart-HTTP endpoints don't allow cross-origin
-		// requests. The CLI has them.
 	}
 
 	sum := diffx.Summarize(diffs)

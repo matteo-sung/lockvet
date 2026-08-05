@@ -199,6 +199,12 @@ func resolveRef(c *diffx.Change, ver string, tags map[string]bool) (ref string, 
 	return "", false
 }
 
+// Candidates lists tag names that could mark this version of a package,
+// most likely first (exported for relnotes' no-taglink fallback, which
+// resolves versions against a repository's release list instead of its
+// tag advertisement).
+func Candidates(c *diffx.Change, ver string) []string { return candidates(c, ver) }
+
 // candidates lists tag names that could mark this version, most likely
 // first: v-prefixed, bare, npm-monorepo (name@ver), release-please
 // (name-vver), cargo-workspace (name-ver), and Go submodule (dir/vver).
