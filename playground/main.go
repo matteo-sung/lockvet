@@ -12,10 +12,12 @@
 //
 // opts (a plain object):
 //
-//	mode:      "url" | "files"
+//	mode:      "url" | "files" | "audit"
 //	url:       PR / MR / compare / commit URL (mode "url")
 //	token:     optional API token for the matched forge (mode "url")
 //	oldName, oldData, newName, newData:  file names + Uint8Array (mode "files")
+//	auditFiles: [{name, data: Uint8Array}, …] (mode "audit" — the pinned
+//	           set is vetted as-is, like `lockvet audit`)
 //	only:      -only filter pattern ("" = all)
 //	freshDays: like -fresh-days (default 7)
 //	noVulns, noMeta: like the CLI flags
@@ -37,6 +39,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"syscall/js"
 
@@ -126,10 +129,16 @@ type request struct {
 	token            string
 	oldName, newName string
 	oldData, newData []byte
+	auditFiles       []namedFile
 	only             string
 	freshDays        int
 	noVulns, noMeta  bool
 	changelogs       bool
+}
+
+type namedFile struct {
+	name string
+	data []byte
 }
 
 func decode(opts js.Value) request {
@@ -170,6 +179,15 @@ func decode(opts js.Value) request {
 	if v := opts.Get("freshDays"); v.Type() == js.TypeNumber {
 		req.freshDays = v.Int()
 	}
+	if v := opts.Get("auditFiles"); v.Type() == js.TypeObject {
+		for i := 0; i < v.Get("length").Int(); i++ {
+			e := v.Index(i)
+			d := e.Get("data")
+			b := make([]byte, d.Get("length").Int())
+			js.CopyBytesToGo(b, d)
+			req.auditFiles = append(req.auditFiles, namedFile{name: e.Get("name").String(), data: b})
+		}
+	}
 	return req
 }
 
@@ -181,6 +199,7 @@ func run(opts js.Value) (js.Value, error) {
 		base, target string
 		title        string
 		warnings     []string
+		audit        bool
 	)
 
 	switch req.mode {
@@ -261,8 +280,41 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		diffs = append(diffs, fd)
 
+	case "audit":
+		// `lockvet audit` in the browser: every dropped lockfile is diffed
+		// against nothing, so each pinned package arrives as an Added change
+		// and the whole annotation pipeline works unmodified; the audit
+		// renderers then show findings, not the inventory.
+		if len(req.auditFiles) == 0 {
+			return js.Undefined(), errors.New("drop at least one lockfile (or a CycloneDX/SPDX JSON SBOM) to audit")
+		}
+		audit = true
+		req.changelogs = false // release notes explain bumps; an audit has none
+		var names []string
+		for _, af := range req.auditFiles {
+			parser := lock.ByBasename(af.name)
+			if parser == nil {
+				parser = lock.SBOMParser()
+			}
+			f, err := parser.Parse(af.name, af.data)
+			if err != nil {
+				return js.Undefined(), fmt.Errorf("%s: %v (want a lockfile under its usual name, or a CycloneDX/SPDX JSON SBOM under any name)", af.name, err)
+			}
+			names = append(names, af.name)
+			fd := diffx.Diff(nil, f)
+			if len(fd.Changes) == 0 {
+				continue
+			}
+			sort.Slice(fd.Changes, func(i, j int) bool { return fd.Changes[i].Name < fd.Changes[j].Name })
+			diffs = append(diffs, fd)
+		}
+		if len(diffs) == 0 {
+			return noChanges("no packages pinned in " + strings.Join(names, ", ")), nil
+		}
+		target = strings.Join(names, ", ")
+
 	default:
-		return js.Undefined(), fmt.Errorf("unknown mode %q (want \"url\" or \"files\")", req.mode)
+		return js.Undefined(), fmt.Errorf("unknown mode %q (want \"url\", \"files\", or \"audit\")", req.mode)
 	}
 
 	if req.only != "" {
@@ -272,6 +324,9 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		diffs = diffx.Filter(diffs, req.only)
 		if len(diffs) == 0 {
+			if audit {
+				return noChanges(fmt.Sprintf("no packages matching filter %q (%d packages pinned in total)", req.only, total)), nil
+			}
 			return noChanges(fmt.Sprintf("no changes matching filter %q (%d packages changed in total)", req.only, total)), nil
 		}
 	}
@@ -379,17 +434,28 @@ func run(opts js.Value) (js.Value, error) {
 	sum := diffx.Summarize(diffs)
 
 	var term, md bytes.Buffer
-	render.Terminal(&term, diffs, sum, true, vulnsChecked, metaChecked, req.freshDays)
-	render.Markdown(&md, diffs, sum, vulnsChecked, metaChecked, req.freshDays)
-	jsonBuf := &bytes.Buffer{}
-	enc := json.NewEncoder(jsonBuf)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(map[string]any{
+	doc := map[string]any{
 		"base": base, "target": target,
 		"files": diffs, "summary": sum,
 		"vulns_checked": vulnsChecked,
 		"meta_checked":  metaChecked, "fresh_days": req.freshDays,
-	}); err != nil {
+	}
+	if audit {
+		render.AuditTerminal(&term, diffs, sum, true, vulnsChecked, metaChecked, req.freshDays)
+		render.AuditMarkdown(&md, diffs, sum, vulnsChecked, metaChecked, req.freshDays)
+		// Same JSON shape as `lockvet audit -json`: every package is an
+		// Added change, "introduced_vulns" = advisories affecting the pin.
+		doc["mode"] = "audit"
+		delete(doc, "base")
+		delete(doc, "target")
+	} else {
+		render.Terminal(&term, diffs, sum, true, vulnsChecked, metaChecked, req.freshDays)
+		render.Markdown(&md, diffs, sum, vulnsChecked, metaChecked, req.freshDays)
+	}
+	jsonBuf := &bytes.Buffer{}
+	enc := json.NewEncoder(jsonBuf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(doc); err != nil {
 		return js.Undefined(), err
 	}
 

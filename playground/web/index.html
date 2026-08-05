@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lockvet playground — explain any lockfile change, in your browser</title>
-<meta name="description" content="Paste a Dependabot/Renovate PR URL or drop two lockfiles and see what bumped, what's breaking, what's newly vulnerable, and how old every incoming version is. Runs entirely in your browser via WebAssembly.">
+<meta name="description" content="Paste a Dependabot/Renovate PR URL, drop two lockfiles to diff, or audit what a lockfile pins right now: what's vulnerable, deprecated, missing from its registry, or days old. Runs entirely in your browser via WebAssembly.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%F0%9F%94%8E%3C/text%3E%3C/svg%3E">
 <style>
   :root {
@@ -115,7 +115,7 @@
     <p class="links">
       <a href="https://github.com/matteo-sung/lockvet">GitHub repo</a> ·
       <a href="https://github.com/matteo-sung/lockvet#install">install the CLI</a> ·
-      29 lockfile formats · GitHub / GitLab / Bitbucket / Gitea / Azure DevOps URLs
+      30 lockfile formats · GitHub / GitLab / Bitbucket / Gitea / Azure DevOps URLs
       <span style="color:var(--muted)">(Codeberg blocks cross-origin browser requests — use the CLI for those)</span>
     </p>
   </header>
@@ -124,6 +124,7 @@
     <div class="modes">
       <button id="modeUrl" class="active">Vet a PR / compare URL</button>
       <button id="modeFiles">Diff two lockfiles</button>
+      <button id="modeAudit">Audit a lockfile</button>
     </div>
 
     <div id="urlPane">
@@ -150,6 +151,18 @@
         .terraform.lock.hcl, renv.lock … or two CycloneDX/SPDX JSON SBOMs. One side may carry a
         suffix (Cargo.lock.orig).</div>
         <button class="go" id="goFiles">Vet it</button>
+      </div>
+    </div>
+
+    <div id="auditPane" style="display:none">
+      <div class="drop" id="dropAudit" tabindex="0"><b>audit</b> what your lockfiles pin <i>right now</i> — no diff needed<br>
+        <span class="fname">drop one or more lockfiles / SBOMs here, or click to pick</span></div>
+      <input type="file" id="fileAudit" multiple hidden>
+      <div class="row" style="margin-top:12px">
+        <div class="filehint" style="flex:1">Reports known advisories (OSV.dev), versions missing from their registry's
+        index, deprecated / retracted / yanked packages, license oddities, and days-old releases —
+        for every pinned package. Like <code>lockvet audit</code> in the CLI.</div>
+        <button class="go" id="goAudit">Audit it</button>
       </div>
     </div>
 
@@ -219,14 +232,15 @@
   });
 
   // ---- mode switching --------------------------------------------------
-  const urlPane = $("urlPane"), filesPane = $("filesPane");
-  $("modeUrl").onclick = () => setMode(true);
-  $("modeFiles").onclick = () => setMode(false);
-  function setMode(url) {
-    $("modeUrl").classList.toggle("active", url);
-    $("modeFiles").classList.toggle("active", !url);
-    urlPane.style.display = url ? "" : "none";
-    filesPane.style.display = url ? "none" : "";
+  const panes = { url: $("urlPane"), files: $("filesPane"), audit: $("auditPane") };
+  const modeBtns = { url: $("modeUrl"), files: $("modeFiles"), audit: $("modeAudit") };
+  for (const m of Object.keys(modeBtns)) modeBtns[m].onclick = () => setMode(m);
+  function setMode(m) {
+    if (m === true) m = "url"; // applyHash calls setMode(true)
+    for (const k of Object.keys(panes)) {
+      modeBtns[k].classList.toggle("active", k === m);
+      panes[k].style.display = k === m ? "" : "none";
+    }
   }
 
   // ---- file drop zones -------------------------------------------------
@@ -250,13 +264,32 @@
   wireDrop($("dropOld"), $("fileOld"), "old");
   wireDrop($("dropNew"), $("fileNew"), "new");
 
+  // ---- audit drop zone (one or more files) -----------------------------
+  let auditFiles = [];
+  {
+    const zone = $("dropAudit"), input = $("fileAudit");
+    const set = fs => {
+      if (!fs.length) return;
+      auditFiles = Array.from(fs);
+      zone.classList.add("filled");
+      const names = auditFiles.map(f => `${escapeHtml(f.name)} · ${f.size.toLocaleString()} B`).join("<br>");
+      zone.innerHTML = `<b>audit</b> ${auditFiles.length === 1 ? "this lockfile" : auditFiles.length + " lockfiles"}<br><span class="fname">${names}</span>`;
+    };
+    zone.onclick = () => input.click();
+    zone.onkeydown = e => { if (e.key === "Enter" || e.key === " ") input.click(); };
+    input.onchange = () => set(input.files);
+    zone.ondragover = e => { e.preventDefault(); zone.classList.add("armed"); };
+    zone.ondragleave = () => zone.classList.remove("armed");
+    zone.ondrop = e => { e.preventDefault(); zone.classList.remove("armed"); set(e.dataTransfer.files); };
+  }
+
   // ---- examples --------------------------------------------------------
   document.querySelectorAll(".examples button").forEach(b => {
     b.onclick = () => { $("url").value = b.dataset.x; runUrl(); };
   });
 
   // ---- run -------------------------------------------------------------
-  const buttons = [$("goUrl"), $("goFiles")];
+  const buttons = [$("goUrl"), $("goFiles"), $("goAudit")];
   function busy(on, msg) {
     buttons.forEach(b => b.disabled = on);
     status.classList.remove("error");
@@ -301,9 +334,27 @@
     } catch (e) { showError(e); }
     finally { buttons.forEach(b => b.disabled = false); }
   }
+  async function runAudit() {
+    if (!auditFiles.length) { showError("drop at least one lockfile (or a CycloneDX/SPDX JSON SBOM) first"); return; }
+    out.style.display = "none";
+    try {
+      await loadWasm();
+      busy(true, "auditing pins + checking OSV.dev / deps.dev / registries…");
+      const datas = await Promise.all(auditFiles.map(readBytes));
+      clearHash();
+      const res = await window.lockvetRun({
+        mode: "audit",
+        auditFiles: auditFiles.map((f, i) => ({ name: f.name, data: datas[i] })),
+        ...commonOpts(),
+      });
+      show(res, /*shareable=*/false);
+    } catch (e) { showError(e); }
+    finally { buttons.forEach(b => b.disabled = false); }
+  }
   $("goUrl").onclick = runUrl;
   $("url").addEventListener("keydown", e => { if (e.key === "Enter") runUrl(); });
   $("goFiles").onclick = runFiles;
+  $("goAudit").onclick = runAudit;
 
   function readBytes(f) {
     return f.arrayBuffer().then(b => new Uint8Array(b));

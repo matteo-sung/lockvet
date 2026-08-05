@@ -3,8 +3,9 @@
 **Explain any lockfile change before you merge it.**
 
 **[▶ Try it in your browser](https://matteo-sung.github.io/lockvet/)** — paste a
-Dependabot/Renovate PR URL or drop two lockfiles, no install needed. Reports are
-linkable: [share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#url=https%3A%2F%2Fgithub.com%2Fmatteo-sung%2Flockvet-demo%2Fpull%2F1).
+Dependabot/Renovate PR URL, drop two lockfiles to diff, or drop one to audit
+what it pins right now — no install needed. Reports are linkable:
+[share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#url=https%3A%2F%2Fgithub.com%2Fmatteo-sung%2Flockvet-demo%2Fpull%2F1).
 
 ![lockvet catching a RUSTSEC advisory hidden in a routine dependabot patch bump](docs/demo.gif)
 
@@ -494,6 +495,11 @@ jobs:
 The transition-based signals (⚙ install scripts *added*, ⛨ provenance
 *dropped*) need a before/after pair, so they stay diff-only — an audit
 honestly reports state, not history.
+
+No install needed to try it: the
+[browser playground](https://matteo-sung.github.io/lockvet/) has an
+**Audit a lockfile** mode — drop one or more lockfiles (or SBOMs) and the
+same audit runs entirely in your browser.
 
 ### Let your AI assistant vet dependencies (MCP server)
 
