@@ -14,6 +14,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
+	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
@@ -140,6 +141,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if err := pypireg.Annotate(diffs); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("PyPI registry check skipped: %v", err))
+		}
+		if err := cargoreg.Annotate(diffs); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("crates.io registry check skipped: %v", err))
 		}
 	}
 	v.diffs = diffs

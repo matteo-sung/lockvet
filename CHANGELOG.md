@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.8 — 2026-08-05
+
+- **crates.io joins the registry-signal lineup.** The native build reads
+  the sparse index (the same static CDN cargo itself uses — one anonymous
+  GET per changed crate, no rate limits) and consults the crates.io API
+  only for the few young bumps that need provenance data; the
+  [browser playground](https://matteo-sung.github.io/lockvet/) uses the
+  CORS-open API for everything:
+  - **`⛨ provenance dropped` now covers crates.io** ([trusted
+    publishing](https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html)):
+    a young (≤ 30 days) release published *without* the registry's
+    `trustpub_data` provenance record, where the outgoing pin and the
+    crate's recent stable line all carried it, is what publishing with a
+    stolen API token looks like — a token thief can `cargo publish`, but
+    cannot make the project's CI pipeline do it. Same three noise gates
+    as npm and PyPI. A tenth of the top 100 crates already publish this
+    way (`cc`, `time`, `getrandom`, …); their current bumps produce zero
+    flags.
+  - **`unlisted` flags are now registry-verified for crates.io**: deps.dev
+    can lag the registry by days, so lockvet clears the flag for any
+    version the sparse index serves (live-verified on a release minutes
+    old). What survives is a version crates.io itself lacks — and that
+    distinction has teeth on crates.io, where yanked versions *stay in
+    the index* and deleted malicious ones vanish entirely.
+  - **Yanks surface even before deps.dev indexes them** — the sparse
+    index's per-version yank flags act as the lag fallback on the
+    deprecation lane (deps.dev-supplied reasons are never overwritten).
+- No new flags, no new output: the existing `⛨` / `▲ unlisted` /
+  deprecation surfaces, `-fail-on provenance|unlisted|deprecated` gates,
+  JSON fields and SARIF rules simply cover Cargo now.
+
 ## v0.3.7 — 2026-08-05
 
 - **PyPI joins the registry-signal lineup.** Everything the npm registry

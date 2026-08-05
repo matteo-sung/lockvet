@@ -42,6 +42,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
+	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
@@ -60,6 +61,7 @@ var version = "dev" // set via -ldflags at build time
 func main() {
 	// versionbatch does not answer CORS preflights; per-version GETs do.
 	depsdev.SingleRequests = true
+	cargoreg.UseAPI = true
 	js.Global().Set("lockvetRun", js.FuncOf(runPromise))
 	js.Global().Set("lockvetVersion", version)
 	select {}
@@ -298,6 +300,9 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		if err := pypireg.Annotate(diffs); err != nil {
 			warnings = append(warnings, fmt.Sprintf("PyPI registry check skipped: %v", err))
+		}
+		if err := cargoreg.Annotate(diffs); err != nil {
+			warnings = append(warnings, fmt.Sprintf("crates.io registry check skipped: %v", err))
 		}
 	}
 

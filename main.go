@@ -17,6 +17,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
+	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
@@ -594,6 +595,9 @@ func main() {
 		if err := pypireg.Annotate(diffs); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: PyPI registry check skipped: %v\n", err)
 		}
+		if err := cargoreg.Annotate(diffs); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: crates.io registry check skipped: %v\n", err)
+		}
 	}
 
 	sum := diffx.Summarize(diffs)
@@ -987,6 +991,9 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if err := pypireg.Annotate(combined); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: PyPI registry check skipped: %v\n", err)
+		}
+		if err := cargoreg.Annotate(combined); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: crates.io registry check skipped: %v\n", err)
 		}
 	}
 

@@ -71,7 +71,7 @@ type Change struct {
 
 	// ProvenanceDropped: every known outgoing version of this package
 	// was published with sigstore provenance attestations, the incoming
-	// one wasn't (npm + PyPI). Legitimate CI keeps attesting; a stolen
+	// one wasn't (npm, PyPI, crates.io). Legitimate CI keeps attesting; a stolen
 	// publish token can publish but cannot make the pipeline attest,
 	// so a silent drop is worth a look before trusting the release.
 	// UnattestedVersions lists the incoming versions without provenance.

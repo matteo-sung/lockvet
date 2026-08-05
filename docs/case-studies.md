@@ -257,8 +257,9 @@ So, honestly stated, here is what each lockvet gate buys you:
   are rare enough to review by hand.
 - **`-fail-on provenance`** is a second **T+0** tripwire, for the packages
   that publish with [sigstore provenance](https://docs.npmjs.com/generating-provenance-statements)
-  on npm or [PEP 740 attestations](https://peps.python.org/pep-0740/) on
-  PyPI: a stolen publish token can ship a release, but it cannot make the
+  on npm, [PEP 740 attestations](https://peps.python.org/pep-0740/) on
+  PyPI, or [trusted publishing](https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html)
+  on crates.io: a stolen publish token can ship a release, but it cannot make the
   project's CI attest it, so the fake release shows up with the
   attestation missing where every previous release had one. (It's a
   *token-theft* tripwire specifically: ultralytics-style attacks that

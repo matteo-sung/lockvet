@@ -129,7 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.7 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.3.8 lockvet
 ```
 
 ### Shell completions & man page
@@ -372,7 +372,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.7
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.3.8
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -442,7 +442,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.7", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.3.8", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -495,7 +495,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.3.7
+      - uses: matteo-sung/lockvet@v0.3.8
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -522,7 +522,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.3.7
+      - uses: matteo-sung/lockvet@v0.3.8
         with:
           sarif: 'true'
 ```
@@ -542,7 +542,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.3.7
+  image: ghcr.io/matteo-sung/lockvet:0.3.8
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -567,7 +567,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.3.7
+          image: ghcr.io/matteo-sung/lockvet:0.3.8
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -585,7 +585,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.3.7
+    container: ghcr.io/matteo-sung/lockvet:0.3.8
     steps:
       - checkout: none
       - script: >
@@ -609,7 +609,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.3.7
+    image: ghcr.io/matteo-sung/lockvet:0.3.8
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -627,7 +627,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.3.7
+    rev: v0.3.8
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -651,7 +651,8 @@ Every incoming version is checked against its registry (via deps.dev):
   (with the yank reason) and [PEP 792 project statuses](https://peps.python.org/pep-0792/):
   a project **archived** by its maintainers or **quarantined** by PyPI's
   admins — the malware-review state — is flagged on every change that
-  still pins it.
+  still pins it. crates.io yanks surface the same way, verified against
+  the sparse index itself so even a yank minutes old is caught.
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -697,12 +698,14 @@ for:
   they don't come from the registry);
 - Go pseudo-versions and pnpm-style decorated version strings.
 
-For npm and PyPI packages the flag is **double-checked against the
-registry itself**: deps.dev can lag the registries by days, so before
-claiming anything lockvet fetches the package's real version list from
-`registry.npmjs.org` / PyPI's simple API and clears the flag for any
-version the registry serves. What survives is a version the registry
-itself no longer lists.
+For npm, PyPI and crates.io packages the flag is **double-checked
+against the registry itself**: deps.dev can lag the registries by days,
+so before claiming anything lockvet fetches the package's real version
+list from `registry.npmjs.org` / PyPI's simple API / the crates.io
+sparse index and clears the flag for any version the registry serves.
+What survives is a version the registry itself no longer lists — and on
+crates.io that distinction has teeth: yanked versions *stay in the
+index*, deleted (malicious) ones vanish from it entirely.
 
 A release published minutes ago may also not be indexed yet — the flag
 tells you to *look*, not to panic. Gate on it with `-fail-on unlisted`;
@@ -742,9 +745,11 @@ either have no install hooks or don't expose them in registry metadata).
 
 A growing share of npm packages publish with [sigstore provenance
 attestations](https://docs.npmjs.com/generating-provenance-statements),
-and PyPI projects with [PEP 740 attestations](https://peps.python.org/pep-0740/)
-via trusted publishing — cryptographic proof that the files were built by
-the project's own CI from its public repo. That proof has a useful
+PyPI projects with [PEP 740 attestations](https://peps.python.org/pep-0740/),
+and crates.io crates via [trusted publishing](https://rust-lang.github.io/rfcs/3691-trusted-publishing-cratesio.html)
+— cryptographic proof (or, for crates.io, a registry-recorded guarantee)
+that the release was built and published by the project's own CI from
+its public repo. That proof has a useful
 property for reviewers: **a stolen publish token can upload a release,
 but it can't make the project's pipeline attest it.**
 
@@ -764,22 +769,24 @@ top stable versions below the incoming one all attested — one-off
 adopters don't count), and the incoming release must be **young
 (≤ 30 days)** — this is a while-it's-happening tripwire for the window
 before advisories exist, not an audit of history. Under those rules it
-flags nothing at all across current bumps of ~100 top npm packages, and
+flags nothing at all across current bumps of ~100 top npm packages,
 exactly one bump across the top 1 000 PyPI packages — a real 7-day-old
 release that broke its project's unbroken attestation streak (almost
 certainly a benign manual publish, which is precisely the "worth a look"
-this flag exists for) — and would fire the moment a token thief ships a
-release outside the project's CI.
+this flag exists for) — and zero across the top 100 crates, a tenth of
+which already publish via trusted pipelines (`cc`, `time`, `getrandom`,
+…). It would fire the moment a token thief ships a release outside the
+project's CI.
 
 Gate on it with `-fail-on provenance`; JSON carries `provenance_dropped`
 / `unattested_versions`; SARIF emits a `provenance-dropped` warning;
 `queue` sorts affected PRs to the top. Comes from the same registry
 documents as the install-scripts and unlisted checks — no extra
-requests. Covers npm and PyPI (for PyPI a version only counts as
-attested when *every* file of the release carries provenance, and only a
-release with *no* attested files is ever flagged — mixed uploads are a
-publishing setup, not a signal). No other registry exposes attestations
-in queryable metadata yet.
+requests. Covers npm, PyPI and crates.io (for PyPI a version only
+counts as attested when *every* file of the release carries provenance,
+and only a release with *no* attested files is ever flagged — mixed
+uploads are a publishing setup, not a signal; for crates.io the
+registry's `trustpub_data` on each version is the source of truth).
 
 ## Release notes inline (`-changelogs`)
 
@@ -882,13 +889,12 @@ parsers are ~50 lines each.
    crates.io, PyPI, Go, Maven, NuGet, RubyGems). An incoming version the
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
-   what an unpublished (often malicious) release looks like (for npm and
-   PyPI the flag is double-checked against the registry itself, which also
-   tells lockvet when a bump [suddenly adds install
+   what an unpublished (often malicious) release looks like (for npm,
+   PyPI and crates.io the flag is double-checked against the registry
+   itself, which also tells lockvet when a bump [suddenly adds install
    scripts](#install-scripts-added-by-a-bump) or [silently drops
-   provenance attestations](#provenance-dropped-by-a-bump), and — on
-   PyPI — when a release was yanked or its project archived or
-   quarantined). Versions younger than `-fresh-days` (default 7) get a
+   provenance attestations](#provenance-dropped-by-a-bump), and when a
+   release was yanked or its project archived or quarantined). Versions younger than `-fresh-days` (default 7) get a
    ⏱ flag — supply-chain attacks are usually discovered and yanked within
    days of publication, so a short cooldown filters most of them out.
 6. Each changed package's source repository (from deps.dev) has its tag list
@@ -899,9 +905,9 @@ parsers are ~50 lines each.
    verified matches become compare / release links — so every link works.
 
 **Privacy:** the only network traffic is the OSV.dev and deps.dev batch
-queries (package names + versions), anonymous npm-registry / PyPI metadata
-fetches for changed npm and PyPI packages, and the anonymous git tag
-listings above.
+queries (package names + versions), anonymous npm-registry / PyPI /
+crates.io metadata fetches for changed packages of those ecosystems, and
+the anonymous git tag listings above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 
@@ -919,7 +925,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
 | Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
-| Flag young releases that silently drop sigstore provenance | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
+| Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
