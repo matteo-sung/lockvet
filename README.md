@@ -731,7 +731,10 @@ the hole looks like.** Every malicious version in
 `flatmap-stream@0.1.1`, `chalk@5.6.1`, `ultralytics@8.3.41` — was
 unpublished after the attack, so any lockfile still pinning one references
 a version its own registry has disowned. lockvet flags that *without
-needing an advisory to exist yet*.
+needing an advisory to exist yet*. Here is the Sept 2025 chalk + debug npm
+takeover replayed during its two-hour live window:
+
+![lockvet replaying the Sept 2025 chalk+debug npm takeover: both malicious versions flagged as not in the registry index](docs/supplychain-demo.gif)
 
 To keep it honest, the flag is deliberately conservative — it stays silent
 for:

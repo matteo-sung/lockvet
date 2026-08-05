@@ -133,6 +133,7 @@ published. They were live for roughly **two hours** — but two hours of the
 npm firehose is a lot of lockfiles. The GitHub advisory
 ([GHSA-4x49-vf9v-38px](https://github.com/advisories/GHSA-4x49-vf9v-38px))
 was published September 15 — a week after the fact.
+(This replay is also the [animated demo](supplychain-demo.gif) in the README.)
 
 ```sh
 mkdir -p old new
