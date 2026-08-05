@@ -29,6 +29,9 @@ malicious version — it stops being listed — and lockvet flags that too
 All five replays use `lockvet diff <old> <new>` on two files. In real life
 you'd hit the same reports via `lockvet` (git working tree), `lockvet pr <url>`
 (a Dependabot/Renovate PR), or the [GitHub Action](../README.md#in-ci-review-dependabotrenovate-prs-automatically).
+And when the question isn't "should I merge this?" but "**are we already
+carrying any of this?**", [one `lockvet audit` sweep](#7-the-day-after--sweeping-what-you-already-pin)
+answers it across a whole tree.
 
 ---
 
@@ -305,6 +308,71 @@ so lockvet only claims ▲ after the registry itself answered 404 for the
 exact version. In a 162-commit replay of three real infrastructure
 repos' lockfile history, this was the only ▲ raised — and it was right.
 
+## 7. The day after — sweeping what you *already* pin
+
+Every replay above vets a *change*. But when news of an attack breaks, the
+first question isn't about a diff — it's **"are we already carrying any of
+this?"**, asked across every repo you own. That's [`lockvet
+audit`](../README.md#audit-what-you-already-pin--lockvet-audit): it walks a
+tree, reads every lockfile, and runs the same pipeline over the current
+pins, reporting findings only.
+
+Here is one sweep over a tree that pins malicious versions from **two**
+of the incidents above — Shai-Hulud's npm carriers and the ultralytics
+PyPI miner — in different ecosystems, different lockfiles:
+
+```sh
+mkdir -p sweep/web sweep/api
+cat > sweep/web/package-lock.json <<'EOF'
+{
+  "name": "web", "version": "1.0.0", "lockfileVersion": 3, "requires": true,
+  "packages": {
+    "": { "name": "web", "version": "1.0.0", "dependencies": { "@ctrl/tinycolor": "^4.1.0", "chalk": "^5.6.0" } },
+    "node_modules/@ctrl/tinycolor": { "version": "4.1.1", "resolved": "https://registry.npmjs.org/@ctrl/tinycolor/-/tinycolor-4.1.1.tgz" },
+    "node_modules/chalk": { "version": "5.6.1", "resolved": "https://registry.npmjs.org/chalk/-/chalk-5.6.1.tgz" }
+  }
+}
+EOF
+printf 'ultralytics==8.3.41\n' > sweep/api/requirements.txt
+cd sweep && lockvet audit .
+```
+
+```text
+api/requirements.txt (PyPI · 1 package)
+  • ultralytics 8.3.41
+      ▲ affected by PYSEC-2024-154 A number of releases of ultralytics contained malicious crypto miner software.
+      ▲ not in registry index: 8.3.41 missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting
+
+web/package-lock.json (npm · 2 packages)
+  • @ctrl/tinycolor 4.1.1  (direct)
+      ▲ affected by MAL-2025-47141 Malicious code in @ctrl/tinycolor (npm)
+      ▲ not in registry index: 4.1.1 missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting
+  • chalk           5.6.1  (direct)
+      ▲ affected by MAL-2025-46969 Malicious code in chalk (npm)
+      ▲ not in registry index: 5.6.1 missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting
+
+audited 3 packages across 2 lockfiles · 2 direct, 0 transitive · 3 advisories affecting 3 packages · 3 versions not in registry index
+```
+
+**What to notice.** One command, no configuration, and every compromised
+pin in the tree surfaces with both its malware advisory *and* the
+`▲ not in registry index` takedown signal — while the 700-odd healthy pins
+a real tree carries stay out of the way. `lockvet audit -fail-on
+vuln,unlisted` turns the same sweep into an exit code for a nightly job,
+and `-sarif` puts each finding on the exact lockfile line in GitHub Code
+Scanning (recipe in the [README](../README.md#audit-what-you-already-pin--lockvet-audit)).
+
+**Honest caveat.** An audit reports *state*, so it's only as fast as the
+takedown or the advisory — during the quiet window at T+0 an audit of an
+already-poisoned tree shows nothing wrong yet. The transition signals
+(⚙ install scripts added, ⛨ provenance dropped, ⏱ cooldown) live in diff
+mode, on the way *in*. The two compose: gates on every PR, a sweep every
+night and every time the news breaks. No install needed for a one-off:
+the [playground](https://matteo-sung.github.io/lockvet/)'s **Audit a
+lockfile** mode runs the same sweep on dropped files, in your browser.
+
+---
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:
@@ -375,7 +443,7 @@ Two footnotes for the skeptical:
 
 ---
 
-*Reproduce any of this with `lockvet diff`, or point `lockvet pr` /
+*Reproduce any of this with `lockvet diff` or `lockvet audit`, or point `lockvet pr` /
 [the playground](https://matteo-sung.github.io/lockvet/) at a live PR.
 lockvet is built and maintained by an AI agent (Matteo Sung); see the
 [README](../README.md) for the full story.*
