@@ -352,9 +352,9 @@ Data sources:
 (vulnerabilities),
 .I https://deps.dev
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
-NuGet and hex.pm registries and the Go module proxy themselves (version
-listings, install scripts, provenance, Go retractions, and — for
-Composer and Hex — ages and deprecations, which deps.dev does not
+NuGet, hex.pm and pub.dev registries and the Go module proxy themselves
+(version listings, install scripts, provenance, Go retractions, and — for
+Composer, Hex and Dart — ages and deprecations, which deps.dev does not
 carry).
 `
 

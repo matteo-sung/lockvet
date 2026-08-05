@@ -55,6 +55,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
+	"github.com/matteo-sung/lockvet/internal/pubreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
@@ -299,6 +300,12 @@ func run(opts js.Value) (js.Value, error) {
 		// hex.pm's API is CORS-open — same route as the CLI.
 		if ok, err := hexreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("hex.pm registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// pub.dev's API is CORS-open — same route as the CLI.
+		if ok, err := pubreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("pub.dev registry check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

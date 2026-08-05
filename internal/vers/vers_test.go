@@ -16,7 +16,14 @@ func TestCompare(t *testing.T) {
 		{"1.2.3-alpha", "1.2.3", -1},
 		{"1.2.3", "1.2.3.post1", -1},
 		{"0.20220101120000-abcdef123456", "0.20230101120000-abcdef123456", -1}, // go pseudo
-		{"1.0.0+build5", "1.0.0", 0},
+		// Build metadata: semver's spec ignores it, but registries that
+		// put it in lockfiles order it (Dart +N, Debian +dfsg-N).
+		{"1.0.0+build5", "1.0.0", 1},
+		{"0.5.1+10", "0.5.1+11", -1},
+		{"0.7.4+1", "0.7.4+2", -1},
+		{"1.2.3+dfsg-1", "1.2.3+dfsg-2", -1},
+		{"1.0.0-rc1+build2", "1.0.0-rc1+build10", -1},
+		{"1.0.0-rc1+build5", "1.0.0", -1}, // pre-release still sorts below release
 	}
 	for _, c := range cases {
 		if got := Compare(c.a, c.b); got != c.want {
@@ -88,5 +95,22 @@ func TestCompareDebianVersions(t *testing.T) {
 	}
 	if d := Delta("1:3.8-4", "2:1.0-1"); d != Major {
 		t.Errorf("epoch bump Delta = %v, want Major", d)
+	}
+}
+
+func TestDeltaBuildMetadata(t *testing.T) {
+	for _, c := range []struct {
+		old, new string
+		want     Level
+	}{
+		{"0.7.4+1", "0.7.4+2", Patch},
+		{"0.5.1+10", "0.5.1+11", Patch},
+		{"0.3.18+3", "0.3.20+1", Patch},
+		{"1.0.0", "1.0.0+1", Patch},
+		{"1.0.0+1", "2.0.0", Major},
+	} {
+		if got := Delta(c.old, c.new); got != c.want {
+			t.Errorf("Delta(%q, %q) = %s, want %s", c.old, c.new, got, c.want)
+		}
 	}
 }

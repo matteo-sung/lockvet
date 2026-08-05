@@ -4,6 +4,45 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.14 — 2026-08-05
+
+- **pub.dev joins the registry lineup** (npm · PyPI · crates.io ·
+  RubyGems · Packagist · NuGet · Hex · Go · Pub) — and like Packagist and
+  hex.pm it *is* the metadata layer for its world: deps.dev has no Pub
+  system, so until now `pubspec.lock` diffs had OSV vulnerability data
+  but no release metadata at all. One anonymous GET per changed package
+  against pub.dev's CORS-open packages API (the browser playground uses
+  the identical route) now brings Dart/Flutter to parity:
+  - **Release ages and the ⏱ cooldown flag** from each version's
+    publish timestamp.
+  - **Discontinued packages** land in the deprecation lane with the
+    publisher's named replacement (`● deprecated upstream: discontinued
+    on pub.dev; replaced by flutter_markdown_plus` — a live catch:
+    `flutter_markdown` is discontinued, as are `js` and the retired
+    `macros` experiment). **Retracted versions** — ones `dart pub`
+    refuses to newly resolve — are flagged the same way (live: `dio`
+    5.8.0, `riverpod` 2.3.9). `-fail-on deprecated` gates both.
+  - **Registry-verified unlisted detection**: pub.dev never deletes a
+    version outside moderation takedowns (retraction keeps it listed),
+    so absence-while-siblings-exist is real signal.
+  - **Verified changelog/compare links**: the upstream repo from the
+    package's pubspec feeds the tag-verified link layer — monorepo
+    `/tree/…` paths are reduced to the repo, and the Flutter monorepo's
+    `shared_preferences_android-v2.4.6`-style tags resolve to exact
+    tag-to-tag diffs.
+  - The parser marks git / path / SDK / private-host packages
+    NonRegistry, so forked plugins pinned from GitHub (AppFlowy pins
+    `permission_handler` that way) are exempt from registry checks
+    instead of raising phantom flags. pub.dev keeps no per-release
+    license history, so license-change detection is honestly skipped.
+- **Version ordering fix for `+` build metadata**: semver's spec says to
+  ignore it, but registries that put it in lockfiles order it — Dart
+  orders `+N` numerically and Debian repacks carry `+dfsg-N` revisions.
+  `0.5.1+10 → 0.5.1+11` was previously mis-rendered as a **DOWNGRADE**
+  (the two parsed equal, and a differing-but-equal-comparing pair fell
+  into the downgrade branch) in every Dart diff; it now classifies as
+  the patch-level upgrade it is, and `1.0.0 → 1.0.0+1` counts as patch.
+
 ## v0.3.13 — 2026-08-05
 
 - **The Go module proxy joins the registry lineup** (npm · PyPI ·

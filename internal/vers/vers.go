@@ -37,6 +37,7 @@ type parsed struct {
 	epoch int    // Debian/RPM epoch ("2:1.2.3"), 0 if none
 	nums  []int  // numeric release components
 	pre   string // pre-release / suffix, "" if none
+	build string // build metadata after '+', "" if none
 	ok    bool
 }
 
@@ -45,8 +46,13 @@ func parse(v string) parsed {
 	if v == "" {
 		return parsed{}
 	}
-	if i := strings.IndexByte(v, '+'); i >= 0 { // build metadata
-		v = v[:i]
+	build := ""
+	if i := strings.IndexByte(v, '+'); i >= 0 {
+		// Build metadata. Semver's spec says to ignore it, but registries
+		// that put it in lockfiles mean it: Dart orders +N numerically
+		// (1.0.0 < 1.0.0+1 < 1.0.0+2), Debian repacks carry +dfsg-N
+		// revisions. Keep it and compare it last.
+		build, v = v[i+1:], v[:i]
 	}
 	epoch := 0
 	if i := strings.IndexByte(v, ':'); i >= 0 { // Debian/RPM epoch
@@ -75,7 +81,7 @@ func parse(v string) parsed {
 	if len(nums) == 0 {
 		return parsed{}
 	}
-	return parsed{epoch: epoch, nums: nums, pre: rest, ok: true}
+	return parsed{epoch: epoch, nums: nums, pre: rest, build: build, ok: true}
 }
 
 func dash(s string) string {
@@ -114,7 +120,25 @@ func Compare(a, b string) int {
 	}
 	// equal release: version with a pre-release sorts lower (semver rule),
 	// except common post-release markers which sort higher.
-	return comparePre(pa.pre, pb.pre)
+	if c := comparePre(pa.pre, pb.pre); c != 0 {
+		return c
+	}
+	return compareBuild(pa.build, pb.build)
+}
+
+// compareBuild orders build metadata the way the ecosystems that use it
+// do: no metadata sorts below any metadata (Dart: 1.0.0 < 1.0.0+1), and
+// two metadata strings compare with digit runs numeric (+10 < +11).
+func compareBuild(a, b string) int {
+	switch {
+	case a == b:
+		return 0
+	case a == "":
+		return -1
+	case b == "":
+		return 1
+	}
+	return compareAlnum(a, b)
 }
 
 func comparePre(a, b string) int {
@@ -226,7 +250,7 @@ func Delta(oldV, newV string) Level {
 	if get(a, 2) != get(b, 2) {
 		return Patch
 	}
-	if len(a.nums) > 3 || len(b.nums) > 3 || a.pre != b.pre {
+	if len(a.nums) > 3 || len(b.nums) > 3 || a.pre != b.pre || a.build != b.build {
 		return Patch
 	}
 	return None

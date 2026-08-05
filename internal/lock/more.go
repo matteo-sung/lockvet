@@ -70,14 +70,34 @@ func parseMixLock(p string, data []byte) (*File, error) {
 //     version: "2.4.2"
 //
 // Indentation-driven; only entries under the top-level `packages:` key count.
+// Entries whose source is not `hosted` (git, path, sdk — the Flutter SDK's
+// own packages report version 0.0.0) or whose hosted URL is a private
+// server rather than pub.dev are marked NonRegistry: pub.dev knows nothing
+// about them, so registry-backed checks must not flag them.
 
 var pubNameRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+):\s*$`)
 var pubVersionRe = regexp.MustCompile(`^    version:\s*"?([^"\s]+)"?\s*$`)
+var pubSourceRe = regexp.MustCompile(`^    source:\s*"?([^"\s]+)"?\s*$`)
+var pubHostedURLRe = regexp.MustCompile(`^      url:\s*"?([^"\s]+)"?\s*$`)
 
 func parsePubspecLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "pubspec.lock", Pub)
 	inPackages := false
-	name := ""
+	name, version, source, hostURL := "", "", "", ""
+	flush := func() {
+		if name == "" || version == "" {
+			name, version, source, hostURL = "", "", "", ""
+			return
+		}
+		f.add(name, version)
+		host := strings.TrimSuffix(hostURL, "/")
+		hosted := source == "" || source == "hosted"
+		public := host == "" || host == "https://pub.dev" || host == "https://pub.dartlang.org"
+		if !hosted || !public {
+			f.markNonRegistry(name)
+		}
+		name, version, source, hostURL = "", "", "", ""
+	}
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
 		switch {
@@ -85,6 +105,7 @@ func parsePubspecLock(p string, data []byte) (*File, error) {
 			inPackages = true
 			continue
 		case line != "" && line[0] != ' ': // any other top-level key (sdks:, ...)
+			flush()
 			inPackages = false
 			continue
 		}
@@ -92,14 +113,23 @@ func parsePubspecLock(p string, data []byte) (*File, error) {
 			continue
 		}
 		if m := pubNameRe.FindStringSubmatch(line); m != nil {
+			flush()
 			name = m[1]
 			continue
 		}
-		if m := pubVersionRe.FindStringSubmatch(line); m != nil && name != "" {
-			f.add(name, m[1])
-			name = ""
+		if m := pubVersionRe.FindStringSubmatch(line); m != nil {
+			version = m[1]
+			continue
+		}
+		if m := pubSourceRe.FindStringSubmatch(line); m != nil {
+			source = m[1]
+			continue
+		}
+		if m := pubHostedURLRe.FindStringSubmatch(line); m != nil {
+			hostURL = m[1]
 		}
 	}
+	flush()
 	return f, nil
 }
 

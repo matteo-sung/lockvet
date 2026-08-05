@@ -85,6 +85,28 @@ packages:
     dependency: "direct main"
     source: hosted
     version: 1.2.0
+  flutter:
+    dependency: "direct main"
+    description: flutter
+    source: sdk
+    version: "0.0.0"
+  my_fork:
+    dependency: "direct main"
+    description:
+      path: "."
+      ref: main
+      resolved-ref: abc123
+      url: "https://github.com/me/my_fork.git"
+    source: git
+    version: "3.1.0"
+  corp_pkg:
+    dependency: transitive
+    description:
+      name: corp_pkg
+      sha256: deadbeef
+      url: "https://pub.corp.example"
+    source: hosted
+    version: "1.0.0"
 sdks:
   dart: ">=3.2.0 <4.0.0"
 `)
@@ -92,8 +114,16 @@ sdks:
 		t.Errorf("ecosystem = %s", f.Ecosystem)
 	}
 	wantPkgs(t, f, map[string][]string{
-		"args": {"2.4.2"}, "http": {"1.2.0"},
+		"args": {"2.4.2"}, "http": {"1.2.0"}, "flutter": {"0.0.0"},
+		"my_fork": {"3.1.0"}, "corp_pkg": {"1.0.0"},
 	})
+	for name, want := range map[string]bool{
+		"args": false, "http": false, "flutter": true, "my_fork": true, "corp_pkg": true,
+	} {
+		if got := f.NonRegistry[name]; got != want {
+			t.Errorf("NonRegistry[%s] = %v, want %v", name, got, want)
+		}
+	}
 }
 
 func TestGradleLockfile(t *testing.T) {
