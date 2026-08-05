@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.3.13 — 2026-08-05
+
+- **The Go module proxy joins the registry lineup** (npm · PyPI ·
+  crates.io · RubyGems · Packagist · NuGet · Hex · Go) — two anonymous
+  GETs per changed module against `proxy.golang.org`, the same endpoints
+  `go get` uses (`GOPROXY` is honoured: a private proxy works, `off`/
+  `direct` disables the check):
+  - **Retractions with the author's rationale**: a bump onto a version
+    its author [retracted](https://go.dev/ref/mod#go-mod-file-retract)
+    lands in the deprecation lane with the rationale comment from the
+    module's latest `go.mod` (`● deprecated upstream: retracted:
+    https://github.com/klauspost/compress/issues/1114`) — including
+    retractions deps.dev hasn't re-indexed yet. `-fail-on deprecated`
+    gates them.
+  - **`// Deprecated:` module notices** are caught even where deps.dev
+    misses them (live example: `go.mongodb.org/mongo-driver` →
+    "Use go.mongodb.org/mongo-driver/v2 instead").
+  - **Registry-verified unlisted detection**: the proxy never removes a
+    version once cached, so absence-while-siblings-exist is real signal —
+    and a tag deps.dev simply hasn't indexed yet no longer raises a
+    false ▲ alarm (it gets its ⏱ age instead).
+  - **Release ages for brand-new tags** from `@v/{version}.info`, so the
+    ⏱ cooldown flag fires on a Go tag cut minutes ago. Pseudo-versions
+    carry their commit time in the version string itself and age for
+    free — no request at all.
+  - Repos renamed with a redirect serve the *new* module's `go.mod`; its
+    directives are never applied to the old path.
+  - `proxy.golang.org` sends `Access-Control-Allow-Origin: *`, so the
+    [browser playground](https://matteo-sung.github.io/lockvet/) gets
+    every signal too.
+
 ## v0.3.12 — 2026-08-05
 
 - **Hex joins the registry lineup** (npm · PyPI · crates.io · RubyGems ·

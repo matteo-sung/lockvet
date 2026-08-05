@@ -47,6 +47,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/diffx"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/glmr"
+	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
@@ -326,6 +327,10 @@ func run(opts js.Value) (js.Value, error) {
 		// in the browser too.
 		if err := nugetreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("NuGet registry check skipped: %v", err))
+		}
+		// proxy.golang.org sends ACAO:* — full Go signals in the browser.
+		if err := goreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Go module proxy check skipped: %v", err))
 		}
 	}
 

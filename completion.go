@@ -352,9 +352,10 @@ Data sources:
 (vulnerabilities),
 .I https://deps.dev
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
-NuGet and hex.pm registries themselves (version listings, install
-scripts, provenance, and — for Composer and Hex — ages and deprecations,
-which deps.dev does not carry).
+NuGet and hex.pm registries and the Go module proxy themselves (version
+listings, install scripts, provenance, Go retractions, and — for
+Composer and Hex — ages and deprecations, which deps.dev does not
+carry).
 `
 
 // runCompletion handles `lockvet completion <shell>` and `lockvet man`.

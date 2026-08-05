@@ -24,6 +24,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
+	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
@@ -622,6 +623,9 @@ func main() {
 		if err := nugetreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: NuGet registry check skipped: %v\n", err)
 		}
+		if err := goreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Go module proxy check skipped: %v\n", err)
+		}
 	}
 
 	sum := diffx.Summarize(diffs)
@@ -1034,6 +1038,9 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if err := nugetreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: NuGet registry check skipped: %v\n", err)
+		}
+		if err := goreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Go module proxy check skipped: %v\n", err)
 		}
 	}
 
