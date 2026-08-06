@@ -159,6 +159,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			for _, v := range c.IntroducedVulns {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ introduces "+v.ID+sev(v)), s.dim(v.Summary))
 			}
+			if bits := ignoredBits(c); bits != "" {
+				fmt.Fprintf(w, "      %s\n", s.dim("○ ignored (.lockvetignore): "+bits))
+			}
 			for k, v := range c.FixedVulns {
 				if k == maxFixedShown {
 					fmt.Fprintf(w, "      %s\n", s.green(fmt.Sprintf("▼ …and %d more fixed", len(c.FixedVulns)-maxFixedShown)))
@@ -283,7 +286,19 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 	if sum.ProvenanceDropped > 0 {
 		out += " · " + s.bred(pluralVerb(sum.ProvenanceDropped, "bump drops", "bumps drop")+" provenance")
 	}
+	if sum.Ignored > 0 {
+		out += " · " + s.dim(plural(sum.Ignored, "finding")+" ignored (.lockvetignore)")
+	}
 	return out
+}
+
+// ignoredBits lists a change's acknowledged findings ("fresh, GHSA-…").
+func ignoredBits(c diffx.Change) string {
+	bits := append([]string{}, c.Ignored...)
+	for _, v := range c.IgnoredVulns {
+		bits = append(bits, v.ID)
+	}
+	return strings.Join(bits, ", ")
 }
 
 // Markdown writes a report suited for PR comments.
@@ -337,6 +352,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	}
 	if sum.ProvenanceDropped > 0 {
 		fmt.Fprintf(w, "\nProvenance: **%s sigstore provenance** ⛨ where every previous version attested (checked against the package registries)\n", pluralVerb(sum.ProvenanceDropped, "bump drops", "bumps drop"))
+	}
+	if sum.Ignored > 0 {
+		fmt.Fprintf(w, "\nIgnored: %s acknowledged via `.lockvetignore`\n", plural(sum.Ignored, "finding"))
 	}
 	ageCol := ""
 	if metaChecked {
@@ -416,6 +434,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			}
 			for _, v := range c.IntroducedVulns {
 				fmt.Fprintf(w, "| ⚠️ | ↳ introduces [%s](%s)%s | | | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
+			}
+			if bits := ignoredBits(c); bits != "" {
+				fmt.Fprintf(w, "| ○ | ↳ ignored via .lockvetignore | | | %s |%s\n", esc(bits), padCell)
 			}
 			for k, v := range c.FixedVulns {
 				if k == maxFixedShown {

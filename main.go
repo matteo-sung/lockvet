@@ -28,6 +28,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
+	"github.com/matteo-sung/lockvet/internal/ignore"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/mvnreg"
@@ -165,6 +166,11 @@ FLAGS
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
                  "fresh", "deprecated", "unlisted", "scripts", "provenance", or "license"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
+  -ignore-file F acknowledged findings that skip the summary and -fail-on
+                 (default: .lockvetignore next to the lockfiles, if present;
+                 one rule per line: an advisory ID, pkg[@version], or
+                 kind:pkg[@version] with optional until=YYYY-MM-DD)
+  -no-ignore     ignore no findings even if .lockvetignore exists
   -author LIST   (queue mode) bot accounts to search for, comma list
                  (GitHub default "app/dependabot,app/renovate"; GitLab and
                  Gitea/Forgejo default "renovate-bot,dependabot"; "any" =
@@ -198,6 +204,8 @@ func main() {
 		limit      = flag.Int("limit", 30, "")
 		comment    = flag.Bool("comment", false, "")
 		failOn     = flag.String("fail-on", "", "")
+		ignoreFile = flag.String("ignore-file", "", "")
+		noIgnore   = flag.Bool("no-ignore", false, "")
 		dir        = flag.String("C", ".", "")
 		noColor    = flag.Bool("no-color", false, "")
 		showVer    = flag.Bool("version", false, "")
@@ -294,7 +302,8 @@ func main() {
 		if *changelogs {
 			fatal("-changelogs is not available in audit mode — there is no bump whose release notes would explain anything")
 		}
-		runAudit(args[1:], *dir, vetOptions{only: *only, freshDays: *freshDays, noVulns: *noVulns, noMeta: *noMeta},
+		runAudit(args[1:], *dir, vetOptions{only: *only, freshDays: *freshDays, noVulns: *noVulns, noMeta: *noMeta,
+			ignoreFile: *ignoreFile, noIgnore: *noIgnore},
 			*md, *jsonOut, *sarifOut, *noColor, *failOn)
 		return
 	case len(args) > 0 && args[0] == "diff":
@@ -679,6 +688,14 @@ func main() {
 		}
 		if err := mvnreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
+		}
+	}
+
+	ignSet, err := ignore.Resolve(*ignoreFile, *noIgnore, *dir)
+	check(err)
+	if _, warns := ignSet.Apply(diffs, time.Now()); len(warns) > 0 {
+		for _, w := range warns {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: %s\n", w)
 		}
 	}
 
@@ -1257,8 +1274,8 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 func reorderArgs(args []string) []string {
 	var flags, pos []string
 	takesValue := map[string]bool{
-		"-fail-on": true, "-C": true, "-fresh-days": true, "-only": true,
-		"--fail-on": true, "--C": true, "--fresh-days": true, "--only": true,
+		"-fail-on": true, "-C": true, "-fresh-days": true, "-only": true, "-ignore-file": true,
+		"--fail-on": true, "--C": true, "--fresh-days": true, "--only": true, "--ignore-file": true,
 		"-author": true, "--author": true, "-limit": true, "--limit": true,
 	}
 	for i := 0; i < len(args); i++ {

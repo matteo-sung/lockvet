@@ -127,6 +127,9 @@ func auditSummaryLine(s styler, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			out += " · " + s.bred(pluralVerb(sum.Unlisted, "version", "versions")+" not in registry index")
 		}
 	}
+	if sum.Ignored > 0 {
+		out += " · " + s.dim(plural(sum.Ignored, "finding")+" ignored (.lockvetignore)")
+	}
 	if n.findings == 0 {
 		out += " · " + s.green("no findings")
 	}
@@ -163,6 +166,9 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			bits = append(bits, fmt.Sprintf("**%s not in the registry index** ❗", plural(sum.Unlisted, "version")))
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev) and the package registries)\n", strings.Join(bits, ", "))
+	}
+	if sum.Ignored > 0 {
+		fmt.Fprintf(w, "\nIgnored: %s acknowledged via `.lockvetignore`\n", plural(sum.Ignored, "finding"))
 	}
 	if n.findings == 0 {
 		fmt.Fprintf(w, "\nNo findings. 🎉\n")

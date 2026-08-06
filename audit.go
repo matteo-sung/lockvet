@@ -116,6 +116,15 @@ func vetAudit(paths []string, dir string, o vetOptions) (*vetOutcome, error) {
 	if len(roots) == 0 {
 		roots = []string{dir}
 	}
+	// .lockvetignore discovery follows the audited tree: `lockvet audit
+	// /srv/app` looks in /srv/app first.
+	if o.ignoreFile == "" && o.ignoreDir == "" {
+		if st, err := os.Stat(roots[0]); err == nil && st.IsDir() {
+			o.ignoreDir = roots[0]
+		} else {
+			o.ignoreDir = dir
+		}
+	}
 	files, err := discoverLockfiles(roots)
 	if err != nil {
 		return nil, err

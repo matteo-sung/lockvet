@@ -176,7 +176,7 @@ func mcpTools() []map[string]any {
 			"name":  "vet_git",
 			"title": "Vet lockfile changes in a local git repository",
 			"description": "Explain the lockfile/dependency changes in a local git repository: working tree vs HEAD by default, or any revision range (base=HEAD~5, or base=main target=my-branch). " +
-				"Same report as vet_url: bumps with semver severity, vulnerabilities introduced/fixed, release ages, deprecations, license changes, via-chains. Run it before committing or merging a dependency update.",
+				"Same report as vet_url: bumps with semver severity, vulnerabilities introduced/fixed, release ages, deprecations, license changes, via-chains. A .lockvetignore file in the repo (acknowledged findings) is honoured. Run it before committing or merging a dependency update.",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -195,7 +195,7 @@ func mcpTools() []map[string]any {
 		{
 			"name":  "audit",
 			"title": "Audit what the lockfiles pin right now",
-			"description": "Audit the CURRENT dependency set of a project — not a change: every lockfile under the directory is checked in full. " +
+			"description": "Audit the CURRENT dependency set of a project — not a change: every lockfile under the directory is checked in full (a .lockvetignore file there is honoured). " +
 				"Reports each pinned version that is affected by a known advisory (OSV.dev), missing from its registry's index (what an unpublished or pulled — often malicious — release looks like), deprecated/retracted/yanked/abandoned upstream, or published only days ago. " +
 				"Run it to answer \"is anything we currently depend on known-bad?\" — e.g. after news of a supply-chain attack, or as a periodic hygiene check.",
 			"inputSchema": map[string]any{

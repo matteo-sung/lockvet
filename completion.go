@@ -25,7 +25,7 @@ _lockvet() {
         cword=$COMP_CWORD
     fi
 
-    local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -changelogs -only -comment -fail-on -author -limit -C -no-color -version -h"
+    local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -changelogs -only -comment -fail-on -ignore-file -no-ignore -author -limit -C -no-color -version -h"
     local subcmds="pr mr compare queue audit diff mcp completion man"
 
     case $prev in
@@ -39,6 +39,11 @@ _lockvet() {
             return ;;
         -fresh-days|-limit|-only|-author)
             return ;;
+        -ignore-file)
+            if declare -F _filedir >/dev/null 2>&1; then _filedir; else
+                COMPREPLY=( $(compgen -f -- "$cur") )
+            fi
+            return ;;
     esac
 
     if [[ $cur == -* ]]; then
@@ -50,7 +55,7 @@ _lockvet() {
     local i sub="" seen=0
     for ((i=1; i < cword; i++)); do
         case ${words[i]} in
-            -C|-fail-on|-fresh-days|-only|-author|-limit) ((i++)) ;;
+            -C|-fail-on|-fresh-days|-only|-author|-limit|-ignore-file) ((i++)) ;;
             -*) ;;
             *) sub=${words[i]}; seen=$i; break ;;
         esac
@@ -105,6 +110,8 @@ _lockvet() {
         '-only[only changes whose name or via-chain matches PAT (glob, comma list)]:pattern' \
         '-comment[post the report as a comment on the PR/MR]' \
         '-fail-on[exit 1 if the diff contains a condition (comma list)]:condition:_values -s , condition major vuln downgrade fresh deprecated unlisted scripts provenance license' \
+        '-ignore-file[acknowledged findings that skip the summary and -fail-on]:file:_files' \
+        '-no-ignore[ignore no findings even if .lockvetignore exists]' \
         '-author[queue mode: bot accounts to search for (comma list, "any" ok)]:authors' \
         '-limit[queue mode: vet at most N pull/merge requests (default 30)]:n' \
         '-C[run as if started in dir]:directory:_files -/' \
@@ -167,6 +174,8 @@ complete -c lockvet -o changelogs -d 'fetch upstream release notes for every bum
 complete -c lockvet -o only -x -d 'only changes matching pattern (glob, comma list)'
 complete -c lockvet -o comment -d 'post the report as a PR/MR comment'
 complete -c lockvet -o fail-on -x -a 'major vuln downgrade fresh deprecated unlisted scripts provenance license' -d 'exit 1 on findings (comma list)'
+complete -c lockvet -o ignore-file -r -d 'acknowledged findings that skip the summary and -fail-on'
+complete -c lockvet -o no-ignore -d 'ignore no findings even if .lockvetignore exists'
 complete -c lockvet -o author -x -d 'queue mode: bot accounts (comma list, "any" ok)'
 complete -c lockvet -o limit -x -d 'queue mode: vet at most N PRs (default 30)'
 complete -c lockvet -o C -x -a '(__fish_complete_directories)' -d 'run as if started in dir'
@@ -299,6 +308,18 @@ reruns update the same comment in place.
 Exit 1 if the diff contains any of: \fBmajor\fR, \fBvuln\fR,
 \fBdowngrade\fR, \fBfresh\fR, \fBdeprecated\fR, \fBunlisted\fR, \fBscripts\fR, \fBprovenance\fR, \fBlicense\fR
 (comma list).
+.TP
+.BI \-ignore\-file " FILE"
+Read acknowledged findings from \fIFILE\fR instead of discovering
+\fB.lockvetignore\fR next to the lockfiles. One rule per line: an
+advisory ID, \fIpkg\fR[@\fIversion\fR], or
+\fIkind\fR:\fIpkg\fR[@\fIversion\fR] (kinds: vuln, fresh, deprecated,
+unlisted, scripts, provenance, license, major, downgrade), each with an
+optional \fBuntil=\fRYYYY\-MM\-DD expiry. Suppressed findings stay
+visible but stop counting toward the summary and \fB\-fail\-on\fR.
+.TP
+.B \-no\-ignore
+Ignore no findings even if a \fB.lockvetignore\fR file exists.
 .TP
 .BI \-author " LIST"
 (queue mode) Bot accounts to search for, comma list; \fBany\fR means

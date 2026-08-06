@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
@@ -25,6 +27,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
+	"github.com/matteo-sung/lockvet/internal/ignore"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/mvnreg"
@@ -48,6 +51,12 @@ type vetOptions struct {
 	noMeta     bool
 	changelogs bool
 	noLinks    bool // skip taglink/relnotes (audit mode: links aren't findings)
+
+	// .lockvetignore handling: an explicit -ignore-file path, -no-ignore,
+	// and the directory searched for the default file.
+	ignoreFile string
+	noIgnore   bool
+	ignoreDir  string
 }
 
 // vetOutcome is the result of one analysis. When message is non-empty there
@@ -228,6 +237,13 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 			v.warnings = append(v.warnings, fmt.Sprintf("Maven repository check skipped: %v", err))
 		}
 	}
+	ign, err := ignore.Resolve(o.ignoreFile, o.noIgnore, o.ignoreDir)
+	if err != nil {
+		return nil, err
+	}
+	_, ignWarns := ign.Apply(diffs, time.Now())
+	v.warnings = append(v.warnings, ignWarns...)
+
 	v.diffs = diffs
 	v.sum = diffx.Summarize(diffs)
 	return v, nil
@@ -357,6 +373,9 @@ func vetGit(dir, base, target string, o vetOptions) (*vetOutcome, error) {
 	if i := strings.Index(base, ".."); i >= 0 && target == "" {
 		base, target = base[:i], strings.TrimPrefix(base[i+2:], ".")
 	}
+	if o.ignoreDir == "" {
+		o.ignoreDir = dir
+	}
 	repo, err := gitx.Open(dir)
 	if err != nil {
 		return nil, err
@@ -409,6 +428,9 @@ func vetGit(dir, base, target string, o vetOptions) (*vetOutcome, error) {
 
 // vetFiles vets two lockfiles or SBOMs on disk, like `lockvet diff`.
 func vetFiles(oldPath, newPath string, o vetOptions) (*vetOutcome, error) {
+	if o.ignoreDir == "" {
+		o.ignoreDir = filepath.Dir(newPath)
+	}
 	pOld, pNew := lock.ByBasename(oldPath), lock.ByBasename(newPath)
 	if pOld == nil {
 		pOld = pNew

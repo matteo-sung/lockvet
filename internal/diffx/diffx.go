@@ -101,6 +101,25 @@ type Change struct {
 	// upstream release notes covering the versions this bump pulls in,
 	// newest first.
 	ReleaseNotes []ReleaseNote `json:"release_notes,omitempty"`
+
+	// Findings acknowledged via a .lockvetignore file. Ignored lists the
+	// suppressed finding kinds ("fresh", "major", …); IgnoredVulns holds
+	// advisories moved out of IntroducedVulns. Both stay visible in JSON
+	// and as a dim marker in reports, but no longer count toward the
+	// summary or -fail-on gates.
+	Ignored      []string `json:"ignored,omitempty"`
+	IgnoredVulns []Vuln   `json:"ignored_vulns,omitempty"`
+}
+
+// HasIgnored reports whether the finding kind was suppressed on this
+// change via a .lockvetignore rule.
+func (c *Change) HasIgnored(kind string) bool {
+	for _, k := range c.Ignored {
+		if k == kind {
+			return true
+		}
+	}
+	return false
 }
 
 // ReleaseNote is one upstream release's notes, excerpted.
@@ -490,6 +509,7 @@ type Summary struct {
 	ScriptsAdded                                           int // npm bumps that newly run install scripts
 	ProvenanceDropped                                      int // npm bumps that silently stop attesting provenance
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
+	Ignored                                                int // findings acknowledged via .lockvetignore
 }
 
 // Summarize computes totals for a set of file diffs.
@@ -504,12 +524,16 @@ func Summarize(diffs []FileDiff) Summary {
 			case Removed:
 				s.Removed++
 			case Downgraded:
-				s.Downgraded++
+				if !c.HasIgnored("downgrade") {
+					s.Downgraded++
+				}
 			}
 			if c.Kind == Upgraded || c.Kind == Downgraded || c.Kind == Changed {
 				switch c.Level {
 				case vers.Major:
-					s.Major++
+					if !c.HasIgnored("major") {
+						s.Major++
+					}
 				case vers.Minor:
 					s.Minor++
 				case vers.Patch:
@@ -537,6 +561,7 @@ func Summarize(diffs []FileDiff) Summary {
 			if c.LicenseChanged {
 				s.LicenseChanged++
 			}
+			s.Ignored += len(c.Ignored) + len(c.IgnoredVulns)
 			switch c.Origin {
 			case "direct":
 				s.Direct++

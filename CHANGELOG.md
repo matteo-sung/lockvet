@@ -4,6 +4,27 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.1 — 2026-08-06
+
+- **`.lockvetignore` — acknowledge a finding without turning the gate
+  off.** One rule per line: an advisory ID (`GHSA-…`, `RUSTSEC-…`, any
+  OSV ID), a `pkg[@version]`, or a `kind:pkg[@version]` where *kind* is
+  `vuln`, `fresh`, `deprecated`, `unlisted`, `scripts`, `provenance`,
+  `license`, `major`, or `downgrade`. Globs and case-insensitive
+  matching throughout; `# comments` encouraged; an `until=YYYY-MM-DD`
+  expiry makes an acknowledgement temporary — after that date the rule
+  stops applying and every run warns until the line is removed.
+  Suppressed findings stop counting toward the summary and `-fail-on`
+  but stay visible: a dim `○ ignored (.lockvetignore)` marker in
+  terminal and markdown reports, `ignored` / `ignored_vulns` in JSON,
+  and an "N findings ignored" summary note. Discovered automatically
+  next to the lockfiles (the audited tree for `lockvet audit`, the
+  working directory for PR/compare modes and the Action); `-ignore-file
+  <path>` points elsewhere, `-no-ignore` disables it for "no ignores in
+  CI" policies. `queue` mode spans many repositories and applies no
+  ignore file. Ignored-but-visible keeps the report honest; expiring
+  snoozes keep the file honest.
+
 ## v0.4.0 — 2026-08-05
 
 - **`lockvet audit` — vet what you pin *right now*, not a change.** Walks

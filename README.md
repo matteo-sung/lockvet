@@ -727,6 +727,40 @@ commit through. Add `-fail-on` to turn it into a gate. Requires nothing but
 [pre-commit](https://pre-commit.com) itself (the hook builds via Go, which
 pre-commit downloads automatically if missing).
 
+## Acknowledging findings — `.lockvetignore`
+
+A gate you can't quiet gets turned off. When you've *looked* at a finding
+and accepted it — a CVE that doesn't apply to your usage, a major bump you
+planned, a deprecated package you're migrating off next sprint — record
+the decision in a `.lockvetignore` file next to your lockfiles and the
+finding stops counting toward the summary and `-fail-on`:
+
+```gitignore
+# One rule per line; # comments. Globs (* ?) and case don't matter.
+GHSA-35jh-r3h4-6jhm                  # ReDoS — we never pass user input here
+lodash@4.17.11                       # everything about this one version
+fresh:aws-sdk-go-v2                  # daily releases, cooldown is noise
+major:react                          # the React 19 migration PR
+deprecated:crossbeam-channel until=2026-12-31   # revisit after Q4 freeze
+```
+
+Rules are an advisory ID, a `pkg[@version]`, or a `kind:pkg[@version]`
+where *kind* is one of `vuln`, `fresh`, `deprecated`, `unlisted`,
+`scripts`, `provenance`, `license`, `major`, `downgrade`. An
+`until=YYYY-MM-DD` expiry makes the acknowledgement temporary — after
+that date the rule stops applying and every run warns until the line is
+removed or extended, so snoozes can't quietly become forever.
+
+Suppression is honest: ignored findings still show up, as a dim
+`○ ignored (.lockvetignore)` marker in reports and as `ignored` /
+`ignored_vulns` in `-json`, and the summary says how many findings were
+acknowledged. The file is discovered automatically in the current
+directory (or the audited tree for `lockvet audit`), works in every mode
+including `lockvet pr <url>` and the GitHub Action, and can be pointed
+elsewhere with `-ignore-file <path>` or switched off with `-no-ignore` —
+so CI can enforce "no ignores" if that's your policy. `queue` mode spans
+many repositories and applies no ignore file.
+
 ## Deprecations and license changes
 
 Every incoming version is checked against its registry (via deps.dev):
@@ -1130,6 +1164,7 @@ vulnerability and metadata+links lookups individually. No telemetry, ever.
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | Audit the *current* pins, not just a change | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
 | CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|scripts\|provenance\|license`) + GitHub Action |
+| Acknowledge a finding without turning the gate off | ✗ | ✗ | `.lockvetignore` (per-advisory / per-package rules with expiry dates; ignored findings stay visible) |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
 | MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, audits, whole queues) |
