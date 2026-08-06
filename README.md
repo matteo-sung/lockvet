@@ -439,6 +439,13 @@ It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
 lockfile it finds — all 30 formats, SBOMs included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
+![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
+
+That replay is the "news just broke" sweep from [case study
+7](docs/case-studies.md#7-the-day-after--sweeping-what-you-already-pin)
+(reproducible fixture there). On an everyday healthy repo it is just as
+quiet as you'd hope:
+
 ```text
 $ lockvet audit    # in sharkdp/fd
 
