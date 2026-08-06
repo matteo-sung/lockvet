@@ -155,3 +155,32 @@ func TestMCPVetGitNoRepo(t *testing.T) {
 		t.Fatalf("want isError=true outside a git repo, got %v", res)
 	}
 }
+
+// TestServerJSONConsistent guards the release chore: server.json's version
+// and its OCI package identifier tag must move together. (The v0.4.3
+// listing shipped pointing at the 0.4.2 image because only .version was
+// bumped.)
+func TestServerJSONConsistent(t *testing.T) {
+	raw, err := os.ReadFile("server.json")
+	if err != nil {
+		t.Fatalf("read server.json: %v", err)
+	}
+	var sj struct {
+		Version  string `json:"version"`
+		Packages []struct {
+			Identifier string `json:"identifier"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(raw, &sj); err != nil {
+		t.Fatalf("parse server.json: %v", err)
+	}
+	if sj.Version == "" || len(sj.Packages) == 0 {
+		t.Fatal("server.json missing version or packages")
+	}
+	for _, p := range sj.Packages {
+		i := strings.LastIndex(p.Identifier, ":")
+		if i < 0 || p.Identifier[i+1:] != sj.Version {
+			t.Errorf("package identifier %q tag != version %q — bump both before tagging", p.Identifier, sj.Version)
+		}
+	}
+}

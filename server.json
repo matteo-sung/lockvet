@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/matteo-sung/lockvet:0.4.2",
+      "identifier": "ghcr.io/matteo-sung/lockvet:0.4.4",
       "transport": {
         "type": "stdio"
       },
