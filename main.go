@@ -701,8 +701,12 @@ func main() {
 		if err := mvnreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
 		}
-		squat.Annotate(diffs) // local typosquat check (needs ages, hence last)
 	}
+	// The typosquat check is fully local (embedded popularity lists) — it
+	// runs even with -no-meta/-offline; with ages unknown the young-release
+	// gate honestly passes everything through. Last so it can use ages when
+	// the metadata layers did run.
+	squat.Annotate(diffs)
 
 	ignSet, err := ignore.Resolve(*ignoreFile, *noIgnore, *dir)
 	check(err)
@@ -1154,8 +1158,8 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		if err := mvnreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
 		}
-		squat.Annotate(combined) // local typosquat check (needs ages, hence last)
 	}
+	squat.Annotate(combined) // fully local; runs even with -no-meta/-offline
 
 	// Build, sort, and render the rows.
 	rows := make([]render.QueueRow, len(entries))

@@ -26,6 +26,21 @@ func TestMatch(t *testing.T) {
 		{lock.PyPI, "typing_extensions", ""},         // PEP 503 same package
 		{lock.NPM, "ms", ""},                         // too short
 		{lock.NPM, "some-very-unique-name", ""},      // nowhere near anything
+		// RubyGems: '-' and '_' are DISTINCT gem names
+		{lock.RubyGems, "nokogiri", ""},                    // popular itself
+		{lock.RubyGems, "nokogirl", "nokogiri"},            // substitution
+		{lock.RubyGems, "active-support", "activesupport"}, // separator insertion
+		{lock.RubyGems, "rack_cache", "rack-cache"},        // separator swap of a popular gem
+		{lock.RubyGems, "devsie", "devise"},                // transposition
+		// rspec-mokcs is the example ReversingLabs' writeup of the Feb 2020
+		// RubyGems typosquat campaign (760+ malicious gems) leads with.
+		{lock.RubyGems, "rspec-mokcs", "rspec-mocks"},
+		// Packagist: vendor/package names, separators distinct
+		{lock.Packagist, "monolog/monolog", ""},                 // popular itself
+		{lock.Packagist, "monolog/monolg", "monolog/monolog"},   // deletion
+		{lock.Packagist, "symfonny/console", "symfony/console"}, // vendor squat
+		{lock.Packagist, "guzzlehttp/guzle", "guzzlehttp/guzzle"},
+		{lock.Packagist, "laravel/framewrok", "laravel/framework"},
 	}
 	for _, c := range cases {
 		got := Match(c.eco, c.name)

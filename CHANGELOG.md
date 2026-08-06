@@ -4,6 +4,27 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.4 — 2026-08-06
+
+- **`≈` typosquat suspects now cover RubyGems and Packagist.** Two more
+  embedded popularity lists: RubyGems' 5 000 most-downloaded gems (via
+  the [ecosyste.ms](https://ecosyste.ms) packages API, data CC BY-SA 4.0)
+  and Packagist's 4 000 most popular packages (their official explore
+  API). Separator swaps flag on both — `-` and `_` are genuinely distinct
+  names there (`rack_cache` next to `rack-cache` is exactly how the
+  most-downloaded gem of the Feb 2020 RubyGems campaign was squatted),
+  and the campaign's lead example `rspec-mokcs` → `rspec-mocks` replays.
+  Composer names match across the full `vendor/package` string, so
+  vendor-level squats (`symfonny/console`) flag too. Validation: 140
+  historical Gemfile.lock/composer.lock diffs (mastodon, gitlab-foss,
+  monica) plus mastodon's live Renovate queue — zero false flags.
+- **Fix: the typosquat check now actually runs with `-no-meta`/`-offline`**,
+  as documented — it needs no network. Previously it was silently skipped
+  alongside the registry metadata layers; with metadata off, release ages
+  are unknown and the young-release gate honestly passes everything
+  through to the name check. Verified noise-free offline across 230
+  historical diffs (npm/cli, fd, uv, mastodon, gitlab-foss, monica).
+
 ## v0.4.3 — 2026-08-06
 
 - **`≈` typosquat suspects — the oldest registry attack, caught offline.**

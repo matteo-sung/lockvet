@@ -150,7 +150,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.3 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.4 lockvet
 ```
 
 ### Shell completions & man page
@@ -396,7 +396,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.3
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.4
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -512,7 +512,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.3/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.4/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -546,7 +546,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.3", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.4", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -600,7 +600,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.4.3
+      - uses: matteo-sung/lockvet@v0.4.4
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -627,7 +627,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.4.3
+      - uses: matteo-sung/lockvet@v0.4.4
         with:
           sarif: 'true'
 ```
@@ -647,7 +647,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.4.3
+  image: ghcr.io/matteo-sung/lockvet:0.4.4
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -672,7 +672,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.4.3
+          image: ghcr.io/matteo-sung/lockvet:0.4.4
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -690,7 +690,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.4.3
+    container: ghcr.io/matteo-sung/lockvet:0.4.4
     steps:
       - checkout: none
       - script: >
@@ -714,7 +714,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.4.3
+    image: ghcr.io/matteo-sung/lockvet:0.4.4
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -732,7 +732,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.4.3
+    rev: v0.4.4
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -944,17 +944,22 @@ advisory, so this flag is the only thing that catches it. The 2022
 
 The check is **entirely local**: the popular-package lists (npm's
 [high-impact list](https://github.com/wooorm/npm-high-impact), the
-[top PyPI packages](https://github.com/hugovk/top-pypi-packages), and
-crates.io's most-downloaded) are embedded in the binary, so it works
-offline-of-registries and in the browser playground alike. Noise control,
-as always, is the point:
+[top PyPI packages](https://github.com/hugovk/top-pypi-packages),
+crates.io's most-downloaded, RubyGems' most-downloaded (via
+[ecosyste.ms](https://ecosyste.ms)), and Packagist's
+[most popular](https://packagist.org/explore/popular)) are embedded in the
+binary, so it works with `-offline` and in the browser playground alike.
+The Ruby side replays the Feb 2020 RubyGems campaign's lead example
+(`rspec-mokcs` for `rspec-mocks` — 760+ malicious gems in one sweep).
+Noise control, as always, is the point:
 
 * only packages **entering** the tree are checked — a bump can't change
   its name, and a name that has coexisted with its popular neighbour for
   years is an unfortunate name, not an attack (age gate);
 * name pairs the registry itself treats as the same package never flag
   (PyPI's `-`/`_`/`.` equivalence, crates.io's `-`/`_` collision ban) —
-  while npm separator swaps, which *are* distinct packages, do;
+  while npm/RubyGems/Packagist separator swaps, which *are* distinct
+  packages, do (`rack_cache` next to `rack-cache` flags);
 * the added package must not itself be on the popular list, and very
   short names are skipped.
 

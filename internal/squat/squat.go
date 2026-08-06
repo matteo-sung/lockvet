@@ -1,6 +1,6 @@
 // Package squat flags newly-added dependencies whose names are one edit
 // away from a popular package on the same registry — the shape of a
-// typosquatting attack (npm, PyPI, crates.io).
+// typosquatting attack (npm, PyPI, crates.io, RubyGems, Packagist).
 //
 // The check is entirely local: the popular-package name lists are embedded
 // at build time, so it runs offline and in the browser playground alike.
@@ -26,6 +26,9 @@
 //     https://github.com/hugovk/top-pypi-packages
 //     (DOI 10.5281/zenodo.2586599), top 8 000
 //   - crates.io: the crates.io API, sorted by all-time downloads, top 2 500
+//   - RubyGems: the ecosyste.ms packages API (data CC BY-SA 4.0),
+//     rubygems.org sorted by all-time downloads, top 5 000
+//   - Packagist: packagist.org's official explore/popular API, top 4 000
 package squat
 
 import (
@@ -48,6 +51,12 @@ var pypiData []byte
 
 //go:embed data/crates.txt.gz
 var cratesData []byte
+
+//go:embed data/gems.txt.gz
+var gemsData []byte
+
+//go:embed data/php.txt.gz
+var phpData []byte
 
 // MaxAgeDays is the young-release gate: additions older than this never
 // flag, however confusable their name is.
@@ -83,7 +92,8 @@ func canon(eco lock.Ecosystem, name string) string {
 		// crates.io blocks publishing foo_bar next to foo-bar.
 		return strings.ReplaceAll(strings.ToLower(name), "_", "-")
 	default:
-		// npm: lodash, lodash.merge and lo_dash are all distinct names.
+		// npm, RubyGems, Packagist: separator swaps are distinct names
+		// (lodash.merge vs lodash-merge, rack-cache vs rack_cache).
 		return strings.ToLower(name)
 	}
 }
@@ -122,9 +132,11 @@ func load(data []byte) *index {
 func ensure() {
 	once.Do(func() {
 		indexes = map[lock.Ecosystem]*index{
-			lock.NPM:      load(npmData),
-			lock.PyPI:     load(pypiData),
-			lock.CratesIO: load(cratesData),
+			lock.NPM:       load(npmData),
+			lock.PyPI:      load(pypiData),
+			lock.CratesIO:  load(cratesData),
+			lock.RubyGems:  load(gemsData),
+			lock.Packagist: load(phpData),
 		}
 	})
 }
@@ -184,12 +196,14 @@ func Match(eco lock.Ecosystem, name string) string {
 		return ""
 	}
 	if _, popular := idx.exact[f]; popular {
-		// The folded name IS on the list. For npm, a different raw
-		// spelling of a popular folded name (lodash.merge vs
-		// lodash-merge) is a real squat; for PyPI/crates the registry
-		// treats them as one package.
+		// The folded name IS on the list. Where the registry keeps
+		// separator spellings distinct (npm, RubyGems, Packagist), a
+		// different raw spelling of a popular folded name (lodash.merge
+		// vs lodash-merge, rack-cache vs rack_cache) is a real squat;
+		// for PyPI/crates the registry treats them as one package and
+		// canon comes out equal.
 		orig := idx.exact[f]
-		if eco == lock.NPM && canon(eco, orig) != canon(eco, name) {
+		if canon(eco, orig) != canon(eco, name) {
 			return orig
 		}
 		return ""

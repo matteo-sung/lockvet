@@ -237,8 +237,12 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		if err := mvnreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Maven repository check skipped: %v", err))
 		}
-		squat.Annotate(diffs) // local typosquat check (needs ages, hence last)
 	}
+	// The typosquat check is fully local (embedded popularity lists) — it
+	// runs even with -no-meta/-offline; with ages unknown the young-release
+	// gate honestly passes everything through. Last so it can use ages when
+	// the metadata layers did run.
+	squat.Annotate(diffs)
 	ign, err := ignore.Resolve(o.ignoreFile, o.noIgnore, o.ignoreDir)
 	if err != nil {
 		return nil, err

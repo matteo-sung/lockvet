@@ -430,8 +430,12 @@ func run(opts js.Value) (js.Value, error) {
 		if err := goreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("Go module proxy check skipped: %v", err))
 		}
-		squat.Annotate(diffs) // local typosquat check (needs ages, hence last)
 	}
+	// The typosquat check is fully local (embedded popularity lists) — it
+	// runs even with -no-meta/-offline; with ages unknown the young-release
+	// gate honestly passes everything through. Last so it can use ages when
+	// the metadata layers did run.
+	squat.Annotate(diffs)
 
 	sum := diffx.Summarize(diffs)
 

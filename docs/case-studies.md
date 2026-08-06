@@ -416,6 +416,25 @@ apart; flagged.)
     ▲ introduces GHSA-7pwq-f4pq-78gm (high) `rustdecimal` is a malicious crate
 ```
 
+Ruby had the biggest single campaign of all: in February 2020, one actor
+pushed **760+ typosquatted gems** to RubyGems in ten days (ReversingLabs'
+writeup leads with `rspec-mokcs`, a squat of `rspec-mocks`; the
+most-downloaded one, `atlas-client`, swapped the `_` in `atlas_client` for
+a `-` — separator swaps are distinct gem names on RubyGems, exactly the
+class the matcher flags):
+
+```
++ rspec-mokcs 3.9.1  (added)  (direct)
+    ≈ name resembles rspec-mocks: a new dependency one edit away from a
+      popular package, and the release is young — the shape of a typosquat
+```
+
+(Honest miss, for the record: `atlas_client` itself is not a top-5000 gem,
+so *that* particular squat sails past a popularity-list matcher — the
+campaign mostly squatted mid-tier names. The flag catches squats of
+packages people actually depend on at scale, which is also where the
+downloads are.)
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:
