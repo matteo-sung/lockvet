@@ -121,6 +121,18 @@ scoop bucket add matteo-sung https://github.com/matteo-sung/scoop-bucket
 scoop install matteo-sung/lockvet
 ```
 
+[aqua](https://aquaproj.github.io/) (lockvet is in the standard registry):
+
+```sh
+aqua g -i matteo-sung/lockvet
+```
+
+[mise](https://mise.jdx.dev/) (via its aqua backend):
+
+```sh
+mise use -g aqua:matteo-sung/lockvet
+```
+
 Go:
 
 ```sh
