@@ -4,6 +4,26 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.2 — 2026-08-06
+
+- **On-disk response cache — repeat runs are fast and quota-friendly.**
+  Registry and advisory answers (OSV.dev, deps.dev, the 14 package
+  registries lockvet reads, git tag listings, GitHub release notes) are
+  cached for one hour under `os.UserCacheDir()/lockvet` (override:
+  `LOCKVET_CACHE_DIR`), so running `lockvet`, then `lockvet -md` for the
+  PR comment, no longer asks every registry twice — a warm
+  `lockvet compare` run drops from ~3s to ~1s, and tight anonymous rate
+  limits (hex.pm 100 req/min, npm, PyPI) stop being a concern for
+  repeated local runs. Honesty guarantees: forge data (PR state, compared
+  file contents) is **never** cached, so you always vet the live diff;
+  only `200` answers are stored — negative registry answers, the evidence
+  behind the ▲ unlisted flag, are re-proven on every run so a
+  just-published version clears the flag immediately; authenticated and
+  anonymous responses never share entries, and credentials are never
+  written to disk. New flags: `-no-cache` (bypass), `-cache-ttl D`
+  (default `1h`; `0` disables). Cache files are user-private (0600) and
+  swept automatically.
+
 ## v0.4.1 — 2026-08-06
 
 - **`.lockvetignore` — acknowledge a finding without turning the gate

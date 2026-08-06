@@ -28,6 +28,7 @@ package mvnreg
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"strings"
@@ -47,7 +48,7 @@ var (
 // maxVersionsPerChange caps POM probes for multi-version changes.
 const maxVersionsPerChange = 3
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Now is a var so tests can pin the clock.
 var Now = time.Now

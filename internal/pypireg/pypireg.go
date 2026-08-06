@@ -24,6 +24,7 @@ package pypireg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"regexp"
@@ -43,7 +44,7 @@ var SimpleURL = "https://pypi.org/simple"
 // provenance-dropped flag (see the age gate in Annotate).
 const provenanceMaxAgeDays = 30
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Annotate fills PyPI-registry signals on the diffs; see the package
 // comment for what it flags. Call it AFTER depsdev.Annotate (it

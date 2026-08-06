@@ -8,6 +8,7 @@ package relnotes
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"net/url"
@@ -47,7 +48,7 @@ var APIBase = "https://api.github.com"
 // where taglink cannot run (git smart-HTTP has no CORS headers).
 var Fallback = false
 
-var client = &http.Client{Timeout: 15 * time.Second}
+var client = hcache.Client(15 * time.Second)
 
 type release struct {
 	TagName    string `json:"tag_name"`

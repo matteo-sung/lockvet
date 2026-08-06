@@ -29,6 +29,7 @@ package gemreg
 import (
 	"bufio"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"regexp"
@@ -55,7 +56,7 @@ const provenanceMaxAgeDays = 30
 // practice window + incoming versions).
 const maxAttestations = 8
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Now is a var so tests can pin the clock.
 var Now = time.Now

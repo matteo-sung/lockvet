@@ -8,6 +8,7 @@ package taglink
 import (
 	"bufio"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"net/url"
@@ -22,7 +23,7 @@ import (
 // Concurrency is the number of repositories fetched in parallel.
 var Concurrency = 12
 
-var client = &http.Client{Timeout: 10 * time.Second}
+var client = hcache.Client(10 * time.Second)
 
 // forge styles determine how compare / tag URLs are written.
 type forge int

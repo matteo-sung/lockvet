@@ -5,8 +5,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/lock"
-	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -21,7 +21,7 @@ const (
 	maxDetails = 150 // cap detail lookups per run
 )
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 type query struct {
 	Version string `json:"version"`

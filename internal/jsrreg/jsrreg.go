@@ -32,6 +32,7 @@ package jsrreg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"sort"
@@ -52,7 +53,7 @@ var APIBaseURL = "https://jsr.io"
 // Now is a var so tests can pin the clock.
 var Now = time.Now
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 const userAgent = "lockvet (+https://github.com/matteo-sung/lockvet)"
 

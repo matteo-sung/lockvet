@@ -30,6 +30,7 @@ package nugetreg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"net/http"
 	"sort"
 	"strings"
@@ -46,7 +47,7 @@ var RegURL = "https://api.nuget.org/v3/registration5-gz-semver2"
 // Now is a var so tests can pin the clock.
 var Now = time.Now
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 const userAgent = "lockvet (+https://github.com/matteo-sung/lockvet)"
 

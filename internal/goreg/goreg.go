@@ -31,6 +31,7 @@ package goreg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"os"
@@ -50,7 +51,7 @@ var ProxyURL = "https://proxy.golang.org"
 // verification + age backfill).
 const maxInfoLookups = 4
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Now is a var so tests can pin the clock.
 var Now = time.Now

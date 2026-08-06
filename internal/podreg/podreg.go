@@ -37,6 +37,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"io"
 	"net/http"
 	"net/url"
@@ -69,7 +70,7 @@ var UseTrunk = true
 // Now is a var so tests can pin the clock.
 var Now = time.Now
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 const userAgent = "lockvet (+https://github.com/matteo-sung/lockvet)"
 

@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	neturl "net/url"
 	"regexp"
 	"sort"
@@ -29,7 +29,7 @@ var SingleURL = "https://api.deps.dev/v3alpha"
 // answer CORS preflight requests, but the GET endpoints are CORS-simple.
 var SingleRequests = false
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Now is a var so tests can pin the clock.
 var Now = time.Now

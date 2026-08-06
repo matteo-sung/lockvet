@@ -33,6 +33,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"net/http"
 	"sort"
 	"strings"
@@ -62,7 +63,7 @@ const provenanceMaxAgeDays = 30
 // practice-window versions beyond the first API page).
 const maxSingles = 6
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Now is a var so tests can pin the clock.
 var Now = time.Now

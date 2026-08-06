@@ -27,6 +27,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/ignore"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
@@ -150,6 +151,12 @@ FLAGS
   -no-meta       skip the deps.dev metadata check (release age, deprecations)
                  and upstream changelog/diff links
   -offline       no network calls at all (= -no-vulns -no-meta)
+  -no-cache      don't read or write the on-disk response cache. Registry
+                 and advisory answers are cached for 1h under
+                 ~/.cache/lockvet (LOCKVET_CACHE_DIR overrides) so repeat
+                 runs are fast; forge data (PR contents) is never cached
+  -cache-ttl D   how long cached registry/advisory answers stay fresh
+                 (default 1h; 0 disables the cache)
   -fresh-days N  flag versions published fewer than N days ago (default 7;
                  0 shows ages but never flags)
   -changelogs    fetch upstream release notes for every bump (incl. the
@@ -206,6 +213,8 @@ func main() {
 		failOn     = flag.String("fail-on", "", "")
 		ignoreFile = flag.String("ignore-file", "", "")
 		noIgnore   = flag.Bool("no-ignore", false, "")
+		noCache    = flag.Bool("no-cache", false, "")
+		cacheTTL   = flag.Duration("cache-ttl", hcache.DefaultTTL, "")
 		dir        = flag.String("C", ".", "")
 		noColor    = flag.Bool("no-color", false, "")
 		showVer    = flag.Bool("version", false, "")
@@ -221,6 +230,7 @@ func main() {
 		*noVulns = true
 		*noMeta = true
 	}
+	hcache.Configure(*noCache, *cacheTTL)
 	if *changelogs && *noMeta {
 		fatal("-changelogs needs the deps.dev metadata pass (it supplies each package's source repo) — drop -no-meta/-offline")
 	}
@@ -1277,6 +1287,7 @@ func reorderArgs(args []string) []string {
 		"-fail-on": true, "-C": true, "-fresh-days": true, "-only": true, "-ignore-file": true,
 		"--fail-on": true, "--C": true, "--fresh-days": true, "--only": true, "--ignore-file": true,
 		"-author": true, "--author": true, "-limit": true, "--limit": true,
+		"-cache-ttl": true, "--cache-ttl": true,
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]

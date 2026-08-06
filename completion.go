@@ -25,7 +25,7 @@ _lockvet() {
         cword=$COMP_CWORD
     fi
 
-    local flags="-md -json -sarif -no-vulns -no-meta -offline -fresh-days -changelogs -only -comment -fail-on -ignore-file -no-ignore -author -limit -C -no-color -version -h"
+    local flags="-md -json -sarif -no-vulns -no-meta -offline -no-cache -cache-ttl -fresh-days -changelogs -only -comment -fail-on -ignore-file -no-ignore -author -limit -C -no-color -version -h"
     local subcmds="pr mr compare queue audit diff mcp completion man"
 
     case $prev in
@@ -105,6 +105,8 @@ _lockvet() {
         '-no-vulns[skip the OSV.dev vulnerability check]' \
         '-no-meta[skip deps.dev metadata (release ages, deprecations, links)]' \
         '-offline[no network calls at all]' \
+        '-no-cache[skip the on-disk registry/advisory response cache]' \
+        '-cache-ttl[how long cached registry answers stay fresh (default 1h; 0 disables)]:duration' \
         '-fresh-days[flag versions published fewer than N days ago (default 7)]:days' \
         '-changelogs[fetch upstream release notes for every bump]' \
         '-only[only changes whose name or via-chain matches PAT (glob, comma list)]:pattern' \
@@ -169,6 +171,8 @@ complete -c lockvet -o sarif -d 'SARIF 2.1.0 output (GitHub Code Scanning)'
 complete -c lockvet -o no-vulns -d 'skip the OSV.dev vulnerability check'
 complete -c lockvet -o no-meta -d 'skip deps.dev metadata (ages, deprecations, links)'
 complete -c lockvet -o offline -d 'no network calls at all'
+complete -c lockvet -o no-cache -d 'skip the on-disk registry/advisory response cache'
+complete -c lockvet -o cache-ttl -r -d 'how long cached registry answers stay fresh (default 1h; 0 disables)'
 complete -c lockvet -o fresh-days -x -d 'flag versions younger than N days (default 7)'
 complete -c lockvet -o changelogs -d 'fetch upstream release notes for every bump'
 complete -c lockvet -o only -x -d 'only changes matching pattern (glob, comma list)'
@@ -285,6 +289,19 @@ changes, changelog links).
 .TP
 .B \-offline
 No network calls at all (implies \fB\-no\-vulns \-no\-meta\fR).
+.TP
+.B \-no\-cache
+Don't read or write the on\-disk response cache. Registry and advisory
+answers (OSV.dev, deps.dev, package registries, release notes) are cached
+for one hour under \fI~/.cache/lockvet\fR (\fBLOCKVET_CACHE_DIR\fR
+overrides the location) so repeat runs are fast and stay inside anonymous
+rate limits. Forge data \(em pull request state and file contents \(em is
+never cached, and negative registry answers (the evidence behind the
+"unlisted" flag) are re\-proven on every run.
+.TP
+.BI \-cache\-ttl " DURATION"
+How long cached registry/advisory answers stay fresh (default \fB1h\fR;
+\fB0\fR disables the cache).
 .TP
 .BI \-fresh\-days " N"
 Flag versions published fewer than \fIN\fR days ago (default 7;

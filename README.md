@@ -1143,6 +1143,17 @@ above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
 vulnerability and metadata+links lookups individually. No telemetry, ever.
 
+**Caching:** registry and advisory answers are cached on disk for one hour
+(`~/.cache/lockvet`, override with `LOCKVET_CACHE_DIR`), so repeat runs are
+fast — running `lockvet`, then `lockvet -md` for the PR comment, doesn't ask
+every registry twice — and stay inside anonymous rate limits. Forge data
+(PR state, file contents) is never cached, so you always vet the live diff,
+and negative registry answers — the evidence behind the ▲ unlisted flag —
+are re-proven on every run, so a just-published version clears the flag
+immediately. `-no-cache` bypasses it; `-cache-ttl 15m` tunes it
+(`-cache-ttl 0` disables). Nothing from *your* repository is ever written
+to the cache.
+
 **Dependencies:** none. Pure Go standard library.
 
 ## How it compares

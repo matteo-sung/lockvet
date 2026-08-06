@@ -18,6 +18,7 @@ package npmreg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"net/http"
 	neturl "net/url"
 	"sort"
@@ -36,7 +37,7 @@ var RegistryURL = "https://registry.npmjs.org"
 // provenance-dropped flag (see the age gate in Annotate).
 const provenanceMaxAgeDays = 30
 
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = hcache.Client(20 * time.Second)
 
 // Annotate does two npm-registry passes over the diffs, sharing one
 // metadata download per package:
