@@ -65,6 +65,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
+	"github.com/matteo-sung/lockvet/internal/squat"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
 )
 
@@ -429,6 +430,7 @@ func run(opts js.Value) (js.Value, error) {
 		if err := goreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("Go module proxy check skipped: %v", err))
 		}
+		squat.Annotate(diffs) // local typosquat check (needs ages, hence last)
 	}
 
 	sum := diffx.Summarize(diffs)

@@ -42,6 +42,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
+	"github.com/matteo-sung/lockvet/internal/squat"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
 	"github.com/matteo-sung/lockvet/internal/vers"
@@ -171,7 +172,8 @@ FLAGS
                  Needs GITHUB_TOKEN / gh login, GITLAB_TOKEN (api scope), or
                  BITBUCKET_TOKEN / app password (pullrequest:write).
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
-                 "fresh", "deprecated", "unlisted", "scripts", "provenance", or "license"
+                 "fresh", "deprecated", "unlisted", "typosquat", "scripts",
+                 "provenance", or "license"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
   -ignore-file F acknowledged findings that skip the summary and -fail-on
                  (default: .lockvetignore next to the lockfiles, if present;
@@ -699,6 +701,7 @@ func main() {
 		if err := mvnreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
 		}
+		squat.Annotate(diffs) // local typosquat check (needs ages, hence last)
 	}
 
 	ignSet, err := ignore.Resolve(*ignoreFile, *noIgnore, *dir)
@@ -1151,6 +1154,7 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		if err := mvnreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
 		}
+		squat.Annotate(combined) // local typosquat check (needs ages, hence last)
 	}
 
 	// Build, sort, and render the rows.
@@ -1259,6 +1263,10 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 			if sum.Unlisted > 0 {
 				return 1
 			}
+		case "typosquat", "typosquats":
+			if sum.Typosquats > 0 {
+				return 1
+			}
 		case "scripts", "install-scripts":
 			if sum.ScriptsAdded > 0 {
 				return 1
@@ -1272,7 +1280,7 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 				return 1
 			}
 		default:
-			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, scripts, provenance, or license)", cond))
+			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, typosquat, scripts, provenance, or license)", cond))
 		}
 	}
 	return 0

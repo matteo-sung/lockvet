@@ -373,6 +373,49 @@ lockfile** mode runs the same sweep on dropped files, in your browser.
 
 ---
 
+## 8. python3-dateutil (2019) and rustdecimal (2022) — the typosquats
+
+Everything above is a *takeover* — a good name hijacked. The older, simpler
+attack is the **typosquat**: publish a near-name and wait. In 2019,
+`python3-dateutil` sat on PyPI harvesting SSH keys and it *looks* plausible —
+Python 3, right? In 2022, `rustdecimal` targeted users of `rust_decimal` on
+crates.io.
+
+Replay the PyPI one:
+
+```sh
+printf 'python-dateutil==2.8.2\n' > old-requirements.txt
+printf 'python-dateutil==2.8.2\npython3-dateutil==2.9.0\n' > requirements.txt
+lockvet diff old-requirements.txt requirements.txt
+```
+
+```
++ python3-dateutil 2.9.0  (added)
+    ≈ name resembles python-dateutil: a new dependency one edit away
+      from a popular package, and the release is young — the shape of
+      a typosquat; make sure this is the package you meant
+```
+
+Note what is **missing** from that output: an advisory. The
+`python3-dateutil` attack never received an OSV entry — `pip install`ing it
+today raises no flag in any advisory-driven scanner. The `≈` line is the
+only catch, and it's computed entirely offline against popularity lists
+embedded in the binary.
+
+The crates.io replay produces both signals — GHSA-7pwq-f4pq-78gm *and* the
+`≈` flag. (A subtlety the matcher gets right: crates.io itself blocks
+registering `rust-decimal` next to `rust_decimal`, so that pair can never
+be a squat and never flags — but **deleting** the separator entirely, as
+`rustdecimal` did, produces a name the registry happily accepts. One edit
+apart; flagged.)
+
+```
++ rustdecimal 1.23.1  (added)
+    ≈ name resembles rust_decimal: a new dependency one edit away from a
+      popular package, and the release is young — the shape of a typosquat
+    ▲ introduces GHSA-7pwq-f4pq-78gm (high) `rustdecimal` is a malicious crate
+```
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:
@@ -394,6 +437,9 @@ So, honestly stated, here is what each lockvet gate buys you:
   `minimumReleaseAge`), and it holds up legitimate releases too. That is the
   price: you trade a few days of latency on all updates for never being in
   the first wave of any of the four attacks above.
+- **`-fail-on typosquat`** works **before T+0** — it needs no advisory, no
+  registry reaction, no metadata: the name analysis is local. It caught
+  `python3-dateutil`, which nothing else in this document catches.
 - **`-fail-on unlisted`** works from the moment the registry pulls the
   malicious version — usually *before* the advisory is written. Notice the
   `▲ not in registry index` line on **every single replay above**: all six

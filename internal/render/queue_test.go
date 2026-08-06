@@ -41,7 +41,7 @@ func TestQueueTerminal(t *testing.T) {
 		"open dependency PRs — repo:o/r",
 		"#1", "+1/−2", "bump left-pad",
 		"no lockfile changes", "error: GitHub API: 404",
-		"1 alarming (vulns/unlisted/scripts/provenance)", "1 without lockfile changes", "1 failed",
+		"1 alarming (vulns/unlisted/typosquat/scripts/provenance)", "1 without lockfile changes", "1 failed",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("terminal output missing %q:\n%s", want, out)

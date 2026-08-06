@@ -167,6 +167,23 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.TyposquatOf != "" {
+				idx := addRule(rule{
+					ID:               "typosquat-suspect",
+					ShortDescription: map[string]string{"text": "New dependency's name is one edit away from a popular package"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#typosquat-suspects",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "typosquat-suspect", RuleIndex: idx,
+					Level:     "warning",
+					Message:   map[string]string{"text": fmt.Sprintf("%s: the name is at most one edit away from the popular package '%s' on the same registry, and the release is young or of unknown age — the shape of a typosquatting attack. Make sure this is the package you meant.%s", what, c.TyposquatOf, via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "typosquat"),
+					},
+				})
+			}
 			if c.ScriptsAdded {
 				idx := addRule(rule{
 					ID:               "install-scripts-added",

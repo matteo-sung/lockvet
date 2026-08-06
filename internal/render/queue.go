@@ -45,7 +45,7 @@ func (r QueueRow) verdict() int {
 		return 4
 	case r.NoChanges:
 		return 3
-	case r.Sum.VulnsIntroduced > 0 || r.Sum.Unlisted > 0 || r.Sum.ScriptsAdded > 0 || r.Sum.ProvenanceDropped > 0:
+	case r.Sum.VulnsIntroduced > 0 || r.Sum.Unlisted > 0 || r.Sum.ScriptsAdded > 0 || r.Sum.ProvenanceDropped > 0 || r.Sum.Typosquats > 0:
 		return 0
 	case r.Sum.Major > 0 || r.Sum.Downgraded > 0 || r.Sum.Fresh > 0 || r.Sum.Deprecated > 0:
 		return 1
@@ -216,7 +216,7 @@ func queueSummary(s styler, noun string, rows []QueueRow, vulnsChecked, metaChec
 	}
 	parts := []string{fmt.Sprintf("%s", plural(len(rows), "open "+noun))}
 	if vuln > 0 {
-		parts = append(parts, s.bred(fmt.Sprintf("%d alarming (vulns/unlisted/scripts/provenance)", vuln)))
+		parts = append(parts, s.bred(fmt.Sprintf("%d alarming (vulns/unlisted/typosquat/scripts/provenance)", vuln)))
 	}
 	if look > 0 {
 		what := "%d need a look (major/downgrade"

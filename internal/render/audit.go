@@ -18,7 +18,7 @@ import (
 // install scripts, provenance — never fire.)
 func hasAuditFinding(c diffx.Change) bool {
 	return len(c.IntroducedVulns)+len(c.ExistingVulns) > 0 ||
-		c.Deprecated || c.Unlisted || c.Fresh ||
+		c.Deprecated || c.Unlisted || c.Fresh || c.TyposquatOf != "" ||
 		c.ScriptsAdded || c.ProvenanceDropped || c.LicenseChanged
 }
 
@@ -93,6 +93,9 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 			if c.Unlisted {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting"))
 			}
+			if c.TyposquatOf != "" {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("≈ name resembles "+c.TyposquatOf+":"), s.dim("pinned recently and one edit away from a popular package — the shape of a typosquat; make sure this is the package you meant"))
+			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● license change:"), s.dim(c.OldLicense+" → "+c.NewLicense))
 			}
@@ -126,6 +129,9 @@ func auditSummaryLine(s styler, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 		if sum.Unlisted > 0 {
 			out += " · " + s.bred(pluralVerb(sum.Unlisted, "version", "versions")+" not in registry index")
 		}
+		if sum.Typosquats > 0 {
+			out += " · " + s.bred(pluralVerb(sum.Typosquats, "name resembles", "names resemble")+" a popular package")
+		}
 	}
 	if sum.Ignored > 0 {
 		out += " · " + s.dim(plural(sum.Ignored, "finding")+" ignored (.lockvetignore)")
@@ -154,7 +160,7 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			fmt.Fprintf(w, "\nVulnerabilities: none known (via [OSV.dev](https://osv.dev))\n")
 		}
 	}
-	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.Unlisted > 0 || sum.LicenseChanged > 0) {
+	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.Unlisted > 0 || sum.LicenseChanged > 0 || sum.Typosquats > 0) {
 		var bits []string
 		if sum.Fresh > 0 {
 			bits = append(bits, fmt.Sprintf("**%s published <%dd ago** ⏱", plural(sum.Fresh, "version"), freshDays))
@@ -164,6 +170,9 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 		}
 		if sum.Unlisted > 0 {
 			bits = append(bits, fmt.Sprintf("**%s not in the registry index** ❗", plural(sum.Unlisted, "version")))
+		}
+		if sum.Typosquats > 0 {
+			bits = append(bits, fmt.Sprintf("**%s a popular package** ≈", pluralVerb(sum.Typosquats, "name resembles", "names resemble")))
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev) and the package registries)\n", strings.Join(bits, ", "))
 	}
@@ -242,6 +251,9 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			}
 			if c.Unlisted {
 				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | %s — missing from the registry index though other versions are listed; unpublished/deleted release |%s\n", esc(join(c.UnlistedVersions)), padCell)
+			}
+			if c.TyposquatOf != "" {
+				fmt.Fprintf(w, "| ≈ | ↳ name resembles `%s` | pinned recently and one edit away from a popular package — make sure this is the package you meant |%s\n", esc(c.TyposquatOf), padCell)
 			}
 			if c.LicenseChanged {
 				fmt.Fprintf(w, "| ⚖️ | ↳ license change | %s |%s\n", esc(c.OldLicense+" → "+c.NewLicense), padCell)

@@ -78,6 +78,12 @@ type Change struct {
 	ProvenanceDropped  bool     `json:"provenance_dropped,omitempty"`
 	UnattestedVersions []string `json:"unattested_versions,omitempty"`
 
+	// TyposquatOf: this package just entered the tree, its release is
+	// young (or of unknown age), and its name is at most one edit away
+	// from the named popular package on the same registry — the shape of
+	// a typosquatting attack. Set by the squat layer; empty means clean.
+	TyposquatOf string `json:"typosquat_of,omitempty"`
+
 	// NonRegistry: the lockfile says this package doesn't come from the
 	// public registry (workspace member, path/git dependency). Suppresses
 	// the unlisted flag; not serialized.
@@ -507,6 +513,7 @@ type Summary struct {
 	VulnsIntroduced, VulnsFixed, VulnsExisting             int
 	Fresh, Deprecated, LicenseChanged, Unlisted            int
 	ScriptsAdded                                           int // npm bumps that newly run install scripts
+	Typosquats                                             int // young additions confusable with a popular package
 	ProvenanceDropped                                      int // npm bumps that silently stop attesting provenance
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 	Ignored                                                int // findings acknowledged via .lockvetignore
@@ -554,6 +561,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.ScriptsAdded {
 				s.ScriptsAdded++
+			}
+			if c.TyposquatOf != "" && !c.HasIgnored("typosquat") {
+				s.Typosquats++
 			}
 			if c.ProvenanceDropped {
 				s.ProvenanceDropped++

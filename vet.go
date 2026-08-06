@@ -40,6 +40,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/pypireg"
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
+	"github.com/matteo-sung/lockvet/internal/squat"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
 )
@@ -236,6 +237,7 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		if err := mvnreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Maven repository check skipped: %v", err))
 		}
+		squat.Annotate(diffs) // local typosquat check (needs ages, hence last)
 	}
 	ign, err := ignore.Resolve(o.ignoreFile, o.noIgnore, o.ignoreDir)
 	if err != nil {

@@ -11,7 +11,7 @@
 //	major:react@19.*                 accept a specific major bump
 //	GHSA-xxxx-xxxx-xxxx until=2026-12-31   temporary, expires loudly
 //
-// Kinds: vuln, fresh, deprecated, unlisted, scripts, provenance, license,
+// Kinds: vuln, fresh, deprecated, unlisted, typosquat, scripts, provenance, license,
 // major, downgrade. Package names and advisory IDs match case-insensitively
 // and accept * and ? globs. Suppressed findings stay in the JSON output
 // (ignored / ignored_vulns) and appear as a dim marker in reports, but no
@@ -38,7 +38,8 @@ var kinds = map[string]string{
 	"fresh":      "fresh",
 	"deprecated": "deprecated",
 	"unlisted":   "unlisted",
-	"scripts":    "scripts", "install-scripts": "scripts",
+	"typosquat":  "typosquat", "typosquats": "typosquat",
+	"scripts": "scripts", "install-scripts": "scripts",
 	"provenance": "provenance",
 	"license":    "license", "licenses": "license",
 	"major":     "major",
@@ -238,6 +239,10 @@ func applyChange(c *diffx.Change, rules []Rule) int {
 		if (all || r.Kind == "unlisted") && c.Unlisted {
 			c.Unlisted = false
 			mark("unlisted")
+		}
+		if (all || r.Kind == "typosquat") && c.TyposquatOf != "" {
+			c.TyposquatOf = ""
+			mark("typosquat")
 		}
 		if (all || r.Kind == "scripts") && c.ScriptsAdded {
 			c.ScriptsAdded = false

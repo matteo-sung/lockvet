@@ -35,6 +35,13 @@ what really happened:
   within days — a cooldown is cheap insurance), upstream deprecation
   notices, and ⚖ **license changes** — a bump that silently swaps MIT for
   BUSL or "non-standard" gets flagged (via [deps.dev](https://deps.dev))
+- **supply-chain tripwires** — versions [missing from their own registry
+  index](#versions-missing-from-the-registry) (what unpublished malware
+  looks like), new dependencies whose name is [one edit from a popular
+  package](#typosquat-suspects) (typosquats — checked offline against
+  embedded popularity lists), bumps that [suddenly add npm install
+  scripts](#install-scripts-added-by-a-bump), and young releases that
+  [silently drop sigstore provenance](#provenance-dropped-by-a-bump)
 - **what actually changed upstream** — every new version links to the exact
   tag-to-tag diff in its source repository (`…/compare/v1.2.3...v1.3.0`),
   *verified against the repo's real tags* so the link never 404s — across
@@ -905,6 +912,45 @@ tells you to *look*, not to panic. Gate on it with `-fail-on unlisted`;
 JSON carries `unlisted` / `unlisted_versions`; SARIF emits an
 `unlisted-version` warning; `queue` sorts affected PRs to the top.
 
+## Typosquat suspects
+
+The oldest trick on every registry: publish `lodahs`, `reqeusts` or
+`rustdecimal` and wait for a typo. lockvet flags **new dependencies whose
+name is one edit away from a popular package** on the same registry — when
+the release is also young (≤ 30 days) or of unknown age:
+
+```
++ python3-dateutil 2.9.0  (added)
+    ≈ name resembles python-dateutil: a new dependency one edit away
+      from a popular package, and the release is young — the shape of
+      a typosquat; make sure this is the package you meant
+```
+
+That example is the real 2019 PyPI attack — and it never got an OSV
+advisory, so this flag is the only thing that catches it. The 2022
+`rustdecimal` crates.io attack and npm's `lodahs` trip it too.
+
+The check is **entirely local**: the popular-package lists (npm's
+[high-impact list](https://github.com/wooorm/npm-high-impact), the
+[top PyPI packages](https://github.com/hugovk/top-pypi-packages), and
+crates.io's most-downloaded) are embedded in the binary, so it works
+offline-of-registries and in the browser playground alike. Noise control,
+as always, is the point:
+
+* only packages **entering** the tree are checked — a bump can't change
+  its name, and a name that has coexisted with its popular neighbour for
+  years is an unfortunate name, not an attack (age gate);
+* name pairs the registry itself treats as the same package never flag
+  (PyPI's `-`/`_`/`.` equivalence, crates.io's `-`/`_` collision ban) —
+  while npm separator swaps, which *are* distinct packages, do;
+* the added package must not itself be on the popular list, and very
+  short names are skipped.
+
+Gate on it with `-fail-on typosquat`; acknowledge a deliberate near-name
+with a `typosquat:pkgname` line in `.lockvetignore`; JSON carries
+`typosquat_of`; SARIF emits a `typosquat-suspect` warning; `queue` sorts
+affected PRs to the top.
+
 ## Install scripts added by a bump
 
 npm packages can run arbitrary code at install time (`preinstall` /
@@ -1141,7 +1187,9 @@ metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
-vulnerability and metadata+links lookups individually. No telemetry, ever.
+vulnerability and metadata+links lookups individually. The typosquat check
+makes no requests at all — the popularity lists ship inside the binary.
+No telemetry, ever.
 
 **Caching:** registry and advisory answers are cached on disk for one hour
 (`~/.cache/lockvet`, override with `LOCKVET_CACHE_DIR`), so repeat runs are
@@ -1167,6 +1215,7 @@ to the cache.
 | Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
 | License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
 | Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
+| Flag new dependencies one edit from a popular name (typosquats) | ✗ | ✗ | ✓ ([`≈ typosquat`](#typosquat-suspects), offline, npm/PyPI/crates.io) |
 | Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
 | Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
@@ -1174,7 +1223,7 @@ to the cache.
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | Audit the *current* pins, not just a change | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|scripts\|provenance\|license`) + GitHub Action |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|typosquat\|scripts\|provenance\|license`) + GitHub Action |
 | Acknowledge a finding without turning the gate off | ✗ | ✗ | `.lockvetignore` (per-advisory / per-package rules with expiry dates; ignored findings stay visible) |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |

@@ -4,6 +4,30 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.3 — 2026-08-06
+
+- **`≈` typosquat suspects — the oldest registry attack, caught offline.**
+  A new dependency whose name is at most one edit away (insertion,
+  deletion, substitution, or adjacent transposition — separator swaps
+  included) from a popular package on the same registry, and whose release
+  is young (≤ 30 days) or of unknown age, is flagged as the shape of a
+  typosquat. Historical replays: the 2019 PyPI `python3-dateutil` attack
+  (which never received an OSV advisory — this flag is the only catch),
+  crates.io's 2022 `rustdecimal`, npm's `lodahs`. Entirely local: the
+  popularity lists (npm high-impact by Titus Wormer, Top PyPI Packages by
+  Hugo van Kemenade, crates.io most-downloaded) are embedded in the
+  binary — zero network requests, works in the browser playground.
+  Noise design: only packages *entering* the tree are checked; name pairs
+  the registry treats as one package never flag (PyPI `-`/`_`/`.`
+  equivalence, crates.io `-`/`_` collision ban) while npm separator
+  swaps — genuinely distinct packages — do; popular packages themselves
+  and very short names are skipped; the age gate mutes long-coexisting
+  neighbours. Zero flags across live Dependabot/Renovate queues of
+  mastodon, grafana, and renovatebot. Surfaces: terminal `≈` + summary,
+  markdown row, JSON `typosquat_of`, SARIF `typosquat-suspect` warning,
+  `-fail-on typosquat`, `.lockvetignore` kind `typosquat:`, `queue` top
+  tier, MCP tool descriptions.
+
 ## v0.4.2 — 2026-08-06
 
 - **On-disk response cache — repeat runs are fast and quota-friendly.**

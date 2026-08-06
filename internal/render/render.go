@@ -150,6 +150,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⚙ install scripts added: "+join(c.ScriptedVersions)), s.dim("the old version ran no install scripts, this one does — a favourite payload vehicle for hijacked npm packages; review before trusting"))
 			}
+			if c.TyposquatOf != "" {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("≈ name resembles "+c.TyposquatOf+":"), s.dim("a new dependency one edit away from a popular package, and the release is young — the shape of a typosquat; make sure this is the package you meant"))
+			}
 			if c.ProvenanceDropped {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⛨ provenance dropped: "+join(c.UnattestedVersions)), s.dim("every previous version was published with sigstore provenance, this one wasn't — legitimate CI keeps attesting, a stolen publish token can't; verify the release"))
 			}
@@ -280,6 +283,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 			out += " · " + s.yellow(fmt.Sprintf("%s changed", plural(sum.LicenseChanged, "license")))
 		}
 	}
+	if sum.Typosquats > 0 {
+		out += " · " + s.bred(pluralVerb(sum.Typosquats, "name resembles", "names resemble")+" a popular package")
+	}
 	if sum.ScriptsAdded > 0 {
 		out += " · " + s.bred(pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add")+" install scripts")
 	}
@@ -346,6 +352,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			bits = append(bits, fmt.Sprintf("**%s changed** ⚖️", plural(sum.LicenseChanged, "license")))
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev) and the package registries)\n", strings.Join(bits, ", "))
+	}
+	if sum.Typosquats > 0 {
+		fmt.Fprintf(w, "\nTyposquat check: **%s a popular package** ≈ — new young dependencies one edit away from a well-known name; make sure they are the packages you meant\n", pluralVerb(sum.Typosquats, "added name resembles", "added names resemble"))
 	}
 	if sum.ScriptsAdded > 0 {
 		fmt.Fprintf(w, "\nInstall scripts: **%s install scripts** ⚙ where the outgoing version ran none (via the npm registry)\n", pluralVerb(sum.ScriptsAdded, "bump adds", "bumps add"))
@@ -425,6 +434,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "| ⚙ | ↳ install scripts added | | %s | the old version ran no install scripts — a favourite payload vehicle for hijacked npm packages |%s\n", esc(join(c.ScriptedVersions)), padCell)
+			}
+			if c.TyposquatOf != "" {
+				fmt.Fprintf(w, "| ≈ | ↳ name resembles `%s` | | | a new young dependency one edit away from a popular package — the shape of a typosquat; make sure this is the package you meant |%s\n", esc(c.TyposquatOf), padCell)
 			}
 			if c.ProvenanceDropped {
 				fmt.Fprintf(w, "| ⛨ | ↳ provenance dropped | | %s | every previous version was published with sigstore provenance, this one wasn't — verify the release |%s\n", esc(join(c.UnattestedVersions)), padCell)

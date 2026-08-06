@@ -35,7 +35,7 @@ _lockvet() {
             fi
             return ;;
         -fail-on)
-            COMPREPLY=( $(compgen -W "major vuln downgrade fresh deprecated unlisted scripts provenance license" -- "$cur") )
+            COMPREPLY=( $(compgen -W "major vuln downgrade fresh deprecated unlisted typosquat scripts provenance license" -- "$cur") )
             return ;;
         -fresh-days|-limit|-only|-author)
             return ;;
@@ -111,7 +111,7 @@ _lockvet() {
         '-changelogs[fetch upstream release notes for every bump]' \
         '-only[only changes whose name or via-chain matches PAT (glob, comma list)]:pattern' \
         '-comment[post the report as a comment on the PR/MR]' \
-        '-fail-on[exit 1 if the diff contains a condition (comma list)]:condition:_values -s , condition major vuln downgrade fresh deprecated unlisted scripts provenance license' \
+        '-fail-on[exit 1 if the diff contains a condition (comma list)]:condition:_values -s , condition major vuln downgrade fresh deprecated unlisted typosquat scripts provenance license' \
         '-ignore-file[acknowledged findings that skip the summary and -fail-on]:file:_files' \
         '-no-ignore[ignore no findings even if .lockvetignore exists]' \
         '-author[queue mode: bot accounts to search for (comma list, "any" ok)]:authors' \
@@ -177,7 +177,7 @@ complete -c lockvet -o fresh-days -x -d 'flag versions younger than N days (defa
 complete -c lockvet -o changelogs -d 'fetch upstream release notes for every bump'
 complete -c lockvet -o only -x -d 'only changes matching pattern (glob, comma list)'
 complete -c lockvet -o comment -d 'post the report as a PR/MR comment'
-complete -c lockvet -o fail-on -x -a 'major vuln downgrade fresh deprecated unlisted scripts provenance license' -d 'exit 1 on findings (comma list)'
+complete -c lockvet -o fail-on -x -a 'major vuln downgrade fresh deprecated unlisted typosquat scripts provenance license' -d 'exit 1 on findings (comma list)'
 complete -c lockvet -o ignore-file -r -d 'acknowledged findings that skip the summary and -fail-on'
 complete -c lockvet -o no-ignore -d 'ignore no findings even if .lockvetignore exists'
 complete -c lockvet -o author -x -d 'queue mode: bot accounts (comma list, "any" ok)'
@@ -323,7 +323,7 @@ reruns update the same comment in place.
 .TP
 .BI \-fail\-on " LIST"
 Exit 1 if the diff contains any of: \fBmajor\fR, \fBvuln\fR,
-\fBdowngrade\fR, \fBfresh\fR, \fBdeprecated\fR, \fBunlisted\fR, \fBscripts\fR, \fBprovenance\fR, \fBlicense\fR
+\fBdowngrade\fR, \fBfresh\fR, \fBdeprecated\fR, \fBunlisted\fR, \fBtyposquat\fR, \fBscripts\fR, \fBprovenance\fR, \fBlicense\fR
 (comma list).
 .TP
 .BI \-ignore\-file " FILE"
@@ -331,7 +331,7 @@ Read acknowledged findings from \fIFILE\fR instead of discovering
 \fB.lockvetignore\fR next to the lockfiles. One rule per line: an
 advisory ID, \fIpkg\fR[@\fIversion\fR], or
 \fIkind\fR:\fIpkg\fR[@\fIversion\fR] (kinds: vuln, fresh, deprecated,
-unlisted, scripts, provenance, license, major, downgrade), each with an
+unlisted, typosquat, scripts, provenance, license, major, downgrade), each with an
 optional \fBuntil=\fRYYYY\-MM\-DD expiry. Suppressed findings stay
 visible but stop counting toward the summary and \fB\-fail\-on\fR.
 .TP
