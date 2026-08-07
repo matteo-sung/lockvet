@@ -347,7 +347,7 @@ func TestPodfileLocalPodNoPin(t *testing.T) {
   - connectivity_plus (0.0.1)
 
 DEPENDENCIES:
-  - connectivity_plus (from ` + "`" + `.symlinks/plugins/connectivity_plus/ios` + "`" + `)
+  - connectivity_plus (from `+"`"+`.symlinks/plugins/connectivity_plus/ios`+"`"+`)
 
 EXTERNAL SOURCES:
   connectivity_plus:
