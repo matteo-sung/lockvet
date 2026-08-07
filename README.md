@@ -3,6 +3,7 @@
 [![ci](https://github.com/matteo-sung/lockvet/actions/workflows/ci.yml/badge.svg)](https://github.com/matteo-sung/lockvet/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/matteo-sung/lockvet)](https://github.com/matteo-sung/lockvet/releases/latest)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/matteo-sung/lockvet/badge)](https://securityscorecards.dev/viewer/?uri=github.com/matteo-sung/lockvet)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13978/badge)](https://www.bestpractices.dev/projects/13978)
 [![Go Reference](https://pkg.go.dev/badge/github.com/matteo-sung/lockvet.svg)](https://pkg.go.dev/github.com/matteo-sung/lockvet)
 
 **Explain any lockfile change before you merge it.**
