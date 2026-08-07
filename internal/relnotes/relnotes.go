@@ -64,7 +64,9 @@ type release struct {
 // surfaced warning is a rate-limit hint. token may be empty.
 func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 	type work struct {
-		owner, repo string
+		forge       clForge
+		repoURL     string
+		owner, repo string // GitHub API coordinates (clGitHub only)
 		changes     []*diffx.Change
 		tags        []string // the verified new-version tag per change
 	}
@@ -73,8 +75,8 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 	for i := range diffs {
 		for j := range diffs[i].Changes {
 			c := &diffs[i].Changes[j]
-			owner, repo, tag := parseReleaseURL(c.ReleaseURL)
-			if owner == "" {
+			f, repoURL, tag := parseTagURL(c.ReleaseURL)
+			if f == clNone {
 				if !Fallback {
 					continue
 				}
@@ -82,21 +84,23 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 				// where the git smart-HTTP tag check can't happen): fall
 				// back to the GitHub source repo and resolve the tag
 				// against the release list itself once fetched.
-				owner, repo = parseGitHubRepo(c.SourceRepo)
+				owner, repo := parseGitHubRepo(c.SourceRepo)
 				if owner == "" || len(c.New) != 1 || c.Kind == diffx.Removed {
 					continue
 				}
-				tag = "" // resolved from the release list below
+				f, repoURL, tag = clGitHub, "https://github.com/"+owner+"/"+repo, ""
 			}
-			key := owner + "/" + repo
-			w := byRepo[key]
+			w := byRepo[repoURL]
 			if w == nil {
 				if len(byRepo) >= MaxRepos {
 					continue
 				}
-				w = &work{owner: owner, repo: repo}
-				byRepo[key] = w
-				order = append(order, key)
+				w = &work{forge: f, repoURL: repoURL}
+				if f == clGitHub {
+					w.owner, w.repo = parseGitHubRepo(repoURL)
+				}
+				byRepo[repoURL] = w
+				order = append(order, repoURL)
 			}
 			w.changes = append(w.changes, c)
 			w.tags = append(w.tags, tag)
@@ -117,25 +121,31 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 		go func() {
 			defer wg.Done()
 			for w := range jobs {
-				rels, limited, err := fetchReleases(w.owner, w.repo, token)
-				if limited {
-					mu.Lock()
-					rateLimited = true
-					mu.Unlock()
-				}
-				if err != nil || len(rels) == 0 {
-					continue
-				}
-				for k, c := range w.changes {
-					tag := w.tags[k]
-					if tag == "" { // Fallback path: match against release tags.
-						tag = resolveFromReleases(c, rels)
-						if tag == "" {
-							continue
+				if w.forge == clGitHub && w.owner != "" {
+					rels, limited, err := fetchReleases(w.owner, w.repo, token)
+					if limited {
+						mu.Lock()
+						rateLimited = true
+						mu.Unlock()
+					}
+					if err == nil && len(rels) > 0 {
+						for k, c := range w.changes {
+							tag := w.tags[k]
+							if tag == "" { // Fallback path: match against release tags.
+								tag = resolveFromReleases(c, rels)
+								if tag == "" {
+									continue
+								}
+							}
+							c.ReleaseNotes = notesFor(c, tag, rels)
 						}
 					}
-					c.ReleaseNotes = notesFor(c, tag, rels)
 				}
+
+				// Changelog-file fallback for whatever the release list
+				// didn't cover: fetch CHANGELOG.md & friends at the
+				// verified tag and slice out the sections we pulled in.
+				annotateFromChangelog(w.forge, w.repoURL, w.changes, w.tags)
 			}
 		}()
 	}
@@ -150,28 +160,6 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 			"release notes incomplete: GitHub API rate limit hit — set GITHUB_TOKEN to raise it")
 	}
 	return warnings
-}
-
-// parseReleaseURL recognises the GitHub release-tag links taglink writes:
-// https://github.com/OWNER/REPO/releases/tag/TAG
-func parseReleaseURL(raw string) (owner, repo, tag string) {
-	if raw == "" {
-		return "", "", ""
-	}
-	u, err := url.Parse(raw)
-	if err != nil || u.Hostname() != "github.com" {
-		return "", "", ""
-	}
-	segs := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(segs) < 5 || segs[2] != "releases" || segs[3] != "tag" {
-		return "", "", ""
-	}
-	// Go submodule tags contain '/' and span the remaining segments.
-	t, err := url.PathUnescape(strings.Join(segs[4:], "/"))
-	if err != nil {
-		return "", "", ""
-	}
-	return segs[0], segs[1], t
 }
 
 // parseGitHubRepo extracts owner/repo from a github.com source-repo URL

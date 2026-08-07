@@ -177,8 +177,9 @@ FLAGS
                  0 shows ages but never flags)
   -changelogs    fetch upstream release notes for every bump (incl. the
                  releases a multi-version jump skips over) and show them
-                 inline. GitHub-hosted upstreams; uses the GitHub API, so
-                 GITHUB_TOKEN / gh login raises the rate limit
+                 inline. GitHub Releases first, then the repo's changelog
+                 file (CHANGELOG/CHANGES/NEWS/HISTORY) at the verified tag;
+                 GITHUB_TOKEN / gh login raises the releases-API rate limit
   -only PAT      show one package's story: only changes whose name — or any
                  package in their "via" chain — matches PAT. Glob, case-
                  insensitive, comma list ok: -only jiff, -only "@babel/*"

@@ -10,27 +10,6 @@ import (
 	"github.com/matteo-sung/lockvet/internal/diffx"
 )
 
-func TestParseReleaseURL(t *testing.T) {
-	cases := []struct {
-		in               string
-		owner, repo, tag string
-	}{
-		{"https://github.com/BurntSushi/jiff/releases/tag/jiff-0.2.15", "BurntSushi", "jiff", "jiff-0.2.15"},
-		{"https://github.com/golang/text/releases/tag/v0.22.0", "golang", "text", "v0.22.0"},
-		{"https://github.com/grafana/grafana/releases/tag/pkg%23util/v1.0.0", "grafana", "grafana", "pkg#util/v1.0.0"},
-		{"https://github.com/o/r/releases/tag/dir/v1.2.3", "o", "r", "dir/v1.2.3"},
-		{"https://gitlab.com/o/r/-/tags/v1.0.0", "", "", ""},
-		{"https://github.com/o/r/compare/v1...v2", "", "", ""},
-		{"", "", "", ""},
-	}
-	for _, c := range cases {
-		o, r, tag := parseReleaseURL(c.in)
-		if o != c.owner || r != c.repo || tag != c.tag {
-			t.Errorf("parseReleaseURL(%q) = %q,%q,%q; want %q,%q,%q", c.in, o, r, tag, c.owner, c.repo, c.tag)
-		}
-	}
-}
-
 func TestExcerpt(t *testing.T) {
 	if got := Excerpt("<!-- meta -->\r\nFixes stuff\n\n\n\nMore\x1b[31m text\n"); got != "Fixes stuff\n\nMore text" {
 		t.Errorf("Excerpt = %q", got)

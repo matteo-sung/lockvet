@@ -150,7 +150,7 @@ func mcpTools() []map[string]any {
 	onlyProp := strProp(`only report packages whose name — or any package in their "via" chain — matches this pattern (glob, case-insensitive, comma list ok, e.g. "@babel/*")`)
 	freshProp := map[string]any{"type": "integer", "description": "flag versions published fewer than N days ago (default 7; 0 shows ages but never flags)"}
 	offlineProp := map[string]any{"type": "boolean", "description": "skip all network lookups (no vulnerability, age, or deprecation data)"}
-	changelogsProp := map[string]any{"type": "boolean", "description": "also fetch upstream release notes for every bump, including the releases a multi-version jump skips over (GitHub-hosted upstreams; GITHUB_TOKEN raises the API rate limit)"}
+	changelogsProp := map[string]any{"type": "boolean", "description": "also fetch upstream release notes for every bump, including the releases a multi-version jump skips over (GitHub Releases first, then the repo's CHANGELOG/CHANGES/NEWS/HISTORY file at the verified tag — GitHub, GitLab, Gitea and Bitbucket hosted upstreams; GITHUB_TOKEN raises the releases-API rate limit)"}
 	formatProp := map[string]any{"type": "string", "enum": []string{"markdown", "json"}, "description": `output format (default "markdown")`}
 	ro := map[string]any{"readOnlyHint": true, "openWorldHint": true}
 

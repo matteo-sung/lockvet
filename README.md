@@ -164,7 +164,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.5 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.6 lockvet
 ```
 
 ### Shell completions & man page
@@ -189,8 +189,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.5_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.5 --owner matteo-sung
+gh attestation verify lockvet_v0.5.6_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.6 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -431,7 +431,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.5
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.6
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -547,7 +547,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.5/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.6/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -617,7 +617,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.5", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.6", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -672,7 +672,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.5
+      - uses: matteo-sung/lockvet@v0.5.6
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -699,7 +699,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.5
+      - uses: matteo-sung/lockvet@v0.5.6
         with:
           sarif: 'true'
 ```
@@ -719,7 +719,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.5
+  image: ghcr.io/matteo-sung/lockvet:0.5.6
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -744,7 +744,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.5
+          image: ghcr.io/matteo-sung/lockvet:0.5.6
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -762,7 +762,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.5
+    container: ghcr.io/matteo-sung/lockvet:0.5.6
     steps:
       - checkout: none
       - script: >
@@ -786,7 +786,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.5
+    image: ghcr.io/matteo-sung/lockvet:0.5.6
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -805,7 +805,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.5
+    rev: v0.5.6
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1338,10 +1338,16 @@ it covers **every** package in the diff, transitives included. Works in
 every mode (`pr`, `mr`, `compare`, `diff`, the Action via
 `changelogs: 'true'`, MCP via `"changelogs": true`).
 
-Notes come from GitHub Releases of the (verified) source repo, so
-GitHub-hosted upstreams are covered; excerpts are trimmed and
-control-character-sanitized. Uses the GitHub API — anonymous works for a
-handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
+Notes come from GitHub Releases of the (verified) source repo — and when a
+project doesn't publish releases (Phoenix stopped in 2020; plenty of crates
+and gems never started; GitLab-, Codeberg- and Bitbucket-hosted projects
+don't have them), lockvet falls back to the repository's **changelog file**:
+`CHANGELOG.md` / `CHANGES.md` / `NEWS.md` / `HISTORY.md` fetched at the
+verified tag, sliced into the exact version sections your bump pulls in.
+Excerpts are trimmed and control-character-sanitized either way. The
+releases path uses the GitHub API — anonymous works for a handful of
+packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit; changelog
+files come off the forge's raw endpoint, which is not rate-limited.
 
 ## Supported lockfiles
 

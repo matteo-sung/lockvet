@@ -4,6 +4,26 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.6 — 2026-08-07
+
+- **`-changelogs` now reads changelog files, not just GitHub Releases.**
+  Plenty of projects never publish releases — Phoenix stopped at v1.5.3,
+  `regex`/`once_cell`/`tempfile` keep a `CHANGELOG.md` instead, and
+  GitLab-, Gitea/Codeberg- and Bitbucket-hosted repos don't have GitHub
+  Releases at all. When the release list doesn't cover a bump, lockvet
+  now fetches the repository's changelog file (`CHANGELOG.md`,
+  `CHANGES.md`, `NEWS.md`, `HISTORY.md`) at the *verified* tag via the
+  forge's raw endpoint and slices out the exact version sections the
+  bump pulls in — same intermediate-release coverage, same excerpting
+  and sanitizing, one extra request per repository, no API rate limits.
+  Keep-a-Changelog, ATX (`## 1.2.3 (2024-01-01)`) and setext-underlined
+  headings are recognized, `Version`/`Release`/package-name prefixes
+  tolerated, link-reference lines stripped. Monorepo-style tags
+  (`pkg@1.2.3`, `pkg-v1.2.3`, `dir/v1.2.3`) are excluded on purpose: a
+  root changelog describes one package, and guessing would attach the
+  wrong notes. GitHub Releases still win when they exist; the file is
+  only consulted for what they don't cover.
+
 ## v0.5.5 — 2026-08-07
 
 - **Every open advisory now names its fix version.** Introduced and

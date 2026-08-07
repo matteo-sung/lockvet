@@ -325,9 +325,12 @@ Flag versions published fewer than \fIN\fR days ago (default 7;
 .TP
 .B \-changelogs
 Fetch upstream release notes for every bump \(em including the releases a
-multi\-version jump skips over \(em and show them inline. GitHub\-hosted
-upstreams; uses the GitHub API, so \fBGITHUB_TOKEN\fR or a logged\-in
-\fBgh\fR raises the rate limit.
+multi\-version jump skips over \(em and show them inline. Reads GitHub
+Releases first and falls back to the repository's changelog file
+(\fBCHANGELOG.md\fR, \fBCHANGES.md\fR, \fBNEWS.md\fR, \fBHISTORY.md\fR)
+at the verified tag \(em GitHub, GitLab, Gitea/Forgejo and Bitbucket
+hosted upstreams. The releases path uses the GitHub API, so
+\fBGITHUB_TOKEN\fR or a logged\-in \fBgh\fR raises the rate limit.
 .TP
 .BI \-only " PATTERN"
 Only show changes whose name \(em or any package in their \fIvia\fR
