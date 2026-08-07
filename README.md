@@ -586,8 +586,9 @@ lockvet pkg jsr:@std/http terraform:hashicorp/aws pod:Alamofire
 ```
 
 Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
-Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, and Terraform; other ecosystems
-(`conan:`, `cran:`, `julia:`, `hackage:`) work with an explicit `@version`.
+Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, and GitHub
+Actions (`actions:owner/repo`); other ecosystems (`conan:`, `julia:`,
+`hackage:`) work with an explicit `@version`.
 `-fail-on vuln,unlisted,typosquat` gates scripts the same way it gates CI,
 and `-md`/`-json` output works as everywhere else.
 
@@ -1462,10 +1463,54 @@ different: *should I trust this diff?* — across whatever forge and language
 your repos are in, with registry-level tampering signals no advisory
 database has heard about yet, locally or in any CI.
 
+### "Isn't this just …?"
+
+**[osv-scanner](https://github.com/google/osv-scanner)?** Google's
+osv-scanner is the reference *known-vulnerability* scanner: point it at a
+tree or container image and it inventories every OSV advisory, with an
+experimental `fix` mode that plans upgrades for you. lockvet asks a
+different question — *what does this change do, and does anything about it
+smell wrong?* Advisories are one column of the answer; release ages,
+deprecations, license flips, versions the registry no longer lists,
+typosquats, install-script and provenance transitions, and
+integrity/resolution tampering are the rest — signals that can fire
+*before* any advisory exists (see the [case studies](docs/case-studies.md)).
+If you want tree-wide CVE inventory with remediation planning, use
+osv-scanner — [`lockvet audit`](#audit-what-you-already-pin--lockvet-audit)
+overlaps but doesn't plan upgrades. If you want to know whether to merge a
+Dependabot PR, that's lockvet.
+
+**[npq](https://github.com/lirantal/npq)?** npq audits an npm package
+*before* `npm install` — age, install scripts, typosquats, provenance
+regressions, known vulns — with an interactive prompt and package-manager
+aliasing so it can be your daily `npm`. If you live in npm, it's a great
+daily driver. [`lockvet pkg`](#vet-a-package-before-you-install-it--lockvet-pkg)
+runs the same kind of pre-install check across ~19 ecosystems (npm, PyPI,
+crates.io, RubyGems, Go, Maven, NuGet, Composer, Hex, pub.dev, JSR,
+CocoaPods, Terraform, CRAN, GitHub Actions, …) — but it's a one-shot
+report, not an install wrapper, and pre-install vetting is one subcommand
+of a tool whose main job is diffs and CI gates.
+
+**[Socket](https://socket.dev)?** Socket is a commercial platform that goes
+further than lockvet in one important way: it statically analyzes package
+*code* for malicious behavior and risky capabilities. lockvet never reads
+package code — it reads lockfile bytes plus public registry metadata,
+anonymously, with no account, no code upload, and no service dependency
+beyond the public registries themselves. Different trust models: if you
+can adopt a managed service and want code-level analysis, Socket sees
+things lockvet can't; if you want a zero-account static binary you can run
+on any forge, any CI, or air-gapped (`-offline`), that's lockvet.
+
+**Dependabot / Renovate?** Updaters, not reviewers — they open the PRs,
+lockvet is the reviewer on the other side of them
+(`lockvet queue <org>` triages every open bot PR at once). Complementary
+by design.
+
 ## Non-goals
 
-- Not a full SCA scanner — [osv-scanner](https://github.com/google/osv-scanner)
-  audits your *entire* dependency tree. lockvet explains a *change*.
+- Not a code analyzer — lockvet never downloads or inspects package
+  *contents*, only lockfiles and registry metadata. Tools like Socket or a
+  human review do that job.
 - Not an updater — Dependabot/Renovate open the PRs; lockvet tells you
   whether to merge them.
 - No interactive TUI (see whatsdiff above) — lockvet stays a one-shot
