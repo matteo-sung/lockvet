@@ -132,7 +132,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 35 formats
+                                      Walks the tree for all 36 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
@@ -761,7 +761,9 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
-		if metaChecked {
+		if metaChecked || anyZigChanges(diffs) {
+			// build.zig.zon has no registry layer: the repo's own tags
+			// (taglink) ARE the metadata source for Zig-only diffs.
 			taglink.Annotate(diffs) // verified changelog/compare links
 			if *changelogs {
 				for _, w := range relnotes.Annotate(diffs, ghpr.Token()) {

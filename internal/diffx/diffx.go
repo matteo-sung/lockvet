@@ -379,6 +379,15 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			c.Level = vers.Unknown
 			c.LevelString = c.Level.String()
 		}
+		if eco == lock.Zig && (c.Kind == Upgraded || c.Kind == Downgraded) &&
+			(looksOpaque(o) || looksOpaque(n)) {
+			// build.zig.zon deps without a real version pin commit revs or
+			// hash-digest prefixes: those order as strings, which means
+			// nothing — report the bump without pretending a direction.
+			c.Kind = Changed
+			c.Level = vers.Unknown
+			c.LevelString = c.Level.String()
+		}
 		fd.Changes = append(fd.Changes, c)
 	}
 
@@ -402,6 +411,23 @@ func (fd *FileDiff) Sort() {
 		}
 		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	})
+}
+
+// looksOpaque reports whether any version in the set is NOT shaped like a
+// release version ("1.2.3", "v0.13.1"): abbreviated commit revs and
+// base64 hash-digest prefixes fail the digits-then-dot test.
+func looksOpaque(vs []string) bool {
+	for _, v := range vs {
+		s := strings.TrimPrefix(v, "v")
+		i := 0
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == 0 || i >= len(s) || s[i] != '.' {
+			return true
+		}
+	}
+	return false
 }
 
 // looksCommit reports whether any version in the set is shaped like an

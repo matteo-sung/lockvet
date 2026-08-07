@@ -470,6 +470,9 @@ func integrityMessage(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "Nix" {
 		return fmt.Sprintf("%s, but the lockfile now records a different narHash for %s. A git revision's content never changes, so the tree this pin expects was replaced (upstream rewritten, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
 	}
+	if c.Ecosystem == "Zig" {
+		return fmt.Sprintf("%s, but build.zig.zon now records a different hash for %s. Zig verifies this hash against the fetched archive, so the source this pin expects was replaced (a moved tag, a re-cut tarball, a hijacked mirror, or a hand-edited manifest). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
+	}
 	return fmt.Sprintf("%s, but the lockfile now records a different content hash for version %s. Registries never change a published artifact, so outside a registry migration the tarball this pin expects was replaced (registry-side tampering, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
 }
 
@@ -477,6 +480,9 @@ func integrityMessage(c diffx.Change, what, via string) string {
 func movedMessage(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "Nix" {
 		return fmt.Sprintf("%s and now fetches from %s instead of %s. A flake input that changes repository without you editing flake.nix means someone re-pointed your dependency; make sure the move was intentional.%s", what, c.NewHost, c.OldHost, via)
+	}
+	if c.Ecosystem == "Zig" {
+		return fmt.Sprintf("%s and now fetches from %s instead of %s. A dependency that changes source without you editing build.zig.zon means someone re-pointed it; make sure the move was intentional.%s", what, c.NewHost, c.OldHost, via)
 	}
 	return fmt.Sprintf("%s and now resolves from %s instead of %s. A package that silently moves from a private host to the public registry is the shape of a dependency-confusion attack; make sure the public package is really yours.%s", what, c.NewHost, c.OldHost, via)
 }

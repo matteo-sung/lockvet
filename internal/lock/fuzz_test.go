@@ -47,6 +47,8 @@ func FuzzAllParsers(f *testing.F) {
 		"lock-version = \"1.0\"\ncreated-by = \"uv\"\n\n[[packages]]\nname = \"a\"\nversion = \"1.0\"\nindex = \"https://pypi.org/simple/\"\nwheels = [\n{ url = \"https://x/a.whl\", hashes = { sha256 = \"00dca57bca26fa62a6d7d0\" } },\n]\n",
 		"lock-version = \"1.0\"\n[[packages]]\nname = \"b\"\nversion = \"2.0\"\n[[packages.wheels]]\nname = \"b.whl\"\nurl = \"https://x/b.whl\"\n[packages.wheels.hashes]\nsha256 = \"13f3eecb844759ab66efec\"\n[[packages]]\nname = \"c\"\n[packages.vcs]\nurl = \"https://github.com/x/c\"\n",
 		"<verification-metadata><components><component group=\"g\" name=\"n\" version=\"1.0\"><artifact name=\"n-1.0.jar\"><sha256 value=\"ab\"/></artifact></component></components></verification-metadata>",
+		".{\n    .name = .zls,\n    .version = \"0.1.0\",\n    .dependencies = .{\n        .diffz = .{\n            .url = \"https://github.com/ziglibs/diffz/archive/d080c1eb782fff15068cabb3b82da85ce6054b74.tar.gz\",\n            .hash = \"diffz-0.0.1-G2tlIfLNAQCc06RFk0tFGj2M-X-id4WHFkMVw2JoMILR\",\n        },\n        .l = .{ .path = \"../l\" },\n    },\n    .paths = .{\"\"},\n    .fingerprint = 0xa66330b97eb969ae,\n}\n",
+		".{ .name = \"a\", .dependencies = .{ .@\"b-c\" = .{ .url = \"git+https://github.com/a/b?ref=v1.2#deadbeefcafe\", .hash = \"1220ab\" } } }",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

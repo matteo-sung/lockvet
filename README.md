@@ -81,12 +81,12 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 35 formats:
+- **across every ecosystem, in one static binary** — 36 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, `pylock.toml` (PEP 751), Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
   Gradle (lockfiles, version catalogs & verification metadata), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
-  Helm, Nix flakes, Bazel modules (bzlmod), **GitHub Actions workflows**
+  Helm, Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
   (`uses:` pins) — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
@@ -189,7 +189,7 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.9_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify lockvet_v0.5.10_linux_amd64.tar.gz --owner matteo-sung
 gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.7 --owner matteo-sung
 ```
 
@@ -432,7 +432,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.9
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.10
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -491,7 +491,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 35 formats, SBOMs and CI workflows included — and runs the full
+lockfile it finds — all 36 formats, SBOMs and CI workflows included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -548,7 +548,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.9/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.10/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -674,7 +674,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.9
+      - uses: matteo-sung/lockvet@v0.5.10
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -701,7 +701,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.9
+      - uses: matteo-sung/lockvet@v0.5.10
         with:
           sarif: 'true'
 ```
@@ -807,7 +807,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.9
+    rev: v0.5.10
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1202,7 +1202,12 @@ registry `source.json` hash per selected module — it changing for the
 same version means the registry's description of that release changed
 underneath you — plus registry hosts, so a module moving from a private
 registry onto the public BCR flags the confusion lane; old-style
-Bazel 7.0/7.1 lockfiles pin the archive's own SRI hash), and `flake.lock` (Nix: a
+Bazel 7.0/7.1 lockfiles pin the archive's own SRI hash), `build.zig.zon`
+(Zig: no registry exists at all, so the manifest's own url + hash pins are
+the whole story — a same-version hash swap or a same-version source
+re-point is exactly what a smuggled edit looks like, while swapping a
+dependency to a fork *with* a new pin is routine, visible business and
+stays quiet), and `flake.lock` (Nix: a
 same-revision `narHash` change means the pinned tree was replaced — a
 git revision's content never changes — and an input re-pointed at a
 different repository flags the ⇄ lane; a re-point whose narHash proves
@@ -1399,6 +1404,7 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — release ages, archived/delisted/blocked-provider flags, verified changelog links and the registry-verified unlisted check straight from the Terraform & OpenTofu registries (custom registry hosts exempt) |
 | Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
 | Nix | `flake.lock` |
+| Zig | `build.zig.zon` — Zig has no lockfile beyond it and no registry: every dependency pins a source URL + content hash, and lockvet reads both (rev/tag/hash-derived versions, ‼ same-version hash swaps, ⇄ same-version source re-points, verified tag compare links + release notes from the dependency's own repo) |
 | CI / GitHub Actions | `.github/workflows/*.yml`, `action.yml`/`action.yaml` (composite actions), `.gitea/workflows`, `.forgejo/workflows` — every `uses:` pin; SHA and floating-tag pins resolved against the action repo's real tags, advisories from OSV's GitHub Actions ecosystem evaluated client-side |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 

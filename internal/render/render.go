@@ -172,6 +172,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				integrityWhy := "same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"
 				if c.Ecosystem == "Nix" {
 					integrityWhy = "same revision, different narHash — a git revision's content never changes, so the tree this pin expects was replaced; do not trust this without finding out why"
+				} else if c.Ecosystem == "Zig" {
+					integrityWhy = "same version, different hash — the source archive this pin expects was replaced (moved tag, re-cut tarball, hijacked mirror, or hand-edited manifest); do not trust this without finding out why"
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim(integrityWhy))
 			}
@@ -182,6 +184,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				movedWhy := "this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"
 				if c.Ecosystem == "Nix" {
 					movedWhy = "this flake input now fetches from a different repository — if you didn't change it in flake.nix yourself, someone re-pointed your dependency"
+				} else if c.Ecosystem == "Zig" {
+					movedWhy = "this dependency now fetches from a different source — if you didn't change it in build.zig.zon yourself, someone re-pointed your dependency"
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⇄ resolution moved: "+c.OldHost+" → "+c.NewHost), s.dim(movedWhy))
 			}
@@ -516,6 +520,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				movedNote := "now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack"
 				if c.Ecosystem == "Nix" {
 					movedNote = "this flake input now fetches from a different repository — make sure that was intentional"
+				} else if c.Ecosystem == "Zig" {
+					movedNote = "this dependency now fetches from a different source — make sure that was intentional"
 				}
 				fmt.Fprintf(w, "| ⇄ | ↳ resolution moved | %s | %s | %s |%s\n", esc(c.OldHost), esc(c.NewHost), movedNote, padCell)
 			}

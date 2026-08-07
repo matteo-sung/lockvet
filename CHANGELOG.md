@@ -4,6 +4,38 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.10 — 2026-08-08
+
+- **Zig `build.zig.zon` — format #36.** Zig has no lockfile beyond the
+  manifest and no central registry: every dependency pins a source archive
+  URL plus the content hash `zig build` verifies. lockvet now reads both:
+  - **Versions worth diffing**: the URL's commit revision when it has one
+    (the true content identity — upstreams move revisions for months
+    without bumping the version embedded in the hash), else the semver
+    from a 0.14+ `name-1.2.3-<digest>` hash, else the release tag from
+    `/archive/refs/tags/…` / `git+…#tag` URLs, else a digest prefix.
+    Rev/digest bumps render as `changed ?` — hex doesn't order.
+  - **‼ integrity changed**: same version, different hash — the archive
+    this pin expects was replaced (a moved tag, a re-cut tarball, a
+    hijacked mirror, or a hand-edited manifest). The smuggle shape: an
+    attacker who swaps the URL's content *must* also edit the hash.
+  - **⇄ resolution moved**: a dependency re-pointed at a different repo
+    or mirror *while the version claims nothing moved*. Deliberate
+    fork/mirror switches with a new pin — a fifth of real
+    ghostty/libvaxis history — stay quiet, as does any move whose
+    unchanged hash proves the content identical.
+  - **Verified links**: tag pins get compare links + `-changelogs`
+    release notes verified against the dependency's own repo (Zig-only
+    diffs now run the tag layer; there is no registry to consult, so the
+    repo's tags ARE the metadata source); rev pins get rev…rev compare
+    links fully offline. `.path` dependencies are local source and are
+    skipped. Old (`1220…` multihash) and new hash formats, `.@"quoted"`
+    names, comments and tuple fields all parse; 123 real
+    ghostty/zls/libvaxis/bun manifest changes replay with zero noise.
+- audit walk, pre-commit hook files regex, playground (drop a
+  `build.zig.zon` — parsing and both pin checks run in-browser) and MCP
+  all pick the format up automatically.
+
 ## v0.5.9 — 2026-08-07
 
 - **Gradle version catalogs and dependency verification — formats #33 and

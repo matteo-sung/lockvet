@@ -267,7 +267,10 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		} else if ok {
 			v.metaChecked = true
 		}
-		if v.metaChecked && !o.noLinks {
+		if (v.metaChecked || anyZigChanges(diffs)) && !o.noLinks {
+			// build.zig.zon has no registry layer: the repo's own tags
+			// (taglink) ARE the metadata source, so a Zig-only diff runs
+			// taglink even though nothing set metaChecked.
 			taglink.Annotate(diffs)
 			if o.changelogs {
 				v.warnings = append(v.warnings, relnotes.Annotate(diffs, ghpr.Token())...)
@@ -541,4 +544,19 @@ func parseOrWarn(parser *lock.Parser, p string, data []byte) (*lock.File, []stri
 		return nil, []string{fmt.Sprintf("could not parse %s: %v", p, err)}
 	}
 	return f, nil
+}
+
+// anyZigChanges reports whether the diffs contain build.zig.zon changes
+// with a linkable source repository. Zig has no registry to consult, so
+// tag verification against the dependency's own repo is its (only)
+// outside-world layer; both gates above are already inside !noMeta.
+func anyZigChanges(diffs []diffx.FileDiff) bool {
+	for _, fd := range diffs {
+		for _, c := range fd.Changes {
+			if c.Ecosystem == "Zig" && c.SourceRepo != "" {
+				return true
+			}
+		}
+	}
+	return false
 }

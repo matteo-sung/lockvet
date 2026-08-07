@@ -35,6 +35,23 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) {
 	for i := range diffs {
 		for j := range diffs[i].Changes {
 			c := &diffs[i].Changes[j]
+			if c.Ecosystem == "Zig" {
+				// build.zig.zon deps pinned by commit revision reuse the
+				// same offline idea: revisions address themselves, so a
+				// rev...rev compare link needs no tag verification. (Tag
+				// and semver pins go through internal/taglink instead;
+				// there is no timestamp in the manifest, so no ages.)
+				if c.SourceRepo == "" || c.CompareURL != "" ||
+					len(c.Old) != 1 || len(c.New) != 1 {
+					continue
+				}
+				oldRev, newRev := bareRev(c.Old[0]), bareRev(c.New[0])
+				if oldRev == "" || newRev == "" || oldRev == newRev {
+					continue
+				}
+				c.CompareURL = taglink.CompareRevsURL(c.SourceRepo, oldRev, newRev)
+				continue
+			}
 			if c.Ecosystem != "Nix" || len(c.New) == 0 {
 				continue
 			}
@@ -70,6 +87,30 @@ func commitDate(ver string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return t.UTC(), true
+}
+
+// bareRev accepts a version that is nothing but an abbreviated commit
+// revision (the build.zig.zon parser synthesizes those for URL-rev pins).
+// Hash-digest prefixes are base64 and fail the lowercase-hex check.
+func bareRev(ver string) string {
+	if len(ver) < 7 || len(ver) > 40 {
+		return ""
+	}
+	letter := false
+	for k := 0; k < len(ver); k++ {
+		c := ver[k]
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+			letter = true
+		default:
+			return ""
+		}
+	}
+	if !letter {
+		return "" // all digits: could be anything
+	}
+	return ver
 }
 
 // shortRev extracts the abbreviated commit revision from a synthesized

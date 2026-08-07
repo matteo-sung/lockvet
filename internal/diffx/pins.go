@@ -97,11 +97,20 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 		c.OldHost, c.NewHost = oh, nh
 		eco := lock.Ecosystem(c.Ecosystem)
 		switch {
-		case eco == lock.Nix:
-			// Flake "hosts" are whole repository locations: a host move
-			// means the input was re-pointed at a different repository —
-			// the flake shape of a hijacked resolution. Content proven
-			// identical (same narHash) stays quiet.
+		case eco == lock.Nix || eco == lock.Zig:
+			// Flake and build.zig.zon "hosts" are whole source locations
+			// (forge repo paths, mirror hostnames): a host move means the
+			// dependency was re-pointed at a different source — the
+			// no-registry shape of a hijacked resolution. Content proven
+			// identical (same hash) stays quiet. For Zig only same-version
+			// moves alarm: build.zig.zon is hand-edited, and swapping a
+			// dependency to a fork or mirror WITH a new pin is routine,
+			// visible business (a fifth of real ghostty/libvaxis history);
+			// a source that changes while the version claims nothing moved
+			// is the shape worth stopping for.
+			if eco == lock.Zig && len(common) == 0 {
+				break
+			}
 			if moves[hostPair{oh, nh}] < migrationThreshold && !sameBytesProven {
 				c.RegistryMoved = true
 			}

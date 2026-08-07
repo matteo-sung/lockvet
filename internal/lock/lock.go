@@ -73,6 +73,13 @@ const (
 	// reasons, version lists, source repositories).
 	Bazel Ecosystem = "Bazel"
 
+	// Zig covers build.zig.zon: Zig has no lockfile beyond it, no central
+	// registry, and no OSV.dev ecosystem. Dependencies pin source archive
+	// URLs plus content hashes, so lockvet explains bumps and checks the
+	// pins themselves (integrity, resolution source) without registry or
+	// vulnerability claims.
+	Zig Ecosystem = "Zig"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -461,6 +468,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
 	case "verification-metadata.xml", "verification-metadata.dryrun.xml":
 		return &Parser{"verification-metadata.xml", Maven, parseVerificationMetadata}
+	case "build.zig.zon":
+		return &Parser{"build.zig.zon", Zig, parseZigZon}
 	}
 	base := path.Base(p)
 	// Gradle allows extra catalogs beside libs (gradle/tools.versions.toml).
@@ -520,6 +529,7 @@ func KnownBasenames() []string {
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
-		"libs.versions.toml", "verification-metadata.xml", "bom.json", "sbom.json",
+		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
+		"bom.json", "sbom.json",
 	}
 }

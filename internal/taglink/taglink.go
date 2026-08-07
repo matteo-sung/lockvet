@@ -127,6 +127,13 @@ func Annotate(diffs []diffx.FileDiff) {
 				// fetching anything).
 				continue
 			}
+			if c.Ecosystem == "Zig" && !strings.Contains(c.New[0], ".") {
+				// build.zig.zon rev/digest pins never match tags (and
+				// internal/flakereg links revs offline); only tag and
+				// semver pins — which always contain a dot — are worth a
+				// ref fetch.
+				continue
+			}
 			u, err := url.Parse(c.SourceRepo)
 			if err != nil || forgeOf(u.Hostname()) == forgeNone {
 				continue

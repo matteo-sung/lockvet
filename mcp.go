@@ -26,7 +26,7 @@ const mcpLatestProtocol = "2025-06-18"
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
 version is, what's deprecated, what's missing from the registry index, what looks like a typosquat, what suddenly runs install scripts, what silently drops sigstore provenance, what changes its content hash without a version change, what moves from a private registry to the public one
-(unpublished/pulled releases), and license changes — across 34 lockfile
+(unpublished/pulled releases), and license changes — across 36 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
 conda, Julia, Haskell, Terraform, Helm, renv, SBOMs, and more).
 
@@ -216,7 +216,7 @@ func mcpTools() []map[string]any {
 		{
 			"name":        "vet_files",
 			"title":       "Vet two lockfiles or SBOMs on disk",
-			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 32 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
+			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 36 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
