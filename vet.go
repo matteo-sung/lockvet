@@ -45,6 +45,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/squat"
+	"github.com/matteo-sung/lockvet/internal/swiftreg"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
 )
@@ -180,6 +181,14 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		// resolved releases.
 		if ok, err := actreg.Annotate(diffs); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("action tag check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		// Verify SwiftPM pins against the upstream repositories' tags:
+		// the version's tag must exist, and the pinned commit must be
+		// what the tag points at.
+		if ok, err := swiftreg.Annotate(diffs); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("swift tag check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}

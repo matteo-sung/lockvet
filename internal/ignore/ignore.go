@@ -257,6 +257,10 @@ func applyChange(c *diffx.Change, rules []Rule) int {
 			c.IntegrityChanged = false
 			mark("integrity")
 		}
+		if (all || r.Kind == "integrity") && c.TagMismatch {
+			c.TagMismatch = false
+			mark("integrity")
+		}
 		if (all || r.Kind == "registry") && c.RegistryMoved {
 			c.RegistryMoved = false
 			mark("registry")

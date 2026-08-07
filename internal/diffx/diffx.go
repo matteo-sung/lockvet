@@ -119,6 +119,23 @@ type Change struct {
 	// The condareg layer keys its lookups on it; empty elsewhere.
 	Channel string `json:"-"`
 
+	// NewPins: what the new lockfile itself pins for each incoming
+	// version (a content hash, or "commit:<sha>" for git-resolved
+	// formats), for layers that verify pins against the outside world.
+	// Not serialized — pin-to-pin differences already surface as
+	// IntegrityChanged.
+	NewPins map[string]string `json:"-"`
+
+	// TagMismatch: the lockfile pins a version at a commit that is NOT
+	// what the upstream repository's tag for that version points at
+	// today (SwiftPM: Package.resolved records both the version and the
+	// resolved commit). Released tags are supposed to be immutable —
+	// either the tag has been re-pointed since resolution (how the
+	// tj-actions attack shipped), or the lockfile was edited to fetch a
+	// different commit while displaying an innocent version.
+	TagMismatch   bool     `json:"tag_mismatch,omitempty"`
+	TagMismatches []string `json:"tag_mismatches,omitempty"`
+
 	// NonRegistry: the lockfile says this package doesn't come from the
 	// public registry (workspace member, path/git dependency). Suppresses
 	// the unlisted flag; not serialized.
@@ -240,6 +257,24 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		return ""
 	}
 
+	// Carry the new side's own pins (hash or commit) on the change, for
+	// layers that verify them against the outside world (swiftreg).
+	newPinsOf := func(name string, versions []string) map[string]string {
+		if newF == nil || newF.Pins == nil {
+			return nil
+		}
+		var m map[string]string
+		for _, v := range versions {
+			if pin := newF.Pin(name, v); pin.Integrity != "" {
+				if m == nil {
+					m = map[string]string{}
+				}
+				m[v] = pin.Integrity
+			}
+		}
+		return m
+	}
+
 	hostMoves := countHostMoves(oldF, newF)
 	for name := range names {
 		o, n := oldPkgs[name], newPkgs[name]
@@ -248,7 +283,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			// WHAT it pins for them? A different integrity hash or a
 			// resolution moved onto the public registry is a finding of
 			// its own (tarball swapped / dependency-confusion shape).
-			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n, Channel: channelOf(name)}
+			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n, Channel: channelOf(name), NewPins: newPinsOf(name, n)}
 			if annotatePinChange(&c, oldF, newF, hostMoves) {
 				if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 					c.NonRegistry = true
@@ -258,7 +293,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			continue
 		}
 		eco := ecoOf(name)
-		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name)}
+		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name), NewPins: newPinsOf(name, n)}
 		annotatePinChange(&c, oldF, newF, hostMoves)
 		if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 			c.NonRegistry = true
@@ -620,6 +655,7 @@ type Summary struct {
 	Typosquats                                             int // young additions confusable with a popular package
 	ProvenanceDropped                                      int // npm bumps that silently stop attesting provenance
 	IntegrityChanged                                       int // pins whose recorded content hash changed for an unchanged version
+	TagMismatch                                            int // pins whose commit is not what the upstream tag points at
 	RegistryMoved                                          int // resolutions moved from a private host to the public registry
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 	Ignored                                                int // findings acknowledged via .lockvetignore
@@ -676,6 +712,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.IntegrityChanged && !c.HasIgnored("integrity") {
 				s.IntegrityChanged++
+			}
+			if c.TagMismatch && !c.HasIgnored("integrity") {
+				s.TagMismatch++
 			}
 			if c.RegistryMoved && !c.HasIgnored("registry") {
 				s.RegistryMoved++

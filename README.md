@@ -161,7 +161,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.3 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.4 lockvet
 ```
 
 ### Shell completions & man page
@@ -186,8 +186,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.3_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.3 --owner matteo-sung
+gh attestation verify lockvet_v0.5.4_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.4 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -428,7 +428,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.3
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.4
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -544,7 +544,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.3/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.4/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -583,13 +583,15 @@ lockvet pkg cargo:serde gem:rails hex:phoenix pub:dio   # several at once
 lockvet pkg go:github.com/gin-gonic/gin     # Go modules
 lockvet pkg maven:com.google.guava:guava    # Maven group:artifact
 lockvet pkg jsr:@std/http terraform:hashicorp/aws pod:Alamofire
+lockvet pkg swift:Alamofire/Alamofire       # SwiftPM (github.com implied)
 ```
 
 Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
 Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, Hackage, conda
-(`conda:[channel/]name` — the channel defaults to conda-forge), and
-GitHub Actions (`actions:owner/repo`); other ecosystems (`conan:`, `julia:`)
-work with an explicit `@version`.
+(`conda:[channel/]name` — the channel defaults to conda-forge),
+GitHub Actions (`actions:owner/repo`), and Swift packages
+(`swift:host/owner/repo` — latest is the highest stable tag); other
+ecosystems (`conan:`, `julia:`) work with an explicit `@version`.
 `-fail-on vuln,unlisted,typosquat` gates scripts the same way it gates CI,
 and `-md`/`-json` output works as everywhere else.
 
@@ -612,7 +614,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.3", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.4", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -667,7 +669,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.3
+      - uses: matteo-sung/lockvet@v0.5.4
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -694,7 +696,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.3
+      - uses: matteo-sung/lockvet@v0.5.4
         with:
           sarif: 'true'
 ```
@@ -714,7 +716,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.3
+  image: ghcr.io/matteo-sung/lockvet:0.5.4
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -739,7 +741,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.3
+          image: ghcr.io/matteo-sung/lockvet:0.5.4
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -757,7 +759,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.3
+    container: ghcr.io/matteo-sung/lockvet:0.5.4
     steps:
       - checkout: none
       - script: >
@@ -781,7 +783,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.3
+    image: ghcr.io/matteo-sung/lockvet:0.5.4
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -793,23 +795,29 @@ steps:
 
 Catch a risky bump before it's even committed — lockvet's default mode
 (working tree vs `HEAD`) is exactly "what this commit changes", and the hook
-only fires when a lockfile is part of the commit:
+only fires when a lockfile (or a workflow file with `uses:` pins) is part of
+the commit:
 
 ```yaml
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.3
+    rev: v0.5.4
     hooks:
       - id: lockvet
-        # optional: block the commit instead of just explaining it
-        # args: [-fail-on, "vuln,fresh"]
-        # optional: skip network lookups for instant commits
+        # optional: also gate on majors and <7d releases
+        # args: [-fail-on, "vuln,unlisted,scripts,provenance,typosquat,integrity,registry,major,fresh"]
+        # optional: skip network lookups for instant commits (still catches
+        # downgrades, repins, resolution moves, and typosquats)
         # args: [-offline]
 ```
 
-By default the hook is informational — it prints the explanation and lets the
-commit through. Add `-fail-on` to turn it into a gate. Requires nothing but
+The hook always prints the explanation, and by default it blocks the commit
+only on the alarming tier — introduced vulnerabilities, versions missing
+from their registry index, newly added install scripts, dropped provenance,
+typosquat lookalikes, and integrity/resolution tampering — the signals
+tuned to be near-zero-noise. Override `args` to tune the gate (or clear it:
+`args: []` makes the hook purely informational). Requires nothing but
 [pre-commit](https://pre-commit.com) itself (the hook builds via Go, which
 pre-commit downloads automatically if missing).
 
@@ -1183,6 +1191,43 @@ SARIF emits `integrity-changed` (error) and `registry-moved` (warning);
 dependency-confusion attack — including the same-version variant that no
 other diff shows — is [case study 9](docs/case-studies.md#9-dependency-confusion-2021--the-attack-the-lockfile-itself-records).
 
+### SwiftPM pins verified against upstream tags
+
+One check in this family *is* online. `Package.resolved` records a
+version, the commit its tag resolved to, **and** the repository it all
+came from — which makes the pin verifiable against the source of truth.
+lockvet fetches the repository's real tag list (one anonymous git
+smart-HTTP request per repo, the same channel `git fetch` uses — no API,
+no rate limits) and checks two things for every incoming pin:
+
+- the version's **tag still exists**. Version pins only ever resolve
+  from tags, so a pinned version with no matching tag upstream means the
+  tag was deleted or renamed after someone resolved it → ▲ *not a
+  release*;
+- the pinned commit is **what the tag points at today**. Released tags
+  are supposed to be immutable — a mismatch means the tag has been
+  re-pointed since this was resolved (the tj-actions attack shipped
+  exactly like that), or the lockfile was edited to fetch a different
+  commit while displaying an innocent version → ‼ *tag mismatch*:
+
+```
+↑ github.com/Alamofire/Alamofire 5.9.0 → 5.9.1  patch
+    ‼ tag mismatch: 5.9.1 pinned at deadbeefdead, upstream tag 5.9.1 is
+      at f455c2975872 — released tags are immutable; either the tag has
+      been moved since this was resolved, or the lockfile was edited;
+      verify the commit before trusting it
+```
+
+The same tag-list verification backs [workflow `uses:`
+pins](#github-actions-workflows-are-lockfiles-too). Annotated tags are
+peeled to their commit, `v`-prefixed tags match unprefixed versions, and
+repositories that can't be fetched anonymously (private, moved) produce
+no claims at all. Gate with `-fail-on integrity` (tag mismatch) and
+`-fail-on unlisted` (deleted tag); SARIF emits `tag-mismatch` (error);
+`lockvet audit` verifies every Swift pin you currently hold; and
+`lockvet pkg swift:Alamofire/Alamofire` vets a Swift package (latest =
+highest stable tag) before you add it.
+
 ## Install scripts added by a bump
 
 npm packages can run arbitrary code at install time (`preinstall` /
@@ -1461,6 +1506,7 @@ to the cache.
 | Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
 | Flag integrity changes on unchanged versions & private→public registry moves (dependency confusion) | ✗ | ✗ | ✗ | ✓ ([`‼ integrity` / `⇄ resolution`](#integrity--resolution-changes), offline) |
 | GitHub Actions `uses:` pins (SHA → release resolution, tag-attack detection) | ✗ | ✗ | GitHub Actions ecosystem via dependency graph | ✓ ([format #31](#github-actions-workflows-are-lockfiles-too), all five forges + locally) |
+| Verify SwiftPM pins against upstream tags (moved tag / deleted release) | ✗ | ✗ | ✗ | ✓ ([`‼ tag mismatch`](#swiftpm-pins-verified-against-upstream-tags)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | direct/indirect label, no chain | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | GitHub PRs only (runs *as* the PR's workflow) | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |

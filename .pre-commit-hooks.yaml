@@ -1,30 +1,48 @@
-# pre-commit hook definitions for lockvet — https://pre-commit.com
+# pre-commit hook definitions (https://pre-commit.com).
 #
-# lockvet's default mode compares the working tree against HEAD, which during
-# a pre-commit run is exactly "what this commit changes". The hook only fires
-# when a lockfile is part of the commit.
-#
-# Example .pre-commit-config.yaml:
+# Usage in a project's .pre-commit-config.yaml:
 #
 #   repos:
 #     - repo: https://github.com/matteo-sung/lockvet
-#       rev: v0.1.3
+#       rev: v0.5.4
 #       hooks:
 #         - id: lockvet
-#           # optional: block the commit instead of just explaining it
-#           # args: [-fail-on, "vuln,fresh"]
-#           # optional: skip network lookups (vulns/ages/deprecations)
-#           # args: [-offline]
+#
+# The hook runs `lockvet` on the staged change (working tree vs HEAD) and
+# fails the commit only on the alarming tier: known vulnerabilities,
+# versions missing from their registry index, newly added install scripts,
+# dropped build provenance, typosquat lookalikes, and integrity/resolution
+# tampering. Override `args` to tune (e.g. add major,fresh — or use
+# -offline for a network-free commit gate that still catches downgrades,
+# repins and typosquats).
 - id: lockvet
-  name: lockvet — explain lockfile changes
+  name: lockvet (vet lockfile changes)
   description: >-
-    Explains what a lockfile change really does: every bump classified
-    major/minor/patch, direct vs transitive origin, vulnerabilities introduced
-    and fixed (OSV.dev), release ages and deprecations (deps.dev). Add
-    "args: [-fail-on, vuln]" to block risky commits instead of just reporting.
+    Explain and gate dependency lockfile changes: vulnerabilities fixed and
+    introduced (OSV.dev), release ages, deprecations, versions missing from
+    the registry index, newly added install scripts, dropped provenance,
+    typosquat lookalikes, integrity/resolution tampering, and the dependency
+    chain pulling each transitive change in. 31 lockfile formats plus SBOMs
+    and CI workflow pins.
   entry: lockvet
+  args: ["-fail-on", "vuln,unlisted,scripts,provenance,typosquat,integrity,registry"]
   language: golang
   pass_filenames: false
+  require_serial: true
   verbose: true
+  minimum_pre_commit_version: "3.0.0"
   files: >-
-    (^|/)(package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|requirements\.txt|go\.mod|composer\.lock|Gemfile\.lock|Pipfile\.lock|mix\.lock|pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|Podfile\.lock|deno\.lock|flake\.lock|s?bom\.json|[^/]+\.(cdx|spdx)\.json)$
+    (?x)^(.*/)?(
+      package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|
+      bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|requirements\.txt|
+      go\.mod|composer\.lock|Gemfile\.lock|Pipfile\.lock|mix\.lock|
+      pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|
+      Podfile\.lock|deno\.lock|flake\.lock|renv\.lock|
+      [^/]*conda-lock\.ya?ml|[^/]*pixi\.lock|[^/]*\.terraform\.lock\.hcl|
+      Chart\.lock|requirements\.lock|[Mm]anifest\.toml|Manifest-v[^/]*\.toml|
+      stack\.yaml\.lock|cabal\.project\.freeze|cabal\.config|conan\.lock|
+      bom\.json|sbom\.json|cyclonedx\.json|spdx\.json|
+      [^/]*\.(cdx|spdx|cyclonedx)\.json|
+      action\.ya?ml
+    )$
+    |^(.*/)?\.(github|gitea|forgejo)/workflows/[^/]+\.ya?ml$

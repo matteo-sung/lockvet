@@ -147,12 +147,17 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			if c.Unlisted {
 				if c.Ecosystem == "GitHub Actions" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship, and the tj-actions attack pinned exactly like this; verify the commit"))
+				} else if c.Ecosystem == "SwiftURL" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags, so this one was deleted or renamed after resolution; verify what the pin fetches"))
 				} else {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
 				}
 			}
 			if c.IntegrityChanged {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim("same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"))
+			}
+			if c.TagMismatch {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim("the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"))
 			}
 			if c.RegistryMoved {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⇄ resolution moved: "+c.OldHost+" → "+c.NewHost), s.dim("this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"))
@@ -298,6 +303,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 	if sum.IntegrityChanged > 0 {
 		out += " · " + s.bred(pluralVerb(sum.IntegrityChanged, "pin changes", "pins change")+" integrity without a version change")
 	}
+	if sum.TagMismatch > 0 {
+		out += " · " + s.bred(pluralVerb(sum.TagMismatch, "pin doesn't", "pins don't")+" match the upstream tag")
+	}
 	if sum.RegistryMoved > 0 {
 		out += " · " + s.bred(pluralVerb(sum.RegistryMoved, "resolution moves", "resolutions move")+" to the public registry")
 	}
@@ -373,6 +381,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	}
 	if sum.IntegrityChanged > 0 {
 		fmt.Fprintf(w, "\nIntegrity: **%s content hash without a version change** ‼ — registries never change a published artifact; find out why before merging\n", pluralVerb(sum.IntegrityChanged, "pin changes its", "pins change their"))
+	}
+	if sum.TagMismatch > 0 {
+		fmt.Fprintf(w, "\nIntegrity: **%s not what the upstream tag points at** ‼ — released tags are immutable; the tag was moved since resolution or the lockfile was edited\n", pluralVerb(sum.TagMismatch, "pinned commit is", "pinned commits are"))
 	}
 	if sum.RegistryMoved > 0 {
 		fmt.Fprintf(w, "\nResolution: **%s from a private host to the public registry** ⇄ — the shape of a dependency-confusion attack; make sure the public package is really yours\n", pluralVerb(sum.RegistryMoved, "package moves", "packages move"))
@@ -458,12 +469,17 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			if c.Unlisted {
 				if c.Ecosystem == "GitHub Actions" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned ref matches no tag in the action's repository — verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
+				} else if c.Ecosystem == "SwiftURL" {
+					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | no matching tag in the package's repository — version pins only resolve from tags; verify what this pin fetches |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else {
 					fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				}
 			}
 			if c.IntegrityChanged {
 				fmt.Fprintf(w, "| ‼ | ↳ integrity changed | | %s | same version, different content hash — the artifact this pin expects was replaced; find out why before merging |%s\n", esc(join(c.IntegrityVersions)), padCell)
+			}
+			if c.TagMismatch {
+				fmt.Fprintf(w, "| ‼ | ↳ tag mismatch | | %s | the pinned commit is not what the upstream tag points at today — the tag was moved since resolution or the lockfile was edited |%s\n", esc(join(c.TagMismatches)), padCell)
 			}
 			if c.RegistryMoved {
 				fmt.Fprintf(w, "| ⇄ | ↳ resolution moved | %s | %s | now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack |%s\n", esc(c.OldHost), esc(c.NewHost), padCell)
@@ -532,7 +548,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 
 func openAttr(fd diffx.FileDiff) string {
 	for _, c := range fd.Changes {
-		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged || c.IntegrityChanged || c.RegistryMoved {
+		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged || c.IntegrityChanged || c.TagMismatch || c.RegistryMoved {
 			return " open"
 		}
 	}

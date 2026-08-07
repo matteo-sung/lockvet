@@ -19,7 +19,8 @@ import (
 func hasAuditFinding(c diffx.Change) bool {
 	return len(c.IntroducedVulns)+len(c.ExistingVulns) > 0 ||
 		c.Deprecated || c.Unlisted || c.Fresh || c.TyposquatOf != "" ||
-		c.ScriptsAdded || c.ProvenanceDropped || c.LicenseChanged
+		c.ScriptsAdded || c.ProvenanceDropped || c.LicenseChanged ||
+		c.TagMismatch
 }
 
 // auditCounts tallies the package-level numbers the summaries use.
@@ -93,9 +94,14 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 			if c.Unlisted {
 				if c.Ecosystem == "GitHub Actions" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship; verify where the commit comes from"))
+				} else if c.Ecosystem == "SwiftURL" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags; verify what this pin fetches"))
 				} else {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting"))
 				}
+			}
+			if c.TagMismatch {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim("the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"))
 			}
 			if c.TyposquatOf != "" {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("≈ name resembles "+c.TyposquatOf+":"), s.dim("pinned recently and one edit away from a popular package — the shape of a typosquat; make sure this is the package you meant"))
@@ -136,6 +142,9 @@ func auditSummaryLine(s styler, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 		if sum.Typosquats > 0 {
 			out += " · " + s.bred(pluralVerb(sum.Typosquats, "name resembles", "names resemble")+" a popular package")
 		}
+		if sum.TagMismatch > 0 {
+			out += " · " + s.bred(pluralVerb(sum.TagMismatch, "pin doesn't", "pins don't")+" match the upstream tag")
+		}
 	}
 	if sum.Ignored > 0 {
 		out += " · " + s.dim(plural(sum.Ignored, "finding")+" ignored (.lockvetignore)")
@@ -164,7 +173,7 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			fmt.Fprintf(w, "\nVulnerabilities: none known (via [OSV.dev](https://osv.dev))\n")
 		}
 	}
-	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.Unlisted > 0 || sum.LicenseChanged > 0 || sum.Typosquats > 0) {
+	if metaChecked && (sum.Fresh > 0 || sum.Deprecated > 0 || sum.Unlisted > 0 || sum.LicenseChanged > 0 || sum.Typosquats > 0 || sum.TagMismatch > 0) {
 		var bits []string
 		if sum.Fresh > 0 {
 			bits = append(bits, fmt.Sprintf("**%s published <%dd ago** ⏱", plural(sum.Fresh, "version"), freshDays))
@@ -177,6 +186,9 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 		}
 		if sum.Typosquats > 0 {
 			bits = append(bits, fmt.Sprintf("**%s a popular package** ≈", pluralVerb(sum.Typosquats, "name resembles", "names resemble")))
+		}
+		if sum.TagMismatch > 0 {
+			bits = append(bits, fmt.Sprintf("**%s not what the upstream tag points at** ‼", pluralVerb(sum.TagMismatch, "pinned commit is", "pinned commits are")))
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev) and the package registries)\n", strings.Join(bits, ", "))
 	}
@@ -256,9 +268,14 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			if c.Unlisted {
 				if c.Ecosystem == "GitHub Actions" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — pinned ref matches no tag in the action's repository; verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
+				} else if c.Ecosystem == "SwiftURL" {
+					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — no matching tag in the package's repository; version pins only resolve from tags |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else {
 					fmt.Fprintf(w, "| ❗ | ↳ not in registry index | %s — missing from the registry index though other versions are listed; unpublished/deleted release |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				}
+			}
+			if c.TagMismatch {
+				fmt.Fprintf(w, "| ‼ | ↳ tag mismatch | %s — released tags are immutable; the tag was moved since resolution or the lockfile was edited |%s\n", esc(join(c.TagMismatches)), padCell)
 			}
 			if c.TyposquatOf != "" {
 				fmt.Fprintf(w, "| ≈ | ↳ name resembles `%s` | pinned recently and one edit away from a popular package — make sure this is the package you meant |%s\n", esc(c.TyposquatOf), padCell)

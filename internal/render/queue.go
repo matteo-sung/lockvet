@@ -45,7 +45,7 @@ func (r QueueRow) verdict() int {
 		return 4
 	case r.NoChanges:
 		return 3
-	case r.Sum.VulnsIntroduced > 0 || r.Sum.Unlisted > 0 || r.Sum.ScriptsAdded > 0 || r.Sum.ProvenanceDropped > 0 || r.Sum.Typosquats > 0 || r.Sum.IntegrityChanged > 0 || r.Sum.RegistryMoved > 0:
+	case r.Sum.VulnsIntroduced > 0 || r.Sum.Unlisted > 0 || r.Sum.ScriptsAdded > 0 || r.Sum.ProvenanceDropped > 0 || r.Sum.Typosquats > 0 || r.Sum.IntegrityChanged > 0 || r.Sum.TagMismatch > 0 || r.Sum.RegistryMoved > 0:
 		return 0
 	case r.Sum.Major > 0 || r.Sum.Downgraded > 0 || r.Sum.Fresh > 0 || r.Sum.Deprecated > 0:
 		return 1

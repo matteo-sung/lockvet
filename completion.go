@@ -431,7 +431,9 @@ Hackage, anaconda.org, the Go module proxy, and the Maven repositories
 (Central and Google) themselves (version listings, install scripts,
 provenance, Go retractions, Maven relocations, and — for Composer, Hex,
 Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell and conda — ages and
-deprecations, which deps.dev does not carry).
+deprecations, which deps.dev does not carry). GitHub Actions and SwiftPM
+pins are verified against the upstream repositories' real tag lists over
+anonymous git smart-HTTP (moved-tag and not-a-release detection).
 `
 
 // runCompletion handles `lockvet completion <shell>` and `lockvet man`.

@@ -70,6 +70,9 @@ var pkgEcoAliases = map[string]lock.Ecosystem{
 	"haskell":        lock.Hackage,
 	"actions":        lock.GitHubActions,
 	"github-actions": lock.GitHubActions,
+	"swift":          lock.SwiftURL,
+	"swiftpm":        lock.SwiftURL,
+	"spm":            lock.SwiftURL,
 }
 
 // pkgSpec is one parsed `eco:name[@version]` argument.
@@ -99,7 +102,7 @@ func parsePkgSpec(arg string) (pkgSpec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return pkgSpec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, conda, cran, julia, hackage", ecoPart)
+		return pkgSpec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, conda, cran, julia, hackage, swift", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {
@@ -118,6 +121,19 @@ func parsePkgSpec(arg string) (pkgSpec, error) {
 		}
 	case lock.Packagist, lock.NuGet:
 		name = strings.ToLower(name)
+	case lock.SwiftURL:
+		// Package.resolved records the repo URL without scheme or .git,
+		// and versions without the v-prefix. `swift:owner/repo` implies
+		// github.com, matching the actions shorthand.
+		name = strings.TrimSuffix(strings.TrimSuffix(name, "/"), ".git")
+		for _, prefix := range []string{"https://", "http://", "ssh://", "git@"} {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		name = strings.Replace(name, ":", "/", 1)
+		if first, _, ok := strings.Cut(name, "/"); ok && !strings.Contains(first, ".") {
+			name = "github.com/" + name
+		}
+		version = strings.TrimPrefix(version, "v")
 	}
 	channel := ""
 	if eco == lock.Conda {

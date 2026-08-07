@@ -201,6 +201,23 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.TagMismatch {
+				idx := addRule(rule{
+					ID:               "tag-mismatch",
+					ShortDescription: map[string]string{"text": "Pinned commit does not match the upstream release tag"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#integrity--resolution-changes",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "tag-mismatch", RuleIndex: idx,
+					Level:     "error",
+					Message:   map[string]string{"text": fmt.Sprintf("%s, but the pinned commit is not what the upstream repository's release tag points at today (%s). Released tags are supposed to be immutable — either the tag has been re-pointed since this was resolved, or the lockfile was edited to fetch a different commit while displaying an innocent version. Verify the commit before trusting it.%s", what, strings.Join(c.TagMismatches, "; "), via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "tag-mismatch"),
+					},
+				})
+			}
 			if c.RegistryMoved {
 				idx := addRule(rule{
 					ID:               "registry-moved",

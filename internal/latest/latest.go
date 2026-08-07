@@ -102,6 +102,10 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	// anonymous smart-HTTP advertisement actreg resolves pins with
 	// answers "latest" (highest stable version-shaped tag).
 	lock.GitHubActions: actionsLatest,
+
+	// SwiftPM has no registry: releases ARE the package repository's
+	// semver tags, read from the same smart-HTTP advertisement.
+	lock.SwiftURL: swiftLatest,
 }
 
 // condaLatest resolves [channel/]name against anaconda.org;
@@ -137,6 +141,31 @@ func actionsLatest(name string) (string, error) {
 	return best, nil
 }
 
+func swiftLatest(name string) (string, error) {
+	first, rest, ok := strings.Cut(name, "/")
+	if !ok || !strings.Contains(first, ".") || !strings.Contains(rest, "/") {
+		return "", fmt.Errorf("want host/owner/repo for a Swift package, got %q", name)
+	}
+	tags, err := taglink.Tags("https://" + name)
+	if err != nil {
+		return "", notFound("the repository host", name)
+	}
+	best := ""
+	for t := range tags {
+		v := strings.TrimPrefix(t, "v")
+		if !actreg.VersionLike(v) || strings.ContainsAny(v, "-+") {
+			continue // SwiftPM resolves stable semver tags
+		}
+		if best == "" || vers.Compare(best, v) < 0 {
+			best = v
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no version-shaped tags in https://%s", name)
+	}
+	return best, nil
+}
+
 // specPrefix is the canonical spec prefix shown in error hints.
 func specPrefix(eco lock.Ecosystem) string {
 	switch eco {
@@ -148,6 +177,8 @@ func specPrefix(eco lock.Ecosystem) string {
 		return "pod"
 	case lock.Conan:
 		return "conan"
+	case lock.SwiftURL:
+		return "swift"
 	}
 	return strings.ToLower(string(eco))
 }

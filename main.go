@@ -47,6 +47,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/relnotes"
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/squat"
+	"github.com/matteo-sung/lockvet/internal/swiftreg"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
 	"github.com/matteo-sung/lockvet/internal/vers"
@@ -655,6 +656,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := swiftreg.Annotate(diffs); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: swift tag check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 	}
 
 	vulnsChecked := false
@@ -1148,6 +1154,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := swiftreg.Annotate(combined); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: swift tag check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 	}
 	vulnsChecked := false
 	if !o.noVulns && anyOSV {
@@ -1358,7 +1369,7 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 				return 1
 			}
 		case "integrity":
-			if sum.IntegrityChanged > 0 {
+			if sum.IntegrityChanged > 0 || sum.TagMismatch > 0 {
 				return 1
 			}
 		case "registry", "resolution":

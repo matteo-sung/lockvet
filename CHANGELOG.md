@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.4 — 2026-08-07
+
+- **SwiftPM pins verified against upstream tags.** `Package.resolved`
+  records a version, the commit its tag resolved to, and the repository
+  it came from — so lockvet now fetches each repository's real tag list
+  (one anonymous git smart-HTTP request, no API, no rate limits) and
+  verifies every incoming pin:
+  - **‼ tag mismatch** — the pinned commit is not what the upstream tag
+    points at today. Released tags are supposed to be immutable: either
+    the tag was re-pointed since resolution (how the tj-actions attack
+    shipped), or the lockfile was edited to fetch a different commit
+    while displaying an innocent version. Gates with `-fail-on
+    integrity`; SARIF rule `tag-mismatch` (error); JSON `tag_mismatch` /
+    `tag_mismatches`.
+  - **▲ not a release** — the pinned version matches no tag upstream.
+    Version pins only ever resolve from tags, so the tag was deleted or
+    renamed after resolution. Gates with `-fail-on unlisted`.
+  - Annotated tags are peeled to their commit, `v`-prefixed tags match
+    unprefixed versions, and unreachable (private/moved) repositories
+    produce no claims. Verified-changelog compare links and
+    `-changelogs` now work for Swift diffs too, and `lockvet audit`
+    verifies every Swift pin you currently hold.
+- **`lockvet pkg swift:host/owner/repo`** vets a Swift package before you
+  add it (`swift:owner/repo` implies github.com; latest = the highest
+  stable semver tag).
+- **pre-commit hook: gate by default.** The hook definition now fails
+  the commit on the alarming tier (vuln, unlisted, scripts, provenance,
+  typosquat, integrity, registry) instead of being purely informational,
+  covers all 31 formats plus workflow `uses:` pins, and still prints the
+  full explanation every time. Override `args` to tune.
+
 ## v0.5.3 — 2026-08-07
 
 - **conda registry signals — pixi and conda-lock join the metadata
