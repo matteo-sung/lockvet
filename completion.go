@@ -427,10 +427,11 @@ Data sources:
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
 NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
 the Terraform and OpenTofu registries, ConanCenter, CRAN (via METACRAN),
-the Go module proxy, and the Maven repositories (Central and Google) themselves
-(version listings, install scripts, provenance, Go retractions, Maven
-relocations, and — for Composer, Hex, Dart, JSR, CocoaPods, Conan, Terraform
-and R — ages and deprecations, which deps.dev does not carry).
+Hackage, the Go module proxy, and the Maven repositories (Central and Google)
+themselves (version listings, install scripts, provenance, Go retractions,
+Maven relocations, and — for Composer, Hex, Dart, JSR, CocoaPods, Conan,
+Terraform, R and Haskell — ages and deprecations, which deps.dev does not
+carry).
 `
 
 // runCompletion handles `lockvet completion <shell>` and `lockvet man`.

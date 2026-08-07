@@ -4,6 +4,43 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.2 — 2026-08-07
+
+- **Hackage registry signals — Haskell joins the metadata lineup.**
+  deps.dev has no Hackage system, so `stack.yaml.lock` and
+  `cabal.project.freeze` diffs used to get OSV advisories (`HSEC-…`) but
+  no release metadata at all. lockvet now asks hackage.haskell.org — the
+  canonical registry, no mirror in between — directly:
+  - **Release ages and the ⏱ cooldown flag** from Hackage's per-version
+    upload-time endpoint.
+  - **Deprecated packages** land in the deprecation lane with the
+    maintainer's suggested replacements from Hackage's registry-wide
+    deprecation list (`● deprecated upstream: deprecated on Hackage; use
+    crypton, cryptohash-md5 or cryptohash-sha1 instead` — the
+    `cryptonite` story).
+  - **Deprecated versions** too: Hackage's preferred-versions mechanism
+    (its yank equivalent — the tarball stays but solvers avoid it) flags
+    a bump onto an individually deprecated release.
+  - **Registry-verified unlisted check**: Hackage never deletes versions
+    — deprecated ones stay in the package's version map — so a version
+    absent from the map while the package is known is real evidence.
+    Absence is re-proven with an uncached fetch before any claim, so a
+    same-hour release can never be flagged off a stale cache.
+  - **Verified changelog links and `-changelogs` release notes** via the
+    release's own `.cabal` file (`source-repository head`, homepage
+    fallback).
+  - **`lockvet pkg hackage:<name>`** now resolves the latest
+    (non-deprecated) version by itself — `lockvet pkg hackage:cryptonite`
+    is a one-line demo: deprecation, replacements, and a real `HSEC`
+    advisory on the current release.
+- License-change detection is honestly skipped for Hackage: per-version
+  license metadata straddles the legacy/SPDX migration and comparing
+  `.cabal` files both ways would double the request budget for a noisy
+  signal.
+- hackage.haskell.org sends no CORS headers, so the browser playground
+  skips this layer (like RubyGems, Maven and CRAN); the native CLI is
+  unaffected.
+
 ## v0.5.1 — 2026-08-07
 
 - **CRAN registry signals — R joins the metadata lineup.** deps.dev has

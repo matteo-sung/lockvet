@@ -55,6 +55,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
+	"github.com/matteo-sung/lockvet/internal/hkgreg"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
@@ -87,6 +88,7 @@ func main() {
 	// ConanCenter at all, so conan.lock diffs carry no registry claims.
 	conanreg.Enabled = false
 	cranreg.Enabled = false // no CORS on crandb / cran.r-project.org
+	hkgreg.Enabled = false  // no CORS on hackage.haskell.org
 	// registry.terraform.io sends no CORS headers; the OpenTofu mirror
 	// (api.opentofu.org) is CORS-open and provides ages + source links.
 	tfreg.UseTerraformRegistry = false

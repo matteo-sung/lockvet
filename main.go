@@ -31,6 +31,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
+	"github.com/matteo-sung/lockvet/internal/hkgreg"
 	"github.com/matteo-sung/lockvet/internal/ignore"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
 	"github.com/matteo-sung/lockvet/internal/lock"
@@ -714,6 +715,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := hkgreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Hackage registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if metaChecked {
 			taglink.Annotate(diffs) // verified changelog/compare links
 			if *changelogs {
@@ -1190,6 +1196,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := cranreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: CRAN registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := hkgreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Hackage registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}
