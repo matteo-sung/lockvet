@@ -79,15 +79,25 @@ func parsePipfileLock(p string, data []byte) (*File, error) {
 // not "hexpm") are NonRegistry — hex.pm knows nothing about them and
 // must not judge their versions.
 
-var mixHexRe = regexp.MustCompile(`^\s*"([^"]+)":\s*\{:hex,\s*:([A-Za-z0-9_]+),\s*"([^"]+)"`)
-var mixRepoRe = regexp.MustCompile(`\],\s*"([^"]+)"(?:,\s*"[0-9a-fA-F]+")?\},?\s*$`)
+var mixHexRe = regexp.MustCompile(`^\s*"([^"]+)":\s*\{:hex,\s*:([A-Za-z0-9_]+),\s*"([^"]+)"(?:,\s*"([0-9a-fA-F]*)")?`)
+var mixRepoRe = regexp.MustCompile(`\],\s*"([^"]+)"(?:,\s*"([0-9a-fA-F]+)")?\},?\s*$`)
 
 func parseMixLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "mix.lock", Hex)
 	for _, line := range strings.Split(string(data), "\n") {
 		if m := mixHexRe.FindStringSubmatch(line); m != nil {
 			f.add(m[2], m[3])
-			if r := mixRepoRe.FindStringSubmatch(line); r != nil && r[1] != "hexpm" {
+			// Inner checksum (4th element, sha256 of the tarball contents)
+			// plus the outer checksum (last element, sha256 of the tarball)
+			// when present: hex.pm tarballs are immutable per version, so
+			// a same-version checksum change means the artifact moved.
+			hashes := strings.ToLower(strings.TrimSpace(m[4]))
+			r := mixRepoRe.FindStringSubmatch(line)
+			if r != nil && r[2] != "" {
+				hashes = strings.TrimSpace(hashes + " " + strings.ToLower(r[2]))
+			}
+			f.setPin(m[2], m[3], hashes, "")
+			if r != nil && r[1] != "hexpm" {
 				f.markNonRegistry(m[2])
 			}
 		}
@@ -113,14 +123,15 @@ var pubNameRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+):\s*$`)
 var pubVersionRe = regexp.MustCompile(`^    version:\s*"?([^"\s]+)"?\s*$`)
 var pubSourceRe = regexp.MustCompile(`^    source:\s*"?([^"\s]+)"?\s*$`)
 var pubHostedURLRe = regexp.MustCompile(`^      url:\s*"?([^"\s]+)"?\s*$`)
+var pubSha256Re = regexp.MustCompile(`^      sha256:\s*"?([0-9a-fA-F]{64})"?\s*$`)
 
 func parsePubspecLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "pubspec.lock", Pub)
 	inPackages := false
-	name, version, source, hostURL := "", "", "", ""
+	name, version, source, hostURL, sha := "", "", "", "", ""
 	flush := func() {
 		if name == "" || version == "" {
-			name, version, source, hostURL = "", "", "", ""
+			name, version, source, hostURL, sha = "", "", "", "", ""
 			return
 		}
 		f.add(name, version)
@@ -130,7 +141,14 @@ func parsePubspecLock(p string, data []byte) (*File, error) {
 		if !hosted || !public {
 			f.markNonRegistry(name)
 		}
-		name, version, source, hostURL = "", "", "", ""
+		if hosted {
+			pinHost := HostOf(host)
+			if pinHost == "" && sha != "" {
+				pinHost = "pub.dev" // hosted default when no url recorded
+			}
+			f.setPin(name, version, withPrefixIfSet("sha256:", strings.ToLower(sha)), pinHost)
+		}
+		name, version, source, hostURL, sha = "", "", "", "", ""
 	}
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
@@ -161,10 +179,22 @@ func parsePubspecLock(p string, data []byte) (*File, error) {
 		}
 		if m := pubHostedURLRe.FindStringSubmatch(line); m != nil {
 			hostURL = m[1]
+			continue
+		}
+		if m := pubSha256Re.FindStringSubmatch(line); m != nil {
+			sha = m[1]
 		}
 	}
 	flush()
 	return f, nil
+}
+
+// withPrefixIfSet prepends prefix when s is non-empty.
+func withPrefixIfSet(prefix, s string) string {
+	if s == "" {
+		return ""
+	}
+	return prefix + s
 }
 
 // ---- gradle.lockfile (Gradle dependency locking) ----
@@ -211,6 +241,10 @@ func parseNuGetLock(p string, data []byte) (*File, error) {
 				continue
 			}
 			f.add(name, pkg.Resolved)
+			// NOTE: contentHash is deliberately NOT recorded. NuGet's 2018
+			// repository-resigning changed the contentHash of every package
+			// published before it, so old lockfiles legitimately disagree
+			// with regenerated ones (seen live on runtime.native.* 4.3.0).
 		}
 	}
 	return f, nil
@@ -226,7 +260,8 @@ type swiftPin struct {
 	Location      string `json:"location"`
 	RepositoryURL string `json:"repositoryURL"`
 	State         struct {
-		Version string `json:"version"`
+		Version  string `json:"version"`
+		Revision string `json:"revision"`
 	} `json:"state"`
 }
 
@@ -250,7 +285,15 @@ func parseSwiftResolved(p string, data []byte) (*File, error) {
 		if url == "" {
 			url = pin.RepositoryURL
 		}
-		f.add(swiftURLName(url), pin.State.Version)
+		name := swiftURLName(url)
+		f.add(name, pin.State.Version)
+		// The pinned commit for the version's tag. A same-version revision
+		// change means the upstream tag was moved — released tags are
+		// supposed to be immutable.
+		if pin.State.Version != "" && pin.State.Revision != "" {
+			f.setPin(name, pin.State.Version,
+				"commit:"+strings.ToLower(pin.State.Revision), "")
+		}
 	}
 	return f, nil
 }

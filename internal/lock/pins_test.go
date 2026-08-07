@@ -175,3 +175,263 @@ func TestNpmV1Pins(t *testing.T) {
 }`)
 	wantPin(t, f, "left-pad", "1.3.0", "sha1-9zqFudXUHQRVUcF34ogtSshXKKY=", "registry.npmjs.org")
 }
+
+func TestNuGetPins(t *testing.T) {
+	f := mustParse(t, "packages.lock.json", `{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Newtonsoft.Json": {
+        "type": "Direct",
+        "resolved": "13.0.3",
+        "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
+      },
+      "My.Project": { "type": "Project" }
+    }
+  }
+}`)
+	// contentHash deliberately not recorded (2018 repo-resigning changed
+	// hashes of all pre-2018 packages; offline it is indistinguishable).
+	wantPin(t, f, "Newtonsoft.Json", "13.0.3", "", "")
+}
+
+func TestMixPins(t *testing.T) {
+	f := mustParse(t, "mix.lock", `%{
+  "phoenix": {:hex, :phoenix, "1.7.10", "02D6CF9B6A69B1CB43BE2AF6D6ADF3CBA26AC5CC96B9E5BD883C062AC0D0F0DC", [:mix], [{:castore, ">= 0.0.0", [hex: :castore, repo: "hexpm", optional: false]}], "hexpm", "cf784932e010fd736d656d7fead6a584a4498efefe5b8227e9f383bf15bb79d0"},
+  "old_style": {:hex, :old_style, "0.1.0", "AABBCCDD00112233445566778899AABBCCDD00112233445566778899AABBCCDD", [:mix], []},
+}`)
+	wantPin(t, f, "phoenix", "1.7.10",
+		"02d6cf9b6a69b1cb43be2af6d6adf3cba26ac5cc96b9e5bd883c062ac0d0f0dc cf784932e010fd736d656d7fead6a584a4498efefe5b8227e9f383bf15bb79d0", "")
+	wantPin(t, f, "old_style", "0.1.0",
+		"aabbccdd00112233445566778899aabbccdd00112233445566778899aabbccdd", "")
+}
+
+func TestPubspecPins(t *testing.T) {
+	f := mustParse(t, "pubspec.lock", `packages:
+  args:
+    dependency: transitive
+    description:
+      name: args
+      sha256: "eef6c46b622e0494a36c5a12d10d77fb4e855501a91c1b9ef9339326e58f0596"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.2"
+  private_pkg:
+    dependency: "direct main"
+    description:
+      name: private_pkg
+      sha256: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+      url: "https://pub.corp.internal"
+    source: hosted
+    version: "1.0.0"
+sdks:
+  dart: ">=3.0.0 <4.0.0"
+`)
+	wantPin(t, f, "args", "2.4.2",
+		"sha256:eef6c46b622e0494a36c5a12d10d77fb4e855501a91c1b9ef9339326e58f0596", "pub.dev")
+	wantPin(t, f, "private_pkg", "1.0.0",
+		"sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", "pub.corp.internal")
+}
+
+func TestSwiftPins(t *testing.T) {
+	f := mustParse(t, "Package.resolved", `{
+  "pins": [
+    {
+      "identity": "alamofire",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/Alamofire/Alamofire.git",
+      "state": {
+        "revision": "F455C2975872CCD2D9C81594C7BB9CCC6AF71E54",
+        "version": "5.8.1"
+      }
+    }
+  ],
+  "version": 2
+}`)
+	wantPin(t, f, "github.com/Alamofire/Alamofire", "5.8.1",
+		"commit:f455c2975872ccd2d9c81594c7bb9ccc6af71e54", "")
+}
+
+func TestTerraformPins(t *testing.T) {
+	f := mustParse(t, ".terraform.lock.hcl", `provider "registry.terraform.io/hashicorp/aws" {
+  version     = "5.31.0"
+  constraints = "~> 5.0"
+  hashes = [
+    "h1:WwgMbMOhZblxZTdjHeJf9XB2/hcSHHmpuywLxuTWYw0=",
+    "zh:0248c7ff2f70f7cec7a0f2d433945107e7f95ee7a1348c30bc01ed809ab8d6b8",
+  ]
+}
+`)
+	wantPin(t, f, "hashicorp/aws", "5.31.0",
+		"h1:WwgMbMOhZblxZTdjHeJf9XB2/hcSHHmpuywLxuTWYw0= zh:0248c7ff2f70f7cec7a0f2d433945107e7f95ee7a1348c30bc01ed809ab8d6b8", "")
+}
+
+func TestDenoPins(t *testing.T) {
+	f := mustParse(t, "deno.lock", `{
+  "version": "4",
+  "jsr": {
+    "@std/path@1.0.6": { "integrity": "aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899aa" }
+  },
+  "npm": {
+    "chalk@5.3.0": { "integrity": "sha512-dLitG79d+GV1Nb/VYcCDFivJeK1hiukt9QjRNVOsUtTy1rR1YJsmpGGTZ3qJos+uw7WmWF4wUwBd9jxjocFC2w==" }
+  }
+}`)
+	wantPin(t, f, "chalk", "5.3.0",
+		"sha512-dLitG79d+GV1Nb/VYcCDFivJeK1hiukt9QjRNVOsUtTy1rR1YJsmpGGTZ3qJos+uw7WmWF4wUwBd9jxjocFC2w==", "")
+	wantPin(t, f, "jsr:@std/path", "1.0.6",
+		"aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899aa", "")
+}
+
+func TestBunPins(t *testing.T) {
+	f := mustParse(t, "bun.lock", `{
+  "lockfileVersion": 1,
+  "packages": {
+    "chalk": ["chalk@5.3.0", "", {}, "sha512-dLitG79d+GV1Nb"],
+    "corp-pkg": ["corp-pkg@1.0.0", "https://npm.corp.internal/", {}, "sha512-abc"],
+  }
+}`)
+	wantPin(t, f, "chalk", "5.3.0", "sha512-dLitG79d+GV1Nb", "")
+	wantPin(t, f, "corp-pkg", "1.0.0", "sha512-abc", "npm.corp.internal")
+}
+
+func TestComposerPins(t *testing.T) {
+	f := mustParse(t, "composer.lock", `{
+  "packages": [
+    {
+      "name": "monolog/monolog",
+      "version": "3.5.0",
+      "notification-url": "https://packagist.org/downloads/",
+      "dist": {
+        "type": "zip",
+        "url": "https://api.github.com/repos/Seldaek/monolog/zipball/C915E2634718DBC8A4A15C61B0E62E7A44E14448",
+        "reference": "C915E2634718DBC8A4A15C61B0E62E7A44E14448"
+      }
+    },
+    {
+      "name": "acme/branch-pin",
+      "version": "dev-main",
+      "notification-url": "https://packagist.org/downloads/",
+      "dist": { "reference": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    }
+  ],
+  "packages-dev": []
+}`)
+	wantPin(t, f, "monolog/monolog", "3.5.0",
+		"commit:c915e2634718dbc8a4a15c61b0e62e7a44e14448", "")
+	wantPin(t, f, "acme/branch-pin", "dev-main", "", "")
+}
+
+func TestPodfilePins(t *testing.T) {
+	f := mustParse(t, "Podfile.lock", `PODS:
+  - Alamofire (5.8.1)
+
+DEPENDENCIES:
+  - Alamofire
+
+SPEC REPOS:
+  trunk:
+    - Alamofire
+
+SPEC CHECKSUMS:
+  Alamofire: 3CA45E7FE10DDFF8E1F91A0F58C9A906EAC8A4F9
+
+PODFILE CHECKSUM: 2fc1856dcbbec54f57c5b3e900e56556b41c64f8
+
+COCOAPODS: 1.15.2
+`)
+	wantPin(t, f, "Alamofire", "5.8.1", "3ca45e7fe10ddff8e1f91a0f58c9a906eac8a4f9", "")
+}
+
+func TestPodfileLocalPodNoPin(t *testing.T) {
+	f := mustParse(t, "Podfile.lock", `PODS:
+  - connectivity_plus (0.0.1)
+
+DEPENDENCIES:
+  - connectivity_plus (from ` + "`" + `.symlinks/plugins/connectivity_plus/ios` + "`" + `)
+
+EXTERNAL SOURCES:
+  connectivity_plus:
+    :path: ".symlinks/plugins/connectivity_plus/ios"
+
+SPEC CHECKSUMS:
+  connectivity_plus: 07c49e96d7fc92bc9920617b83238c4d178b446a
+
+COCOAPODS: 1.15.2
+`)
+	wantPin(t, f, "connectivity_plus", "0.0.1", "", "")
+}
+
+func TestJuliaPins(t *testing.T) {
+	f := mustParse(t, "Manifest.toml", `julia_version = "1.10.0"
+
+[[deps.JSON]]
+deps = ["Dates", "Mmap", "Parsers", "Unicode"]
+git-tree-sha1 = "31E2F0F2ABDC2FBEE4A5A4A05DFE41E7D2AA76E9"
+uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+version = "0.21.4"
+
+[[deps.DevPkg]]
+git-tree-sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+repo-url = "https://github.com/user/DevPkg.jl.git"
+uuid = "00000000-0000-0000-0000-000000000000"
+version = "0.1.0"
+`)
+	wantPin(t, f, "JSON", "0.21.4",
+		"tree:31e2f0f2abdc2fbee4a5a4a05dfe41e7d2aa76e9", "")
+	wantPin(t, f, "DevPkg", "0.1.0", "", "")
+}
+
+func TestGleamPins(t *testing.T) {
+	f := mustParse(t, "manifest.toml", `# This file was generated by gleam
+
+packages = [
+  { name = "gleam_stdlib", version = "0.38.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "663CBCA40E0FA1FA1C11BFA93AFA3F968ADF35B893CC66DFF4D6A0A05DE1CCC8" },
+  { name = "local_dep", version = "1.0.0", build_tools = ["gleam"], requirements = [], source = "local", outer_checksum = "AABBCCAABBCCAABBCCAABBCCAABBCCAABBCCAABBCCAABBCCAABBCCAABBCCAABB" },
+]
+
+[requirements]
+gleam_stdlib = { version = ">= 0.34.0 and < 2.0.0" }
+`)
+	wantPin(t, f, "gleam_stdlib", "0.38.0",
+		"sha256:663cbca40e0fa1fa1c11bfa93afa3f968adf35b893cc66dff4d6a0a05de1ccc8", "")
+	wantPin(t, f, "local_dep", "1.0.0", "", "")
+}
+
+func TestPixiPins(t *testing.T) {
+	f := mustParse(t, "pixi.lock", `version: 5
+environments:
+  default:
+    channels:
+    - url: https://conda.anaconda.org/conda-forge/
+packages:
+- conda: https://conda.anaconda.org/conda-forge/linux-64/numpy-1.26.4-py312heda63a1_0.conda
+  sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8
+  md5: d8285bea2a350f63fab23bf460221f3f
+- pypi: https://files.pythonhosted.org/packages/aa/bb/requests-2.31.0-py3-none-any.whl
+  name: requests
+  version: 2.31.0
+  sha256: 58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f
+`)
+	// conda entries: host only — same-version build-number rebuilds are
+	// routine, so artifact hashes cannot anchor to (name, version).
+	wantPin(t, f, "numpy", "1.26.4", "", "conda.anaconda.org")
+	wantPin(t, f, "requests", "2.31.0",
+		"sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f", "files.pythonhosted.org")
+}
+
+func TestCondaLockPins(t *testing.T) {
+	f := mustParse(t, "conda-lock.yml", `version: 1
+package:
+- name: numpy
+  version: 1.26.4
+  manager: conda
+  platform: linux-64
+  dependencies:
+    python: ">=3.12"
+  url: https://conda.anaconda.org/conda-forge/linux-64/numpy-1.26.4-py312heda63a1_0.conda
+  hash:
+    md5: d8285bea2a350f63fab23bf460221f3f
+    sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8
+`)
+	wantPin(t, f, "numpy", "1.26.4", "", "conda.anaconda.org")
+}

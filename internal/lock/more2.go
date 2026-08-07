@@ -34,13 +34,14 @@ import (
 // are NonRegistry: registry-metadata checks skip them.
 
 var (
-	podLineRe    = regexp.MustCompile(`^  - "?([^" (]+)"? \(([^()]+)\)`)
-	podDepRe     = regexp.MustCompile(`^ {4,}- "?([^" (]+)"?`)
-	podEntryRe   = regexp.MustCompile(`^  - "?([^" (]+)"?`)
-	podSrcKeyRe  = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
-	podSrcPodRe  = regexp.MustCompile(`^ {4}- "?([^" (]+)"?`)
-	podExtKeyRe  = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
-	podPublicSrc = regexp.MustCompile(`(?i)^(trunk|.*github\.com[:/]cocoapods/specs.*)$`)
+	podLineRe     = regexp.MustCompile(`^  - "?([^" (]+)"? \(([^()]+)\)`)
+	podDepRe      = regexp.MustCompile(`^ {4,}- "?([^" (]+)"?`)
+	podEntryRe    = regexp.MustCompile(`^  - "?([^" (]+)"?`)
+	podSrcKeyRe   = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
+	podChecksumRe = regexp.MustCompile(`^  "?([^":]+?)"?:\s*([0-9a-fA-F]{40})\s*$`)
+	podSrcPodRe   = regexp.MustCompile(`^ {4}- "?([^" (]+)"?`)
+	podExtKeyRe   = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
+	podPublicSrc  = regexp.MustCompile(`(?i)^(trunk|.*github\.com[:/]cocoapods/specs.*)$`)
 )
 
 // twoSpaceIndent reports whether the line is indented by exactly two
@@ -97,6 +98,23 @@ func parsePodfileLock(p string, data []byte) (*File, error) {
 					f.markNonRegistry(podBase(m[1]))
 				}
 			}
+		case "SPEC CHECKSUMS":
+			// "  Alamofire: 02b66283...40hex" — SHA-1 of the resolved
+			// podspec. Applied to the version pinned in PODS above; a
+			// same-version checksum change means the published spec (and
+			// so what it downloads) was altered under an existing version.
+			if m := podChecksumRe.FindStringSubmatch(trimmed); m != nil {
+				name := Sanitize(m[1])
+				if f.NonRegistry[name] {
+					// Local development pods (Flutter/React-Native plugin
+					// pods via :path, git pins) re-hash whenever their
+					// podspec is edited — only trunk pods are immutable.
+					continue
+				}
+				for _, v := range f.Packages[name] {
+					f.setPin(name, v, strings.ToLower(m[2]), "")
+				}
+			}
 		}
 	}
 	return f, nil
@@ -128,14 +146,24 @@ func parseDenoLock(p string, data []byte) (*File, error) {
 	if len(npm) == 0 && len(jsr) == 0 {
 		npm, jsr = doc.Packages.NPM, doc.Packages.JSR
 	}
-	for key := range npm {
-		if name, ver, ok := denoKey(key); ok {
-			f.add(name, ver)
+	pin := func(name, ver string, raw json.RawMessage) {
+		var meta struct {
+			Integrity string `json:"integrity"`
+		}
+		if json.Unmarshal(raw, &meta) == nil && meta.Integrity != "" {
+			f.setPin(name, ver, meta.Integrity, "")
 		}
 	}
-	for key := range jsr {
+	for key, raw := range npm {
+		if name, ver, ok := denoKey(key); ok {
+			f.add(name, ver)
+			pin(name, ver, raw)
+		}
+	}
+	for key, raw := range jsr {
 		if name, ver, ok := denoKey(key); ok {
 			f.add("jsr:"+name, ver)
+			pin("jsr:"+name, ver, raw)
 		}
 	}
 	return f, nil

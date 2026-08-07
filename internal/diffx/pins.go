@@ -64,6 +64,12 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 		return false // added/removed files: nothing to compare against
 	}
 	name := c.Name
+	if sideEco(oldF, name) != sideEco(newF, name) {
+		// The package switched package managers between the two sides
+		// (pixi/conda locks: a conda package became a PyPI wheel or vice
+		// versa). Hashes and hosts legitimately change wholesale.
+		return false
+	}
 	// Integrity: compare versions present on both sides.
 	common := intersectVersions(c.Old, c.New)
 	sameBytesProven := len(common) > 0
@@ -96,6 +102,15 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 		}
 	}
 	return c.IntegrityChanged || c.RegistryMoved
+}
+
+// sideEco is the ecosystem one side resolves the package with (per-package
+// override for SBOM / conda+pip mixed files, else the file's ecosystem).
+func sideEco(f *lock.File, name string) lock.Ecosystem {
+	if e, ok := f.PkgEco[name]; ok {
+		return e
+	}
+	return f.Ecosystem
 }
 
 // intersectVersions returns versions present in both lists (set semantics).

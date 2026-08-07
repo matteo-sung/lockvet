@@ -25,12 +25,15 @@ import (
 // live in Project.toml, which is not a lockfile, so RootsKnown is false.
 
 var juliaHeadRe = regexp.MustCompile(`^\[\[(?:deps\.)?"?([A-Za-z0-9_]+)"?\]\]$`)
+var juliaTreeRe = regexp.MustCompile(`^git-tree-sha1\s*=\s*"([0-9a-fA-F]{40})"\s*$`)
 
 func parseJuliaManifest(p string, data []byte) (*File, error) {
 	f := newFile(p, "Manifest.toml", Julia)
 	type entry struct {
 		name    string
 		version string
+		treeSHA string
+		repoURL bool // tracked from a git repo, not the registry
 		deps    []string
 	}
 	var entries []entry
@@ -68,6 +71,14 @@ func parseJuliaManifest(p string, data []byte) (*File, error) {
 			cur.version = m[2]
 			continue
 		}
+		if m := juliaTreeRe.FindStringSubmatch(line); m != nil {
+			cur.treeSHA = strings.ToLower(m[1])
+			continue
+		}
+		if strings.HasPrefix(line, "repo-url ") || strings.HasPrefix(line, "repo-url=") {
+			cur.repoURL = true
+			continue
+		}
 		if rest, ok := strings.CutPrefix(line, "deps = ["); ok {
 			rest = strings.TrimSpace(rest)
 			if rest == "" {
@@ -89,6 +100,12 @@ func parseJuliaManifest(p string, data []byte) (*File, error) {
 		}
 		f.add(e.name, e.version)
 		locked[e.name] = true
+		// git-tree-sha1 identifies the exact source tree the registry
+		// maps to this version; registered versions are immutable. Pins
+		// tracking a git repo (repo-url) legitimately move — skipped.
+		if e.treeSHA != "" && !e.repoURL {
+			f.setPin(e.name, e.version, "tree:"+e.treeSHA, "")
+		}
 	}
 	for _, e := range entries {
 		if !locked[e.name] {
@@ -242,8 +259,15 @@ func parseGleamManifest(p string, data []byte) (*File, error) {
 		// Gleam can also resolve packages from git or a local path;
 		// those never appear on hex.pm and must not trip registry
 		// signals.
+		fromHex := true
 		if m := gleamSourceRe.FindStringSubmatch(line); m != nil && m[1] != "hex" {
 			f.markNonRegistry(name)
+			fromHex = false
+		}
+		// outer_checksum = sha256 of the hex.pm tarball; immutable per
+		// version.
+		if m := gleamChecksumRe.FindStringSubmatch(line); m != nil && fromHex {
+			f.setPin(name, version, "sha256:"+strings.ToLower(m[1]), "")
 		}
 		if m := gleamReqArrayRe.FindStringSubmatch(line); m != nil {
 			for _, item := range strings.Split(m[1], ",") {
@@ -258,6 +282,7 @@ func parseGleamManifest(p string, data []byte) (*File, error) {
 
 var gleamVersionRe = regexp.MustCompile(`version\s*=\s*"([^"]+)"`)
 var gleamSourceRe = regexp.MustCompile(`source\s*=\s*"([^"]+)"`)
+var gleamChecksumRe = regexp.MustCompile(`outer_checksum\s*=\s*"([0-9a-fA-F]{64})"`)
 
 // sniffManifestTOML routes the ambiguous basename: Julia writes
 // Manifest.toml (and historically some tooling lowercases it), Gleam

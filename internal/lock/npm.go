@@ -436,6 +436,20 @@ func parseBunLock(p string, data []byte) (*File, error) {
 		}
 		name, version := splitNameAtVersion(ident)
 		f.add(name, version)
+		// [ident, registry, meta, integrity]: string elements after the
+		// ident are the registry URL ("" = default) and the SRI hash.
+		for _, el := range arr[1:] {
+			var s string
+			if json.Unmarshal(el, &s) != nil || s == "" {
+				continue
+			}
+			switch {
+			case strings.HasPrefix(s, "sha512-") || strings.HasPrefix(s, "sha256-") || strings.HasPrefix(s, "sha1-"):
+				f.setPin(name, version, s, "")
+			case strings.Contains(s, "://"):
+				f.setPin(name, version, "", HostOf(s))
+			}
+		}
 	}
 	return f, nil
 }

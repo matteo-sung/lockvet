@@ -384,6 +384,9 @@ func parseComposerLock(p string, data []byte) (*File, error) {
 		// packagist.org at all, so registry-derived signals must skip
 		// them.
 		NotificationURL string `json:"notification-url"`
+		Dist            struct {
+			Reference string `json:"reference"`
+		} `json:"dist"`
 	}
 	var doc struct {
 		Packages    []composerPkg `json:"packages"`
@@ -393,9 +396,20 @@ func parseComposerLock(p string, data []byte) (*File, error) {
 		return nil, err
 	}
 	for _, pkg := range append(doc.Packages, doc.PackagesDev...) {
-		f.add(pkg.Name, strings.TrimPrefix(pkg.Version, "v"))
+		ver := strings.TrimPrefix(pkg.Version, "v")
+		f.add(pkg.Name, ver)
 		if !strings.HasPrefix(pkg.NotificationURL, "https://packagist.org/") {
 			f.markNonRegistry(pkg.Name)
+		}
+		// dist.reference is the commit the released tag pointed at when it
+		// was resolved. Tagged releases are supposed to be immutable, so a
+		// same-version reference change means the upstream tag was moved.
+		// Branch pins (dev-main, 1.x-dev, 9999999-dev aliases) legitimately
+		// track moving heads and are never recorded.
+		if ref := strings.ToLower(pkg.Dist.Reference); len(ref) == 40 &&
+			!strings.HasPrefix(pkg.Version, "dev-") &&
+			!strings.HasSuffix(pkg.Version, "-dev") {
+			f.setPin(pkg.Name, ver, "commit:"+ref, "")
 		}
 		for dep := range pkg.Require {
 			// skip platform requirements: php, ext-*, lib-*, composer-*

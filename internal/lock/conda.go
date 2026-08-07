@@ -105,6 +105,7 @@ type condaEntry struct {
 	url     string
 	name    string
 	version string
+	sha     string   // sha256 of the artifact, when the lockfile records it
 	deps    []string // conda depends entries / conda-lock dependencies keys
 	reqs    []string // pypi requires_dist entries
 }
@@ -123,6 +124,15 @@ func flushCondaEntry(f *File, e *condaEntry, pypiEdges *[]pypiEdge) {
 		return
 	}
 	f.add(name, version)
+	// Conda rebuilds the SAME version under new build numbers routinely
+	// (py312h..._0 -> _1), so artifact hashes can't anchor to (name,
+	// version) — only the resolution host is recorded for conda entries.
+	// PyPI wheels inside conda/pixi locks are immutable per file.
+	integ := ""
+	if e.kind == "pypi" {
+		integ = withPrefixIfSet("sha256:", strings.ToLower(e.sha))
+	}
+	f.setPin(name, version, integ, HostOf(e.url))
 	if e.kind == "pypi" {
 		if f.PkgEco == nil {
 			f.PkgEco = map[string]Ecosystem{}
@@ -218,6 +228,8 @@ func parsePixiLock(p string, data []byte) (*File, error) {
 				cur.version = val
 			case "url":
 				cur.url = val
+			case "sha256":
+				cur.sha = val
 			case "depends":
 				curList = "deps"
 				continue
@@ -265,6 +277,8 @@ func parseCondaLock(p string, data []byte) (*File, error) {
 			cur.version = val
 		case "url":
 			cur.url = val
+		case "sha256":
+			cur.sha = val
 		case "manager":
 			if val == "pip" {
 				cur.kind = "pypi"
@@ -305,6 +319,10 @@ func parseCondaLock(p string, data []byte) (*File, error) {
 				subMap = ""
 			}
 			field(key, yamlVal(val))
+		case cur != nil && subMap == "hash" && strings.HasPrefix(line, "    ") && len(line) > 4 && line[4] != ' ':
+			if key, val, ok := strings.Cut(strings.TrimSpace(line), ":"); ok && yamlVal(key) == "sha256" {
+				cur.sha = yamlVal(val)
+			}
 		case cur != nil && subMap == "dependencies" && strings.HasPrefix(line, "    ") && len(line) > 4 && line[4] != ' ':
 			if key, _, ok := strings.Cut(strings.TrimSpace(line), ":"); ok {
 				dep := yamlVal(key)

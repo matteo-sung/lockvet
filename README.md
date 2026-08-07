@@ -156,7 +156,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.6 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.7 lockvet
 ```
 
 ### Shell completions & man page
@@ -181,8 +181,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.4.6_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.6 --owner matteo-sung
+gh attestation verify lockvet_v0.4.7_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.7 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -423,7 +423,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.6
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.7
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -539,7 +539,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.6/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.7/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -573,7 +573,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.6", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.7", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -627,7 +627,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.4.6
+      - uses: matteo-sung/lockvet@v0.4.7
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -654,7 +654,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.4.6
+      - uses: matteo-sung/lockvet@v0.4.7
         with:
           sarif: 'true'
 ```
@@ -674,7 +674,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.4.6
+  image: ghcr.io/matteo-sung/lockvet:0.4.7
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -699,7 +699,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.4.6
+          image: ghcr.io/matteo-sung/lockvet:0.4.7
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -717,7 +717,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.4.6
+    container: ghcr.io/matteo-sung/lockvet:0.4.7
     steps:
       - checkout: none
       - script: >
@@ -741,7 +741,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.4.6
+    image: ghcr.io/matteo-sung/lockvet:0.4.7
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -759,7 +759,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.4.6
+    rev: v0.4.7
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -1040,11 +1040,26 @@ a move whose content hash provably didn't change is quiet, and when five
 or more packages move between the same two hosts lockvet treats it as a
 registry migration (a config change) and stays quiet.
 
+The same check reads **release-tag pins**: `Package.resolved` (Swift) and
+`composer.lock` record the commit a released tag pointed at, and Julia's
+`Manifest.toml` records the registry's source-tree hash — a version that
+keeps its number but changes its commit means **the upstream tag was
+moved**, and flags the same way.
+
 Both signals are computed **entirely offline** from the two lockfiles —
 they work with `-offline`, in air-gapped CI, and in the browser
 playground. Formats that record the data: npm (v1–v3), pnpm, yarn
-(classic + berry), Cargo, poetry, uv, Pipfile.lock, `requirements.txt
---hash`, and Gemfile.lock (hosts). Gate with `-fail-on
+(classic + berry), bun.lock, deno.lock (npm + jsr), Cargo, poetry, uv,
+Pipfile.lock, `requirements.txt --hash`, Gemfile.lock (hosts),
+mix.lock, Gleam's manifest.toml, pubspec.lock (hashes **and** hosts —
+the Dart confusion shape flags too), Podfile.lock (trunk podspec
+checksums), Package.resolved, composer.lock, Julia Manifest.toml,
+`.terraform.lock.hcl` (provider `h1:`/`zh:` hashes), and conda/pixi
+locks (PyPI wheel hashes + channel hosts). Two deliberate omissions,
+because real history proved them noisy: NuGet's `contentHash` (NuGet's
+2018 repository-resigning changed every older package's hash) and conda
+artifact hashes (conda rebuilds the same version under new build
+numbers routinely). Gate with `-fail-on
 integrity,registry`; JSON carries `integrity_changed` /
 `integrity_changed_versions` / `old_host` / `new_host` / `registry_moved`;
 SARIF emits `integrity-changed` (error) and `registry-moved` (warning);

@@ -254,6 +254,10 @@ func (e Ecosystem) PublicRegistryHost(h string) bool {
 		return h == "crates.io" || h == "index.crates.io" || h == "static.crates.io"
 	case RubyGems:
 		return h == "rubygems.org" || h == "index.rubygems.org"
+	case Pub:
+		return h == "pub.dev" || h == "pub.dartlang.org"
+	case Conda:
+		return h == "conda.anaconda.org" || h == "repo.anaconda.com"
 	}
 	return false
 }

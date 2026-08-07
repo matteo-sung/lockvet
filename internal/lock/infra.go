@@ -21,12 +21,28 @@ import (
 
 func parseTerraformLock(p string, data []byte) (*File, error) {
 	f := newFile(p, ".terraform.lock.hcl", Terraform)
-	name := ""
+	name, version := "", ""
+	inHashes := false
+	pinHash := func(item string) {
+		h := strings.Trim(strings.TrimSuffix(strings.TrimSpace(item), ","), `"`)
+		if name != "" && version != "" &&
+			(strings.HasPrefix(h, "h1:") || strings.HasPrefix(h, "zh:")) {
+			f.setPin(name, version, h, "")
+		}
+	}
 	for _, raw := range strings.Split(string(data), "\n") {
 		line := strings.TrimSpace(raw)
+		if inHashes {
+			if strings.HasPrefix(line, "]") {
+				inHashes = false
+				continue
+			}
+			pinHash(line)
+			continue
+		}
 		switch {
 		case strings.HasPrefix(line, "provider ") && strings.HasSuffix(line, "{"):
-			name = ""
+			name, version = "", ""
 			if q := strings.IndexByte(line, '"'); q >= 0 {
 				rest := line[q+1:]
 				if e := strings.IndexByte(rest, '"'); e > 0 {
@@ -34,8 +50,8 @@ func parseTerraformLock(p string, data []byte) (*File, error) {
 				}
 			}
 		case line == "}":
-			name = ""
-		case name != "" && strings.HasPrefix(line, "version"):
+			name, version = "", ""
+		case name != "" && version == "" && strings.HasPrefix(line, "version"):
 			rest := strings.TrimSpace(strings.TrimPrefix(line, "version"))
 			if !strings.HasPrefix(rest, "=") {
 				continue // e.g. a "versions" key; real field is version = "..."
@@ -43,8 +59,18 @@ func parseTerraformLock(p string, data []byte) (*File, error) {
 			v := strings.Trim(strings.TrimSpace(rest[1:]), `"`)
 			if v != "" {
 				f.add(name, v)
+				version = v
 			}
-			name = "" // one version per provider block
+		case name != "" && strings.HasPrefix(line, "hashes"):
+			// hashes = [ ... ] — usually multi-line, tolerate inline.
+			open, close := strings.IndexByte(line, '['), strings.IndexByte(line, ']')
+			if open >= 0 && close > open {
+				for _, item := range strings.Split(line[open+1:close], ",") {
+					pinHash(item)
+				}
+			} else if open >= 0 {
+				inHashes = true
+			}
 		}
 	}
 	return f, nil

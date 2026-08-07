@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.7 — 2026-08-07
+
+- **Integrity & resolution tampering detection now covers 11 more formats**
+  (was 9). New pin sources for the v0.4.6 `‼ REPINNED` / `⇄ resolution
+  moved` signals:
+  - **Artifact hashes**: mix.lock (both Hex checksums), Gleam manifest.toml
+    (`outer_checksum`), pubspec.lock (`sha256` + hosted URL — the Dart
+    private→pub.dev dependency-confusion shape now flags), bun.lock,
+    deno.lock (npm + jsr integrity), Podfile.lock (trunk podspec
+    checksums; local/external pods exempt), `.terraform.lock.hcl`
+    (provider `h1:`/`zh:` hashes — a provider whose version stays but
+    whose hashes fully change is a registry-side replacement), conda/pixi
+    locks (PyPI wheel hashes + channel hosts).
+  - **Release-tag pins**: Package.resolved (Swift) and composer.lock
+    record the commit a released tag resolved to; Julia's Manifest.toml
+    records the registry's `git-tree-sha1`. A version that keeps its
+    number but changes its commit/tree = **the upstream tag was moved** —
+    flagged as REPINNED. Composer branch pins (`dev-*`) and Julia
+    `repo-url` dev pins legitimately move and are never recorded.
+  - Deliberately **omitted after real-history sweeps said no**: NuGet
+    `contentHash` (the 2018 repository-resigning changed every pre-2018
+    package's hash — seen live on `runtime.native.*` 4.3.0) and conda
+    artifact hashes (same-version build-number rebuilds are routine).
+    A package that switches managers between conda and PyPI in one diff
+    (pixi manager change) is also recognized and stays quiet.
+  - Validated against 610 historical lockfile commits across 20 repos
+    (AppFlowy, localsend, Signal-iOS, eigen, pixi, monica, koel, realtime,
+    plausible, lustre, fresh, deno std, MonoMod, PluralKit, SolrNet,
+    mirrorsharp, atmos, TCA, MIT computational-thinking, EmailThing):
+    zero false positives after the exemptions above.
+
 ## v0.4.6 — 2026-08-07
 
 - **Lockfiles pin bytes and sources, not just versions — lockvet now reads
