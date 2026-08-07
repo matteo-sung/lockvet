@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   publish:
@@ -73,6 +72,9 @@ jobs:
   verify:
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       IMG: ghcr.io/${{ github.repository }}:${{ needs.publish.outputs.version }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
