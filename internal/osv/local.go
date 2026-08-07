@@ -61,7 +61,22 @@ type localBackend struct {
 type ecoDB struct {
 	names map[string][]string // normalized package name -> advisory IDs
 	byID  map[string]*zip.File
+	zr    *zip.ReadCloser
 	err   error
+}
+
+// close releases the open zip handles. The CLI never needs this (the
+// process exits), but tests on Windows cannot remove a TempDir while a
+// database inside it is still open. Safe to call repeatedly.
+func (b *localBackend) close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, ed := range b.ecos {
+		if ed.zr != nil {
+			ed.zr.Close()
+			ed.zr = nil
+		}
+	}
 }
 
 func (b *localBackend) batch(qs []query) ([]batchResult, error) {
@@ -180,6 +195,7 @@ func (b *localBackend) ensure(eco string) *ecoDB {
 			ed.err = fmt.Errorf("osv-db: opening %s: %w", zipPath, err)
 			return ed
 		}
+		ed.zr = zr
 		ed.byID = map[string]*zip.File{}
 		for _, f := range zr.File {
 			ed.byID[strings.TrimSuffix(filepath.Base(f.Name), ".json")] = f

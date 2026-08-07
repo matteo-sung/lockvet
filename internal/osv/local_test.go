@@ -53,6 +53,7 @@ func TestLocalBatchAndDetails(t *testing.T) {
 		"GHSA-aaaa.json": ghsaA, "MAL-0001.json": malB, "GHSA-gone.json": withdrawnC,
 	})
 	b := &localBackend{dir: dir, download: false}
+	t.Cleanup(b.close)
 
 	res, err := b.batch([]query{
 		mkQuery("left-pad", "npm", "1.1.0"), // in GHSA range
@@ -98,6 +99,7 @@ func TestLocalActionsStyleQuery(t *testing.T) {
 		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"2.0.1"}]}]}]}`,
 	})
 	b := &localBackend{dir: dir}
+	t.Cleanup(b.close)
 	res, err := b.batch([]query{mkQuery("acme/setup", "GitHub Actions", "")})
 	if err != nil {
 		t.Fatal(err)
@@ -122,6 +124,7 @@ func TestLocalPyPINormalizationAndDistro(t *testing.T) {
 		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"3.1.4-r5"}]}]}]}`,
 	})
 	b := &localBackend{dir: dir}
+	t.Cleanup(b.close)
 	res, err := b.batch([]query{
 		mkQuery("foo.bar", "PyPI", "1.0"),
 		mkQuery("openssl", "Alpine:v3.19", "3.1.4-r5"), // fixed in v3.19's own entry
@@ -143,6 +146,7 @@ func TestLocalPyPINormalizationAndDistro(t *testing.T) {
 
 func TestLocalOfflineMissingEcosystem(t *testing.T) {
 	b := &localBackend{dir: t.TempDir(), download: false}
+	t.Cleanup(b.close)
 	_, err := b.batch([]query{mkQuery("left-pad", "npm", "1.0.0")})
 	if err == nil || !contains(err.Error(), "no local OSV database for npm") {
 		t.Fatalf("want instructive error, got %v", err)
@@ -176,12 +180,14 @@ func TestLocalDownloadAndConditionalGet(t *testing.T) {
 
 	dir := t.TempDir()
 	b := &localBackend{dir: dir, download: true}
+	t.Cleanup(b.close)
 	res, err := b.batch([]query{mkQuery("left-pad", "npm", "1.0.0")})
 	if err != nil || len(res[0].Vulns) != 1 {
 		t.Fatalf("download run: %v %+v", err, res)
 	}
 
 	b2 := &localBackend{dir: dir, download: true}
+	t.Cleanup(b2.close)
 	res, err = b2.batch([]query{mkQuery("left-pad", "npm", "1.0.0")})
 	if err != nil || len(res[0].Vulns) != 1 {
 		t.Fatalf("cached run: %v %+v", err, res)
