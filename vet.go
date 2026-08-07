@@ -78,6 +78,10 @@ type vetOutcome struct {
 	// lockfile's raw bytes so SARIF can anchor alerts to exact lines.
 	audit    bool
 	contents map[string][]byte
+
+	// Pkg mode (`lockvet pkg`): synthetic one-package diffs, one per
+	// requested spec — there is no base or target revision.
+	pkg bool
 }
 
 // markdown renders the outcome the same way `lockvet -md` does.
@@ -111,6 +115,13 @@ func (v *vetOutcome) jsonText() (string, error) {
 		// nothing: "introduced_vulns" = advisories affecting the pinned
 		// version, "added" = packages pinned.
 		doc["mode"] = "audit"
+		delete(doc, "base")
+		delete(doc, "target")
+	}
+	if v.pkg {
+		// `lockvet pkg`: each file entry is one requested package spec;
+		// "introduced_vulns" = advisories affecting the looked-up version.
+		doc["mode"] = "pkg"
 		delete(doc, "base")
 		delete(doc, "target")
 	}

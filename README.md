@@ -70,10 +70,14 @@ what really happened:
   PyPI + Go *and* the Alpine/Debian OS packages, with distro security
   advisories (`ALPINE-CVE-…`, `DEBIAN-CVE-…`) resolved against the right
   release branch
+- **before you even install** — `lockvet pkg npm:left-pad` vets a package
+  that isn't in any lockfile yet: advisories (including malicious-package
+  records), release age, deprecation, typosquat suspicion — the registry's
+  latest version, or any version you name
 - **usable by your AI assistant** — `lockvet mcp` is a built-in
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
-  MCP client can vet a PR URL, a local repo, two files, or a whole
-  Dependabot queue mid-conversation
+  MCP client can vet a PR URL, a local repo, two files, a package it's
+  about to add, or a whole Dependabot queue mid-conversation
 - **across every ecosystem, in one static binary** — 30 lockfile formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
@@ -156,7 +160,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.7 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.8 lockvet
 ```
 
 ### Shell completions & man page
@@ -181,8 +185,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.4.7_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.7 --owner matteo-sung
+gh attestation verify lockvet_v0.4.8_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.8 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -423,7 +427,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.7
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.8
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -539,7 +543,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.7/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.8/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -553,6 +557,46 @@ No install needed to try it: the
 [browser playground](https://matteo-sung.github.io/lockvet/) has an
 **Audit a lockfile** mode — drop one or more lockfiles (or SBOMs) and the
 same audit runs entirely in your browser.
+
+### Vet a package *before* you install it — `lockvet pkg`
+
+The riskiest moment in dependency management is `npm install something` on a
+package you've never seen. `lockvet pkg` runs the same pipeline over a
+package that isn't in any lockfile yet — at the moment you're deciding:
+
+```text
+$ lockvet pkg npm:chakl        # you meant chalk. lockvet noticed.
+
+npm:chakl@0.0.1-security (latest) (npm)
+  + chakl 0.0.1-security  (added)  (7y old)
+      ▲ introduces MAL-2025-16766 Malicious code in chakl (npm)
+
+1 package changed · 1 added · vulnerabilities: 1 introduced, 0 fixed
+```
+
+You get everything the registry knows: advisories affecting the version
+(including `MAL-*` malicious-package records), release age (⏱ brand-new
+releases are higher-risk), deprecation/retraction/yank with the upstream
+reason, versions missing from the registry index, and ≈ typosquat
+suspicion for names one edit from a popular package.
+
+Specs are `eco:name[@version]`; with no version, the package's own registry
+says what "latest" is:
+
+```sh
+lockvet pkg npm:left-pad                    # latest, from the npm registry
+lockvet pkg pypi:requests@2.32.0            # a specific version
+lockvet pkg cargo:serde gem:rails hex:phoenix pub:dio   # several at once
+lockvet pkg go:github.com/gin-gonic/gin     # Go modules
+lockvet pkg maven:com.google.guava:guava    # Maven group:artifact
+lockvet pkg jsr:@std/http terraform:hashicorp/aws pod:Alamofire
+```
+
+Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
+Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, and Terraform; other ecosystems
+(`conan:`, `cran:`, `julia:`, `hackage:`) work with an explicit `@version`.
+`-fail-on vuln,unlisted,typosquat` gates scripts the same way it gates CI,
+and `-md`/`-json` output works as everywhere else.
 
 ### Let your AI assistant vet dependencies (MCP server)
 
@@ -573,12 +617,12 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.7", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.8", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
 
-Five read-only tools, mirroring the CLI:
+Six read-only tools, mirroring the CLI:
 
 | Tool | What it does |
 |---|---|
@@ -586,6 +630,7 @@ Five read-only tools, mirroring the CLI:
 | `vet_git` | vet a local repo: working tree vs `HEAD`, or any revision range |
 | `vet_files` | vet two lockfiles or SBOMs on disk |
 | `audit` | audit everything the project pins *right now* — advisories, unlisted versions, deprecations |
+| `vet_package` | vet a dependency *before* installing it (`npm:left-pad`, `pypi:requests@2.32.0`) — advisories, age, deprecation, typosquat suspicion |
 | `queue` | triage every open Dependabot/Renovate PR of a repo/org in one table |
 
 Reports come back as markdown (or `format: "json"` for structure); forge
@@ -627,7 +672,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.4.7
+      - uses: matteo-sung/lockvet@v0.4.8
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -654,7 +699,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.4.7
+      - uses: matteo-sung/lockvet@v0.4.8
         with:
           sarif: 'true'
 ```
@@ -674,7 +719,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.4.7
+  image: ghcr.io/matteo-sung/lockvet:0.4.8
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -699,7 +744,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.4.7
+          image: ghcr.io/matteo-sung/lockvet:0.4.8
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -717,7 +762,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.4.7
+    container: ghcr.io/matteo-sung/lockvet:0.4.8
     steps:
       - checkout: none
       - script: >
@@ -741,7 +786,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.4.7
+    image: ghcr.io/matteo-sung/lockvet:0.4.8
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -759,7 +804,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.4.7
+    rev: v0.4.8
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -1341,11 +1386,12 @@ to the cache.
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | Audit the *current* pins, not just a change | ✗ | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
+| Vet a package *before* installing it | ✗ | ✗ | ✗ | ✓ ([`lockvet pkg npm:left-pad`](#vet-a-package-before-you-install-it--lockvet-pkg): advisories, age, typosquat — latest or any version) |
 | CI gate | ✗ | per-package `check` exit codes | ✓ (`fail-on-severity`, license lists, `deny-packages`) | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|typosquat\|scripts\|provenance\|integrity\|registry\|license`) + GitHub Action |
 | Acknowledge a finding without turning the gate off | ✗ | ✗ | ✓ (`allow-ghsas`, no expiry) | `.lockvetignore` (per-advisory / per-package rules with expiry dates; ignored findings stay visible) |
 | Output formats | text | text, JSON, markdown | job summary + PR comment | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✗ | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
-| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✗ | ✓ (`lockvet mcp`: vet URLs, local repos, files, audits, whole queues) |
+| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✗ | ✓ (`lockvet mcp`: vet URLs, local repos, files, pre-install packages, audits, whole queues) |
 | Interactive TUI | ✗ | ✓ | ✗ | ✗ |
 | Runs locally / outside CI | ✓ | ✓ | ✗ | ✓ (CLI, [browser playground](https://matteo-sung.github.io/lockvet/), any CI) |
 | Runtime | — | PHP (binaries provided) | JS action on GitHub runners; free on public repos, private repos need GitHub Advanced Security | single static Go binary, zero deps |

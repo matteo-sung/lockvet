@@ -34,9 +34,12 @@ Use vet_url for a pull/merge request, compare, or commit URL on GitHub,
 GitLab, Bitbucket, Gitea/Forgejo, or Azure DevOps (no clone needed);
 vet_git for a local git repository; vet_files for two lockfiles or SBOMs on
 disk; audit to check everything a project currently pins (known advisories,
-unlisted/yanked/deprecated versions) rather than a change; queue to triage
-every open Dependabot/Renovate PR of a repo, user, or org at once. Reports
-are markdown by default; pass format:"json" for structured output.`
+unlisted/yanked/deprecated versions) rather than a change; vet_package to
+vet a dependency BEFORE installing it (specs like npm:left-pad or
+pypi:requests@2.32.0 — advisories, age, deprecation, typosquat suspicion);
+queue to triage every open Dependabot/Renovate PR of a repo, user, or org
+at once. Reports are markdown by default; pass format:"json" for
+structured output.`
 
 type mcpRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -138,7 +141,7 @@ func serveMCP(r io.Reader, w io.Writer) error {
 	return in.Err()
 }
 
-// mcpTools describes the four tools. Shared option properties are repeated
+// mcpTools describes the tools. Shared option properties are repeated
 // per tool so each schema is self-contained.
 func mcpTools() []map[string]any {
 	strProp := func(desc string) map[string]any {
@@ -230,6 +233,30 @@ func mcpTools() []map[string]any {
 			"annotations": ro,
 		},
 		{
+			"name":  "vet_package",
+			"title": "Vet a package before installing it",
+			"description": "Vet one or more packages BEFORE they are in any lockfile — the moment you are deciding whether to npm install / pip install / cargo add them. " +
+				"Reports known advisories affecting the version (OSV.dev, including MAL malicious-package records), release age (brand-new releases are higher-risk), deprecation/retraction/yank status with the upstream reason, versions missing from the registry index (what an unpublished or pulled — often malicious — release looks like), and typosquat suspicion (names one edit from a popular package). " +
+				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform). " +
+				"Run this before adding any new dependency.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"packages": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "package specs, eco:name[@version] (e.g. [\"npm:left-pad\", \"pypi:requests@2.32.0\"])",
+					},
+					"only":       onlyProp,
+					"fresh_days": freshProp,
+					"offline":    offlineProp,
+					"format":     formatProp,
+				},
+				"required": []string{"packages"},
+			},
+			"annotations": ro,
+		},
+		{
 			"name":  "queue",
 			"title": "Triage every open Dependabot/Renovate PR at once",
 			"description": "Vet EVERY open dependency-update PR/MR of a repo, user, org, group, workspace, or project in one table, sorted most-alarming first: which introduce vulnerabilities, which are major or brand-new bumps, which look routine. " +
@@ -256,20 +283,21 @@ func mcpToolCall(params json.RawMessage) (any, *mcpError) {
 	var call struct {
 		Name string `json:"name"`
 		Args struct {
-			URL        string `json:"url"`
-			Dir        string `json:"dir"`
-			Base       string `json:"base"`
-			Target     string `json:"target"`
-			OldPath    string `json:"old_path"`
-			NewPath    string `json:"new_path"`
-			Scope      string `json:"scope"`
-			Author     string `json:"author"`
-			Limit      int    `json:"limit"`
-			Only       string `json:"only"`
-			FreshDays  *int   `json:"fresh_days"`
-			Offline    bool   `json:"offline"`
-			Changelogs bool   `json:"changelogs"`
-			Format     string `json:"format"`
+			URL        string   `json:"url"`
+			Dir        string   `json:"dir"`
+			Base       string   `json:"base"`
+			Target     string   `json:"target"`
+			OldPath    string   `json:"old_path"`
+			NewPath    string   `json:"new_path"`
+			Scope      string   `json:"scope"`
+			Packages   []string `json:"packages"`
+			Author     string   `json:"author"`
+			Limit      int      `json:"limit"`
+			Only       string   `json:"only"`
+			FreshDays  *int     `json:"fresh_days"`
+			Offline    bool     `json:"offline"`
+			Changelogs bool     `json:"changelogs"`
+			Format     string   `json:"format"`
 		} `json:"arguments"`
 	}
 	if err := json.Unmarshal(params, &call); err != nil {
@@ -317,6 +345,13 @@ func mcpToolCall(params json.RawMessage) (any, *mcpError) {
 			return nil, &mcpError{-32602, "vet_files needs old_path and new_path"}
 		}
 		v, err = vetFiles(a.OldPath, a.NewPath, o)
+	case "vet_package":
+		if len(a.Packages) == 0 {
+			return nil, &mcpError{-32602, "vet_package needs packages (specs like npm:left-pad or pypi:requests@2.32.0)"}
+		}
+		po := o
+		po.changelogs = false
+		v, err = vetPkg(a.Packages, po)
 	case "audit":
 		dir := a.Dir
 		if dir == "" {

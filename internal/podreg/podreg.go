@@ -276,6 +276,22 @@ func fetchListings(names []string) (map[string]*pkg, error) {
 	return out, nil
 }
 
+// ShardVersions returns every version the CDN index lists for one pod
+// (the file `pod install` resolves against). Used by the latest-version
+// lookup for `lockvet pkg pod:<name>`; an unknown pod returns an empty
+// slice with status 200.
+func ShardVersions(name string) ([]string, int, error) {
+	pods, err := fetchShard(shard(name))
+	if err != nil {
+		return nil, 0, err
+	}
+	var out []string
+	for v := range pods[name] {
+		out = append(out, v)
+	}
+	return out, http.StatusOK, nil
+}
+
 // fetchShard downloads one all_pods_versions_a_b_c.txt index file and
 // returns pod → version set. Lines look like "Alamofire/5.9.0/5.9.1".
 func fetchShard(s [3]string) (map[string]map[string]bool, error) {

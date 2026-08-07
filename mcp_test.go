@@ -56,7 +56,7 @@ func TestMCPHandshakeAndToolsList(t *testing.T) {
 	for _, tl := range tools {
 		names = append(names, tl.(map[string]any)["name"].(string))
 	}
-	if got := strings.Join(names, ","); got != "vet_url,vet_git,audit,vet_files,queue" {
+	if got := strings.Join(names, ","); got != "vet_url,vet_git,audit,vet_files,vet_package,queue" {
 		t.Errorf("tools = %s", got)
 	}
 	for _, tl := range tools {
@@ -182,5 +182,53 @@ func TestServerJSONConsistent(t *testing.T) {
 		if i < 0 || p.Identifier[i+1:] != sj.Version {
 			t.Errorf("package identifier %q tag != version %q — bump both before tagging", p.Identifier, sj.Version)
 		}
+	}
+}
+
+func TestMCPVetPackageOffline(t *testing.T) {
+	call := func(id int, args map[string]any) string {
+		b, _ := json.Marshal(map[string]any{
+			"jsonrpc": "2.0", "id": id, "method": "tools/call",
+			"params": map[string]any{"name": "vet_package", "arguments": args},
+		})
+		return string(b)
+	}
+	resp := mcpRoundTrip(t, []string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`,
+		// Explicit version + offline: fully local. "reakt" is one edit
+		// from the popular "react" and unknown age → typosquat suspect.
+		call(2, map[string]any{"packages": []string{"npm:reakt@1.0.0"}, "offline": true}),
+		// No version + offline: latest lookup impossible → tool error.
+		call(3, map[string]any{"packages": []string{"npm:left-pad"}, "offline": true}),
+		// Missing packages arg → protocol error.
+		call(4, map[string]any{}),
+		// Bad spec → tool error.
+		call(5, map[string]any{"packages": []string{"left-pad"}, "offline": true}),
+	})
+	if len(resp) != 5 {
+		t.Fatalf("want 5 responses, got %d", len(resp))
+	}
+
+	res := resp[1]["result"].(map[string]any)
+	if res["isError"].(bool) {
+		t.Fatalf("vet_package failed: %v", res)
+	}
+	md := res["content"].([]any)[0].(map[string]any)["text"].(string)
+	for _, want := range []string{"reakt", "1.0.0", "typosquat", "react"} {
+		if !strings.Contains(strings.ToLower(md), want) {
+			t.Errorf("report missing %q:\n%s", want, md)
+		}
+	}
+
+	res = resp[2]["result"].(map[string]any)
+	if !res["isError"].(bool) {
+		t.Fatalf("latest-under-offline should be a tool error, got %v", res)
+	}
+	if e, ok := resp[3]["error"].(map[string]any); !ok || !strings.Contains(e["message"].(string), "vet_package needs packages") {
+		t.Errorf("missing packages: want error, got %v", resp[3])
+	}
+	res = resp[4]["result"].(map[string]any)
+	if !res["isError"].(bool) || !strings.Contains(res["content"].([]any)[0].(map[string]any)["text"].(string), "ecosystem") {
+		t.Errorf("bad spec: want tool error mentioning spec shape, got %v", res)
 	}
 }

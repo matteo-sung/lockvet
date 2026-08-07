@@ -128,6 +128,16 @@ USAGE
                                       Walks the tree for all 30 formats
                                       (node_modules/vendor skipped).
 
+  lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
+                                      advisories (incl. malicious-package
+                                      records), release age, deprecation/
+                                      retraction/yank, versions missing from
+                                      the registry index, typosquat
+                                      suspicion. No version = the registry's
+                                      latest. e.g. lockvet pkg npm:left-pad
+                                      pypi:requests@2.32.0 cargo:serde
+                                      go:github.com/gin-gonic/gin
+
   lockvet diff <old> <new>            vet two files on disk, no git needed —
                                       two lockfiles, or two SBOMs (CycloneDX
                                       or SPDX JSON, any mix), e.g. syft scans
@@ -317,6 +327,20 @@ func main() {
 		runAudit(args[1:], *dir, vetOptions{only: *only, freshDays: *freshDays, noVulns: *noVulns, noMeta: *noMeta,
 			ignoreFile: *ignoreFile, noIgnore: *noIgnore},
 			*md, *jsonOut, *sarifOut, *noColor, *failOn)
+		return
+	case len(args) > 0 && args[0] == "pkg":
+		if len(args) < 2 {
+			fatal("usage: lockvet pkg <ecosystem>:<name>[@version] ...   (e.g. lockvet pkg npm:left-pad pypi:requests@2.32.0)")
+		}
+		if *comment {
+			fatal("-comment needs a pull or merge request to comment on — pkg reports have no PR; pipe -md wherever you need it")
+		}
+		if *sarifOut {
+			fatal("-sarif needs a lockfile to anchor alerts to — pkg mode vets a package that is not pinned anywhere yet; use -json or -md")
+		}
+		runPkg(args[1:], vetOptions{only: *only, freshDays: *freshDays, noVulns: *noVulns, noMeta: *noMeta,
+			changelogs: *changelogs, ignoreFile: *ignoreFile, noIgnore: *noIgnore},
+			*md, *jsonOut, *noColor, *failOn)
 		return
 	case len(args) > 0 && args[0] == "diff":
 		if len(args) != 3 {

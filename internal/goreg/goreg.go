@@ -418,6 +418,30 @@ func get(url string) (body []byte, status int, err error) {
 	return body, resp.StatusCode, nil
 }
 
+// Latest resolves module's latest version via the proxy's @latest
+// endpoint. Used by `lockvet pkg go:<module>` when no version is given.
+func Latest(module string) (string, error) {
+	base, ok := proxyBase()
+	if !ok {
+		return "", fmt.Errorf("GOPROXY is %q — say which version to vet, e.g. go:%s@v1.2.3", os.Getenv("GOPROXY"), module)
+	}
+	body, status, err := get(base + "/" + escape(module) + "/@latest")
+	if err != nil {
+		return "", fmt.Errorf("Go module proxy unreachable: %w", err)
+	}
+	if status == 404 || status == 410 {
+		return "", fmt.Errorf("Go: module %s not found on the proxy — check the module path", module)
+	}
+	if status != 200 {
+		return "", fmt.Errorf("Go module proxy returned HTTP %d", status)
+	}
+	var info struct{ Version string }
+	if err := json.Unmarshal(body, &info); err != nil || info.Version == "" {
+		return "", fmt.Errorf("Go: no versions found for %s", module)
+	}
+	return info.Version, nil
+}
+
 // escape applies the module proxy's case encoding: uppercase letters
 // become "!" + lowercase (github.com/BurntSushi → github.com/!burnt!sushi).
 func escape(s string) string {

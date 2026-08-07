@@ -26,7 +26,7 @@ _lockvet() {
     fi
 
     local flags="-md -json -sarif -no-vulns -no-meta -offline -no-cache -cache-ttl -fresh-days -changelogs -only -comment -fail-on -ignore-file -no-ignore -author -limit -C -no-color -version -h"
-    local subcmds="pr mr compare queue audit diff mcp completion man"
+    local subcmds="pr mr compare queue audit pkg diff mcp completion man"
 
     case $prev in
         -C)
@@ -90,6 +90,7 @@ _lockvet() {
         'compare:vet any two revisions or a single commit of a remote repo'
         'queue:triage every open Dependabot/Renovate PR of a repo, user, or org'
         'audit:vet what the lockfiles pin right now — advisories, unlisted, deprecated'
+        'pkg:vet a package before installing it — eco:name[@version]'
         'diff:vet two lockfiles or SBOM files on disk, no git'
         'mcp:run as a Model Context Protocol server (stdio) for AI assistants'
         'completion:print a shell completion script (bash, zsh, or fish)'
@@ -155,6 +156,7 @@ complete -c lockvet -n __fish_use_subcommand -a mr -d 'vet a GitLab merge reques
 complete -c lockvet -n __fish_use_subcommand -a compare -d 'vet two revisions or a commit of a remote repo'
 complete -c lockvet -n __fish_use_subcommand -a queue -d 'triage every open Dependabot/Renovate PR in one table'
 complete -c lockvet -n __fish_use_subcommand -a audit -d 'vet what the lockfiles pin right now (advisories, unlisted, deprecated)'
+complete -c lockvet -n __fish_use_subcommand -a pkg -d 'vet a package before installing it (eco:name[@version])'
 complete -c lockvet -n __fish_use_subcommand -a diff -d 'vet two lockfiles or SBOMs on disk'
 complete -c lockvet -n __fish_use_subcommand -a mcp -d 'run as a Model Context Protocol server (stdio)'
 complete -c lockvet -n __fish_use_subcommand -a completion -d 'print a shell completion script'
@@ -211,6 +213,9 @@ lockvet \- explain any lockfile change before you merge it
 .B lockvet audit
 [\fIpath\fR ...]
 .br
+.B lockvet pkg
+\fIeco\fR:\fIname\fR[@\fIversion\fR] ...
+.br
 .B lockvet diff
 \fIold-file\fR \fInew-file\fR
 .br
@@ -259,6 +264,17 @@ is affected by a known advisory, missing from its registry's index
 (unpublished/pulled \(em often malicious \(em releases), deprecated,
 retracted, or yanked upstream, or published only days ago.
 .TP
+.B lockvet pkg
+Vet a package \fIbefore\fR you install it: known advisories affecting the
+version (including malicious-package records), release age, deprecation /
+retraction / yank status, whether the version is missing from its
+registry's index, and typosquat suspicion. Specs look like
+\fBnpm:left-pad\fR, \fBpypi:requests@2.32.0\fR, \fBcargo:serde\fR,
+\fBgo:\fIgithub.com/owner/repo\fR, \fBmaven:\fIgroup:artifact\fR,
+\fBjsr:@std/http\fR. With no version, the registry's latest is looked up
+(npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, pub.dev, JSR, NuGet,
+Maven, CocoaPods, Terraform).
+.TP
 .B lockvet diff
 Vet two files on disk with no git: two lockfiles, or two CycloneDX/SPDX
 JSON SBOMs (e.g. syft scans of two container images).
@@ -266,7 +282,7 @@ JSON SBOMs (e.g. syft scans of two container images).
 .B lockvet mcp
 Run as a Model Context Protocol server on stdio, so AI assistants and
 coding agents can vet lockfile changes: tools \fBvet_url\fR, \fBvet_git\fR,
-\fBvet_files\fR, \fBaudit\fR, and \fBqueue\fR.
+\fBvet_files\fR, \fBaudit\fR, \fBvet_package\fR, and \fBqueue\fR.
 .SH OPTIONS
 .TP
 .B \-md
@@ -392,6 +408,9 @@ Triage a whole org's dependency PRs:
 .TP
 Compare two releases of someone else's repo:
 .B lockvet compare sharkdp/fd v10.2.0...v10.3.0
+.TP
+Vet a package before adding it:
+.B lockvet pkg npm:left-pad pypi:requests
 .TP
 Diff two container images by SBOM:
 .B lockvet audit

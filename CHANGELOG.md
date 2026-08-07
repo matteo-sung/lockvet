@@ -4,6 +4,30 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.8 — 2026-08-07
+
+- **New mode: `lockvet pkg <eco>:<name>[@version]` — vet a package BEFORE
+  you install it.** The riskiest moment in dependency management is
+  installing a package you've never seen; `lockvet pkg npm:left-pad`
+  answers *should I?* first: advisories affecting the version (including
+  `MAL-*` malicious-package records — `lockvet pkg npm:chakl` surfaces the
+  malware squatting the chalk typo), release age with the ⏱ fresh flag,
+  deprecation/retraction/yank with the upstream reason, versions missing
+  from the registry index, and ≈ typosquat suspicion. Multiple specs per
+  run; `-md`/`-json`/`-fail-on`/`-only` compose as everywhere else.
+- **Latest-version lookup from the package's own registry** when no
+  version is given (shown as `@X.Y.Z (latest)`): npm, PyPI, crates.io,
+  RubyGems, Packagist, Go module proxy (GOPROXY honoured), Hex, pub.dev,
+  JSR, NuGet, Maven Central/Google Maven, CocoaPods, and the Terraform
+  registry. Ecosystems without a resolver (`conan:`, `cran:`, `julia:`,
+  `hackage:`, `actions:`) take an explicit `@version`.
+- **New MCP tool `vet_package`** — coding agents can vet a dependency at
+  the moment they're about to add it (the tool description tells them to).
+- Spec ergonomics: scoped npm names (`npm:@types/node@24`), `jsr:@std/http`,
+  `maven:group:artifact`, `go:` versions with or without the `v`,
+  case-insensitive ecosystem aliases (`pip:`, `rust:`, `golang:`,
+  `dotnet:`, `php:`, …).
+
 ## v0.4.7 — 2026-08-07
 
 - **Integrity & resolution tampering detection now covers 11 more formats**
