@@ -114,6 +114,11 @@ func registryLink(c diffx.Change) string {
 	case "CRAN":
 		// CRAN package pages are not versioned.
 		return "https://cran.r-project.org/package=" + name
+	case "Bazel":
+		if v == "" {
+			return "https://registry.bazel.build/modules/" + name
+		}
+		return "https://registry.bazel.build/modules/" + name + "/" + v
 	case "Bioconductor":
 		return "https://bioconductor.org/packages/" + name + "/"
 	case "SwiftURL":

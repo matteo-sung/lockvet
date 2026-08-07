@@ -232,11 +232,11 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 31 formats (incl. GitHub Actions workflows) across the npm, pnpm, yarn, bun, Cargo,
+It understands 32 formats (incl. GitHub Actions workflows) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex, pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
-Terraform/OpenTofu, and Helm ecosystems, plus CycloneDX and SPDX JSON
-SBOMs \(em all in one static binary.
+Terraform/OpenTofu, Helm, and Bazel (bzlmod) ecosystems, plus CycloneDX and
+SPDX JSON SBOMs \(em all in one static binary.
 .SH MODES
 .TP
 .B lockvet
@@ -430,7 +430,8 @@ Data sources:
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
 NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
 the Terraform and OpenTofu registries, ConanCenter, CRAN (via METACRAN),
-Hackage, anaconda.org, the Go module proxy, and the Maven repositories
+Hackage, anaconda.org, the Bazel Central Registry, the Go module proxy,
+and the Maven repositories
 (Central and Google) themselves (version listings, install scripts,
 provenance, Go retractions, Maven relocations, and — for Composer, Hex,
 Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell and conda — ages and

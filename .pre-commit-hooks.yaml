@@ -41,6 +41,7 @@
       [^/]*conda-lock\.ya?ml|[^/]*pixi\.lock|[^/]*\.terraform\.lock\.hcl|
       Chart\.lock|requirements\.lock|[Mm]anifest\.toml|Manifest-v[^/]*\.toml|
       stack\.yaml\.lock|cabal\.project\.freeze|cabal\.config|conan\.lock|
+      MODULE\.bazel|MODULE\.bazel\.lock|
       bom\.json|sbom\.json|cyclonedx\.json|spdx\.json|
       [^/]*\.(cdx|spdx|cyclonedx)\.json|
       action\.ya?ml

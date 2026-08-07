@@ -301,6 +301,25 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		return m
 	}
 
+	// The lockfile itself can admit an incoming version is yanked from
+	// its registry (Bazel's selectedYankedVersions, written when the
+	// build passes --allow_yanked_versions): a fully-offline deprecation
+	// signal, no registry roundtrip needed.
+	yankedOf := func(name string, versions []string) string {
+		if newF == nil || newF.PkgYanked == nil {
+			return ""
+		}
+		for _, v := range versions {
+			if r, ok := newF.PkgYanked[name+"@"+v]; ok {
+				if r == "" {
+					r = "no reason recorded"
+				}
+				return "version " + v + " is yanked from the registry (allowed via --allow_yanked_versions): " + r
+			}
+		}
+		return ""
+	}
+
 	hostMoves := countHostMoves(oldF, newF)
 	for name := range names {
 		o, n := oldPkgs[name], newPkgs[name]
@@ -321,6 +340,10 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		eco := ecoOf(name)
 		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name), SourceRepo: repoOf(name), NewPins: newPinsOf(name, n)}
 		annotatePinChange(&c, oldF, newF, hostMoves)
+		if r := yankedOf(name, n); r != "" {
+			c.Deprecated = true
+			c.DeprecatedReason = r
+		}
 		if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 			c.NonRegistry = true
 		}

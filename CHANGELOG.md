@@ -4,6 +4,49 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.8 — 2026-08-07
+
+- **Bazel modules (bzlmod) — format #32.** Two files, one ecosystem:
+  - **`MODULE.bazel.lock`**: the modern registry-hash shape (Bazel 7.2+;
+    the selected version of each module is the one whose `source.json`
+    hash the lockfile records) and the Bazel 7.0/7.1 `moduleDepGraph`
+    shape (full dependency edges → via-chains, root deps, and the
+    archive's own SRI integrity). Same-version `source.json`-hash changes
+    flag the integrity lane ‼; a module whose resolution moves from a
+    private registry onto the public BCR flags the dependency-confusion
+    lane ⇄. Modules under `git_override`/`local_path_override`/private
+    registries are exempt from registry judgement.
+  - **`MODULE.bazel`** itself: `bazel_dep` pins exact versions and update
+    bots bump them in place (go.mod-style) — and most repos commit the
+    manifest, not the lockfile, so Renovate "Update bazel modules" PRs
+    now get full analysis. `single_version_override` wins over the
+    `bazel_dep` version; commented-out deps never parse.
+- **The Bazel Central Registry is registry #18** (`internal/bzlreg`) —
+  deps.dev has no Bazel system, so like Packagist/Hex/pub.dev/CRAN/
+  Hackage/conda this IS the metadata layer: **yanked versions** land in
+  the deprecation lane with the registry's own reason (protobuf 3.19.0:
+  "CVE-2022-3171"; 33.3: "Incorrect release artifacts"), the
+  **registry-verified unlisted check** (yanked versions stay listed and
+  the registry is a git repo — versions are never silently dropped — so
+  absence is real evidence; re-proven live, with a per-version
+  `MODULE.bazel` probe to clear CDN lag), and **source repositories**
+  from `metadata.json` → verified compare links and `-changelogs`
+  release notes. A lockfile built with `--allow_yanked_versions` admits
+  its yanked selections in `selectedYankedVersions` — read even with
+  `-offline`. BCR records no publish timestamps, so ages/⏱ are honestly
+  absent; no CORS on bcr.bazel.build, so the browser playground skips
+  the registry layer (parsing, diffing and offline signals still work).
+- **`lockvet pkg bazel:<module>`** — pre-install vetting with
+  latest-version lookup from BCR (`lockvet pkg bazel:protobuf@3.19.0`
+  answers with the yank reason before you build).
+- **`.bcr.N` re-cut versions order correctly** (`1.83.0 <
+  1.83.0.bcr.1`): previously the registry's re-cut suffix parsed as a
+  pre-release, so a `boost.foreach 1.83.0.bcr.2 → 1.90.0.bcr.1` bump
+  could classify as a downgrade.
+- Validated against 180+ replayed `MODULE.bazel(.lock)` commits across
+  bazelbuild/bazel, rules_go, rules_python, protobuf and grpc-java:
+  0 parse failures, 0 false flags.
+
 ## v0.5.7 — 2026-08-07
 
 - **Nix `flake.lock` inputs get the full treatment** — everything below

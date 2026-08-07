@@ -18,6 +18,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
+	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/conanreg"
 	"github.com/matteo-sung/lockvet/internal/condareg"
@@ -131,7 +132,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 31 formats
+                                      Walks the tree for all 32 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
@@ -729,6 +730,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := bzlreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Bazel Central Registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if ok, err := condareg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: anaconda.org registry check skipped: %v\n", err)
 		} else if ok {
@@ -1223,6 +1229,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := hkgreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Hackage registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := bzlreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Bazel Central Registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

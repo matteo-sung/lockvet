@@ -19,6 +19,7 @@ import (
 	"unicode"
 
 	"github.com/matteo-sung/lockvet/internal/actreg"
+	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/condareg"
 	"github.com/matteo-sung/lockvet/internal/cranreg"
@@ -97,6 +98,7 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.CRAN:      cranreg.Latest,
 	lock.Conda:     condaLatest,
 	lock.Hackage:   hkgreg.Latest,
+	lock.Bazel:     bzlreg.Latest,
 
 	// GitHub Actions releases are the action repository's tags; the same
 	// anonymous smart-HTTP advertisement actreg resolves pins with
@@ -179,6 +181,8 @@ func specPrefix(eco lock.Ecosystem) string {
 		return "conan"
 	case lock.SwiftURL:
 		return "swift"
+	case lock.Bazel:
+		return "bazel"
 	}
 	return strings.ToLower(string(eco))
 }

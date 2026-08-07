@@ -62,6 +62,9 @@ func TestCompareDistroSuffixes(t *testing.T) {
 		{"1.0.0-rc9", "1.0.0-rc10"},          // ditto
 		{"1.0.0-pre1", "1.0.0"},              // pre* is a pre-release, not post
 		{"7.88.1-10", "7.88.1-10+deb12u5"},   // build metadata ignored -> equal-ish; not a downgrade
+		{"20230802.0", "20230802.0.bcr.1"},   // Bazel Central Registry re-cut is post-release
+		{"1.83.0", "1.83.0.bcr.2"},           // ditto
+		{"36.0-rc2", "36.0"},                 // Bazel rc pre-release
 	}
 	for _, c := range up {
 		if Compare(c[0], c[1]) > 0 {

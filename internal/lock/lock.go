@@ -67,6 +67,12 @@ const (
 	// internal/conanreg is the metadata layer for these lockfiles.
 	Conan Ecosystem = "ConanCenter"
 
+	// Bazel covers MODULE.bazel.lock (bzlmod). There is no OSV.dev
+	// ecosystem and no deps.dev system for Bazel modules; internal/bzlreg
+	// reads the Bazel Central Registry directly (yanked versions with
+	// reasons, version lists, source repositories).
+	Bazel Ecosystem = "Bazel"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -144,6 +150,13 @@ type File struct {
 	// Change.SourceRepo so compare links work without any registry
 	// lookup. nil elsewhere.
 	PkgRepo map[string]string
+
+	// PkgYanked records versions the lockfile ITSELF admits are yanked
+	// from their registry, keyed "name@version" → reason. Only Bazel's
+	// MODULE.bazel.lock fills it (selectedYankedVersions, written when
+	// the build passes --allow_yanked_versions): a fully-offline
+	// deprecation signal. nil elsewhere.
+	PkgYanked map[string]string
 
 	// Pins records what the lockfile itself pins for a (package, version)
 	// beyond the version string: the content hash it expects and the
@@ -271,6 +284,8 @@ func (e Ecosystem) PublicRegistryHost(h string) bool {
 		return h == "pub.dev" || h == "pub.dartlang.org"
 	case Conda:
 		return h == "conda.anaconda.org" || h == "repo.anaconda.com"
+	case Bazel:
+		return h == "bcr.bazel.build"
 	}
 	return false
 }
@@ -436,6 +451,10 @@ func ByBasename(p string) *Parser {
 		return &Parser{"cabal.project.freeze", Hackage, parseCabalFreeze}
 	case "conan.lock":
 		return &Parser{"conan.lock", Conan, parseConanLock}
+	case "MODULE.bazel.lock":
+		return &Parser{"MODULE.bazel.lock", Bazel, parseBazelLock}
+	case "MODULE.bazel":
+		return &Parser{"MODULE.bazel", Bazel, parseBazelModule}
 	}
 	base := path.Base(p)
 	// conda-lock supports named unified lockfiles (chipyard keeps
@@ -485,6 +504,6 @@ func KnownBasenames() []string {
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
-		"conan.lock", "bom.json", "sbom.json",
+		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel", "bom.json", "sbom.json",
 	}
 }

@@ -40,6 +40,9 @@ func FuzzAllParsers(f *testing.F) {
 		"{\"version\":\"0.5\",\"requires\":[\"zlib/1.3.1#abc%123.4\",\"pkg/1.0@user/ch\"]}",
 		"{\"graph_lock\":{\"nodes\":{\"0\":{\"requires\":[\"1\"]},\"1\":{\"ref\":\"a/1.0#r\",\"requires\":[]}}},\"version\":\"0.4\"}",
 		"jobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: \"o/r/sub@deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\" # v1\n",
+		"{\"lockFileVersion\":28,\"registryFileHashes\":{\"https://bcr.bazel.build/modules/a/1.0/source.json\":\"ab\"},\"selectedYankedVersions\":{\"a@1.0\":\"why\"}}",
+		"{\"lockFileVersion\":3,\"moduleDepGraph\":{\"<root>\":{\"deps\":{\"a\":\"a@1.0\"}},\"a@1.0\":{\"name\":\"a\",\"version\":\"1.0\",\"deps\":{},\"repoSpec\":{\"ruleClassName\":\"http_archive\",\"attributes\":{\"integrity\":\"sha256-x=\"}}}}}",
+		"bazel_dep(name = \"rules_java\", version = \"8.6.1\")\nsingle_version_override(\n    module_name = \"rules_java\",\n    version = \"9.0.0\",\n)\n# bazel_dep(name = \"x\", version = \"1\")\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

@@ -67,6 +67,8 @@ var pkgEcoAliases = map[string]lock.Ecosystem{
 	"bioconductor":   lock.Bioconductor,
 	"julia":          lock.Julia,
 	"hackage":        lock.Hackage,
+	"bazel":          lock.Bazel,
+	"bzlmod":         lock.Bazel,
 	"haskell":        lock.Hackage,
 	"actions":        lock.GitHubActions,
 	"github-actions": lock.GitHubActions,
@@ -102,7 +104,7 @@ func parsePkgSpec(arg string) (pkgSpec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return pkgSpec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, conda, cran, julia, hackage, swift", ecoPart)
+		return pkgSpec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, conda, cran, julia, hackage, bazel, swift", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {

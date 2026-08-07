@@ -81,13 +81,13 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 31 formats:
+- **across every ecosystem, in one static binary** — 32 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
   Gradle, NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
-  Helm, Nix flakes, **GitHub Actions workflows** (`uses:` pins) — plus
-  CycloneDX & SPDX SBOMs
+  Helm, Nix flakes, Bazel modules (bzlmod), **GitHub Actions workflows**
+  (`uses:` pins) — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -189,7 +189,7 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.7_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify lockvet_v0.5.8_linux_amd64.tar.gz --owner matteo-sung
 gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.7 --owner matteo-sung
 ```
 
@@ -431,7 +431,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.7
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.8
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -490,7 +490,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 31 formats, SBOMs and CI workflows included — and runs the full
+lockfile it finds — all 32 formats, SBOMs and CI workflows included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -547,7 +547,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.7/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.8/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -590,7 +590,8 @@ lockvet pkg swift:Alamofire/Alamofire       # SwiftPM (github.com implied)
 ```
 
 Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
-Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, Hackage, conda
+Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, Hackage,
+the Bazel Central Registry (`bazel:<module>`), conda
 (`conda:[channel/]name` — the channel defaults to conda-forge),
 GitHub Actions (`actions:owner/repo`), and Swift packages
 (`swift:host/owner/repo` — latest is the highest stable tag); other
@@ -672,7 +673,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.7
+      - uses: matteo-sung/lockvet@v0.5.8
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -699,7 +700,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.7
+      - uses: matteo-sung/lockvet@v0.5.8
         with:
           sarif: 'true'
 ```
@@ -805,7 +806,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.7
+    rev: v0.5.8
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -928,6 +929,13 @@ Every incoming version is checked against its registry (via deps.dev):
   a bump onto an individual version marked deprecated via
   [preferred-versions](https://hackage.haskell.org/packages/preferred) —
   Hackage's yank equivalent, which solvers avoid — is flagged too.
+  Bazel modules get theirs straight from the [Bazel Central
+  Registry](https://registry.bazel.build): a bump onto a yanked version is
+  flagged with the registry's own reason (`● deprecated upstream: version
+  3.19.0 is yanked from the Bazel Central Registry: CVE-2022-3171` — BCR
+  yanks releases for CVEs and broken artifacts), and a lockfile built with
+  `--allow_yanked_versions` admits its yanked selections in
+  `selectedYankedVersions`, which lockvet reads even offline.
   Conda packages get theirs straight from anaconda.org: a bump onto a
   release whose artifacts carry the
   [`broken` label](https://conda-forge.org/docs/maintainer/updating_pkgs/#removing-broken-packages)
@@ -984,8 +992,9 @@ for:
 - Go pseudo-versions and pnpm-style decorated version strings.
 
 For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, JSR,
-CocoaPods, Go, Maven, Hackage and conda packages — and Terraform/OpenTofu
-providers — the flag is **double-checked against the registry itself**: deps.dev can lag
+CocoaPods, Go, Maven, Hackage, Bazel and conda packages — and
+Terraform/OpenTofu providers — the flag is **double-checked against the
+registry itself**: deps.dev can lag
 the registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
 API / the crates.io sparse index / the RubyGems compact index /
@@ -998,6 +1007,9 @@ the Terraform registry's per-version endpoint and the OpenTofu registry's
 version index / the per-version POM on Maven Central (falling back to
 Google's Maven repository, where the androidx world lives) / Hackage's
 per-package version map (deprecated versions stay listed there, so
+absence is real signal) / the Bazel Central Registry's per-module
+`metadata.json` (yanked versions stay listed there — and the registry is
+a git repository, versions are added, never silently dropped — so
 absence is real signal) / anaconda.org's per-release endpoint (channels
 pull malicious uploads outright, and marking a build broken keeps it
 listed, so absence is real signal — claimed only after a HEAD on the
@@ -1182,7 +1194,12 @@ mix.lock, Gleam's manifest.toml, pubspec.lock (hashes **and** hosts —
 the Dart confusion shape flags too), Podfile.lock (trunk podspec
 checksums), Package.resolved, composer.lock, Julia Manifest.toml,
 `.terraform.lock.hcl` (provider `h1:`/`zh:` hashes), conda/pixi
-locks (PyPI wheel hashes + channel hosts), and `flake.lock` (Nix: a
+locks (PyPI wheel hashes + channel hosts), `MODULE.bazel.lock` (the
+registry `source.json` hash per selected module — it changing for the
+same version means the registry's description of that release changed
+underneath you — plus registry hosts, so a module moving from a private
+registry onto the public BCR flags the confusion lane; old-style
+Bazel 7.0/7.1 lockfiles pin the archive's own SRI hash), and `flake.lock` (Nix: a
 same-revision `narHash` change means the pinned tree was replaced — a
 git revision's content never changes — and an input re-pointed at a
 different repository flags the ⇄ lane; a re-point whose narHash proves
@@ -1369,6 +1386,7 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
 | C / C++ | `conan.lock` (Conan 2 flat lockfiles and Conan 1 graph locks) — release ages straight from ConanCenter, dated by each version's oldest recipe revision so re-exports don't make old releases look fresh (refs with a user/channel exempt; a ref doesn't record its remote, so no unlisted claims) |
+| Bazel | `MODULE.bazel.lock` (both the modern registry-hash shape and the Bazel 7.0/7.1 dep-graph shape) and `MODULE.bazel` itself (`bazel_dep` pins exact versions and update bots bump them in place, go.mod-style) — yanked versions with the registry's reason, source-repo changelog links and the registry-verified unlisted check straight from the Bazel Central Registry (modules from private registries and `git_override`/`local_path_override` exempt) |
 | iOS / CocoaPods | `Podfile.lock` — release ages, deprecated-pod flags, license changes and the unlisted check straight from the CocoaPods CDN and trunk registry (git/path pods and private specs repos exempt) |
 | R | `renv.lock` — CRAN + Bioconductor advisories (`RSEC-…`); release ages, archived-package flags, license changes, changelog links and a mirror-lag-safe unlisted check straight from CRAN itself (GitHub/GitLab/local/git installs exempt) |
 | Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
@@ -1387,7 +1405,7 @@ renv, pixi/conda-lock, Julia manifests, Gleam, CocoaPods, and Go modules (go.mod
 without chains). Formats that only pin flat versions (`requirements.txt`, `mix.lock`,
 Gradle, …) skip the label.
 Deno's `jsr:` packages, CocoaPods, conda channels, Terraform providers,
-Helm charts, and Nix flakes have no OSV.dev ecosystem (yet), so those
+Helm charts, Bazel modules, and Nix flakes have no OSV.dev ecosystem (yet), so those
 diffs are explained without vulnerability data (Conan HAS one —
 "ConanCenter" — which is still near-empty; advisories will surface on
 `conan.lock` diffs automatically as it fills in) — but pip/pypi packages inside `pixi.lock` / `conda-lock.yml` are
@@ -1397,18 +1415,21 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform, R, Haskell and conda are the exceptions: deps.dev has no
-Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform, CRAN, Hackage or conda system at all, so lockvet asks Packagist, hex.pm,
-pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries, CRAN (via METACRAN's crandb), Hackage and anaconda.org directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform, R, Haskell, Bazel and conda are the exceptions: deps.dev has no
+Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform, CRAN, Hackage, Bazel or conda system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries, CRAN (via METACRAN's crandb), Hackage, the Bazel Central Registry and anaconda.org directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
 JSR yanked versions and archived packages,
 CocoaPods deprecated pods with their named replacement, archived/delisted
 Terraform providers, packages archived on CRAN, packages and individual
 versions deprecated on Hackage — replacement suggestions included,
-conda releases marked broken), changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `pixi.lock` and `conda-lock.yml` too (plus license
-changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry and Hackage keep no usable per-release license history,
-so that one check is honestly skipped there). CRAN's unlisted check is
+Bazel module versions yanked from the Bazel Central Registry with the
+registry's reason, conda releases marked broken), changelog links and the unlisted check all work for `composer.lock`,
+`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `MODULE.bazel.lock`, `MODULE.bazel`, `pixi.lock` and `conda-lock.yml` too (plus license
+changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry, Hackage and the Bazel Central Registry keep no usable per-release license history,
+so that one check is honestly skipped there). The Bazel Central Registry
+also records no publish timestamps (they live only in its git history),
+so Bazel modules honestly carry no release ages or ⏱ cooldown flags. CRAN's unlisted check is
 mirror-lag-safe: before claiming anything, absence is double-checked
 against cran.r-project.org itself (current release *and* the Archive —
 CRAN archives old versions, it never deletes them, so a version in
@@ -1451,7 +1472,7 @@ parsers are ~50 lines each.
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
    PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, Go, Maven,
-   CRAN, Hackage and conda the flag is double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
+   CRAN, Hackage, Bazel and conda the flag is double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
    install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
    release was yanked or its project archived or quarantined). Versions younger than `-fresh-days` (default 7) get a
@@ -1486,7 +1507,8 @@ queries (package names + versions), anonymous npm-registry / PyPI /
 crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev / jsr.io /
 CocoaPods-CDN-and-trunk / Go-module-proxy / Terraform-and-OpenTofu-registry /
 Maven-Central-and-Google-Maven / ConanCenter / CRAN (crandb +
-cran.r-project.org) / Hackage / anaconda.org metadata fetches for
+cran.r-project.org) / Hackage / Bazel-Central-Registry / anaconda.org
+metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable
@@ -1511,7 +1533,7 @@ to the cache.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | [dependency-review-action](https://github.com/actions/dependency-review-action) | **lockvet** |
 |---|---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **31** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **32** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ (job summary / PR comment) | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | introduced only (GitHub Advisory DB) | ✓ both (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✗ | ✓ (deps.dev) |

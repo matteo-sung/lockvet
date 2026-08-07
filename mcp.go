@@ -26,7 +26,7 @@ const mcpLatestProtocol = "2025-06-18"
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
 version is, what's deprecated, what's missing from the registry index, what looks like a typosquat, what suddenly runs install scripts, what silently drops sigstore provenance, what changes its content hash without a version change, what moves from a private registry to the public one
-(unpublished/pulled releases), and license changes — across 31 lockfile
+(unpublished/pulled releases), and license changes — across 32 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
 conda, Julia, Haskell, Terraform, Helm, renv, SBOMs, and more).
 
@@ -216,7 +216,7 @@ func mcpTools() []map[string]any {
 		{
 			"name":        "vet_files",
 			"title":       "Vet two lockfiles or SBOMs on disk",
-			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 31 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
+			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 32 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -237,7 +237,7 @@ func mcpTools() []map[string]any {
 			"title": "Vet a package before installing it",
 			"description": "Vet one or more packages BEFORE they are in any lockfile — the moment you are deciding whether to npm install / pip install / cargo add them. " +
 				"Reports known advisories affecting the version (OSV.dev, including MAL malicious-package records), release age (brand-new releases are higher-risk), deprecation/retraction/yank status with the upstream reason, versions missing from the registry index (what an unpublished or pulled — often malicious — release looks like), and typosquat suspicion (names one edit from a popular package). " +
-				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http, swift:Alamofire/Alamofire. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform, conda, CRAN, Hackage, GitHub Actions, Swift). " +
+				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http, swift:Alamofire/Alamofire. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform, conda, CRAN, Hackage, Bazel, GitHub Actions, Swift). " +
 				"Run this before adding any new dependency.",
 			"inputSchema": map[string]any{
 				"type": "object",

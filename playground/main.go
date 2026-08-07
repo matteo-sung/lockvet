@@ -45,6 +45,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
+	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/conanreg"
 	"github.com/matteo-sung/lockvet/internal/condareg"
@@ -92,6 +93,7 @@ func main() {
 	cranreg.Enabled = false  // no CORS on crandb / cran.r-project.org
 	condareg.Enabled = false // no CORS on api.anaconda.org
 	hkgreg.Enabled = false   // no CORS on hackage.haskell.org
+	bzlreg.Enabled = false   // no CORS on bcr.bazel.build
 	// registry.terraform.io sends no CORS headers; the OpenTofu mirror
 	// (api.opentofu.org) is CORS-open and provides ages + source links.
 	tfreg.UseTerraformRegistry = false

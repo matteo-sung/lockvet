@@ -164,7 +164,8 @@ func preRank(pre string) int {
 		// pre / preview / prerelease — must not hit the "p" (post) case.
 		return 0
 	case strings.HasPrefix(pre, "post"), strings.HasPrefix(pre, "p"),
-		strings.HasPrefix(pre, "git"): // Alpine's _git snapshot suffix
+		strings.HasPrefix(pre, "git"), // Alpine's _git snapshot suffix
+		strings.HasPrefix(pre, "bcr"): // Bazel Central Registry re-cut (1.2.3.bcr.1 > 1.2.3)
 		return 2
 	default:
 		return 0
