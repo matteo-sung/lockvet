@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1280px; height:640px; overflow:hidden; }
+  body {
+    background: linear-gradient(135deg, #0d1117 0%, #101a2b 60%, #0d1117 100%);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color:#e6edf3; position:relative;
+  }
+  .wrap { display:flex; height:100%; align-items:center; padding:0 64px; gap:56px; }
+  .left { flex:1 1 46%; }
+  .name { font-size:76px; font-weight:800; letter-spacing:-2px; color:#fff; }
+  .name .accent { color:#58a6ff; }
+  .tag { font-size:31px; line-height:1.35; margin-top:18px; color:#c9d1d9; font-weight:600; }
+  .sub { font-size:22px; line-height:1.5; margin-top:22px; color:#8b949e; }
+  .sub b { color:#c9d1d9; font-weight:600; }
+  .pills { margin-top:26px; display:flex; flex-wrap:wrap; gap:10px; }
+  .pill { font-size:17px; padding:6px 14px; border:1px solid #30363d; border-radius:999px;
+          color:#9fb4c9; background:rgba(255,255,255,0.03); }
+  .term {
+    flex:1 1 54%; background:#161b22; border:1px solid #30363d; border-radius:14px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55);
+    font-family:"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    font-size:19.5px; line-height:1.62; padding:22px 26px 26px; white-space:pre;
+  }
+  .tbar { display:flex; gap:8px; margin-bottom:16px; }
+  .dot { width:13px; height:13px; border-radius:50%; }
+  .r { background:#ff5f56; } .y { background:#ffbd2e; } .g { background:#27c93f; }
+  .p  { color:#8b949e; }        /* prompt/dim */
+  .cmd{ color:#e6edf3; }
+  .maj{ color:#f85149; font-weight:600; }
+  .min{ color:#d29922; }
+  .pat{ color:#3fb950; }
+  .vln{ color:#f85149; }
+  .wrn{ color:#d29922; }
+  .dim{ color:#8b949e; }
+  .ok { color:#3fb950; }
+</style></head><body>
+<div class="wrap">
+  <div class="left">
+    <div class="name">lock<span class="accent">vet</span></div>
+    <div class="tag">Explain any lockfile change before you merge it.</div>
+    <div class="sub">Vulnerabilities, typosquats, unpublished versions, new
+install scripts, dropped provenance, release ages &amp; via-chains —
+for any PR on <b>GitHub · GitLab · Bitbucket · Gitea · Azure DevOps</b>,
+no clone needed.</div>
+    <div class="pills">
+      <span class="pill">30 lockfile formats</span>
+      <span class="pill">one static binary</span>
+      <span class="pill">SBOMs</span>
+      <span class="pill">MCP server</span>
+      <span class="pill">runs in your browser</span>
+    </div>
+  </div>
+  <div class="term"><div class="tbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span class="p">$</span> <span class="cmd">lockvet pr acme/webapp#482</span>
+
+<span class="pat">▌ patch</span>   debug   4.4.1 → <span class="pat">4.4.2</span>   <span class="dim">via express ·</span> <span class="wrn">⏱ 2h old</span>
+<span class="vln">  ▲ 4.4.2 not in the npm registry index</span> <span class="dim">(unpublished?)</span>
+<span class="pat">▌ patch</span>   chalk   5.6.0 → <span class="pat">5.6.1</span>   <span class="dim">(direct) ·</span> <span class="wrn">⏱ 2h old</span>
+<span class="wrn">  ⚙ install scripts added</span> <span class="dim">by this bump</span>
+<span class="wrn">  ⛨ provenance dropped</span> <span class="dim">— last 3 releases attested</span>
+<span class="min">▌ added</span>   lodahs  <span class="min">4.17.21</span>          <span class="dim">(direct)</span>
+<span class="vln">  ≈ typosquat suspect</span> <span class="dim">— one edit from</span> lodash
+
+<span class="dim">Summary:</span> 3 changes <span class="dim">·</span> <span class="vln">2 fresh</span> <span class="dim">·</span> <span class="vln">▲ ⚙ ⛨ ≈ flags</span> <span class="dim">·</span> exit 1</div>
+</div>
+</body></html>

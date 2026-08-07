@@ -1322,35 +1322,43 @@ to the cache.
 
 ## How it compares
 
-|  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | **lockvet** |
-|---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | **30** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
-| Readable per-package summary | ✗ | ✓ | ✓ |
-| Vulnerabilities introduced / fixed by the change | ✗ | ✗ | ✓ (OSV.dev) |
-| Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✓ (deps.dev) |
-| Deprecation warnings | ✗ | ✗ | ✓ (deps.dev) |
-| License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✓ (deps.dev) |
-| Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
-| Flag new dependencies one edit from a popular name (typosquats) | ✗ | ✗ | ✓ ([`≈ typosquat`](#typosquat-suspects), offline, npm/PyPI/crates.io) |
-| Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
-| Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
-| Flag integrity changes on unchanged versions & private→public registry moves (dependency confusion) | ✗ | ✗ | ✓ ([`‼ integrity` / `⇄ resolution`](#integrity--resolution-changes), offline) |
-| Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
-| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
-| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
-| Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
-| Audit the *current* pins, not just a change | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|typosquat\|scripts\|provenance\|integrity\|registry\|license`) + GitHub Action |
-| Acknowledge a finding without turning the gate off | ✗ | ✗ | `.lockvetignore` (per-advisory / per-package rules with expiry dates; ignored findings stay visible) |
-| Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
-| See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
-| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✓ (`lockvet mcp`: vet URLs, local repos, files, audits, whole queues) |
-| Interactive TUI | ✗ | ✓ | ✗ |
-| Runtime | — | PHP (binaries provided) | single static Go binary, zero deps |
+|  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | [dependency-review-action](https://github.com/actions/dependency-review-action) | **lockvet** |
+|---|---|---|---|---|
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **30** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
+| Readable per-package summary | ✗ | ✓ | ✓ (job summary / PR comment) | ✓ |
+| Vulnerabilities introduced / fixed by the change | ✗ | ✗ | introduced only (GitHub Advisory DB) | ✓ both (OSV.dev) |
+| Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✗ | ✓ (deps.dev) |
+| Deprecation warnings | ✗ | ✗ | ✗ | ✓ (deps.dev) |
+| License-change flag (`MIT → BUSL-1.1`) | ✗ | ✗ | ✗ (SPDX allow-list gate instead) | ✓ (deps.dev) |
+| OpenSSF Scorecard scores for changed dependencies | ✗ | ✗ | ✓ (warn threshold) | ✗ |
+| Flag versions their own registry no longer lists (unpublished malware) | ✗ | ✗ | ✗ | ✓ ([`unlisted`](#versions-missing-from-the-registry)) |
+| Flag new dependencies one edit from a popular name (typosquats) | ✗ | ✗ | ✗ | ✓ ([`≈ typosquat`](#typosquat-suspects), offline, npm/PyPI/crates.io) |
+| Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
+| Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
+| Flag integrity changes on unchanged versions & private→public registry moves (dependency confusion) | ✗ | ✗ | ✗ | ✓ ([`‼ integrity` / `⇄ resolution`](#integrity--resolution-changes), offline) |
+| Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | direct/indirect label, no chain | ✓ |
+| Vet a PR / MR / compare URL without cloning | ✗ | ✗ | GitHub PRs only (runs *as* the PR's workflow) | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
+| Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
+| Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
+| Audit the *current* pins, not just a change | ✗ | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
+| CI gate | ✗ | per-package `check` exit codes | ✓ (`fail-on-severity`, license lists, `deny-packages`) | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|typosquat\|scripts\|provenance\|integrity\|registry\|license`) + GitHub Action |
+| Acknowledge a finding without turning the gate off | ✗ | ✗ | ✓ (`allow-ghsas`, no expiry) | `.lockvetignore` (per-advisory / per-package rules with expiry dates; ignored findings stay visible) |
+| Output formats | text | text, JSON, markdown | job summary + PR comment | text, JSON, markdown, SARIF (code scanning alerts) |
+| See what changed upstream | ✗ | ✓ (fetches changelog text) | ✗ | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |
+| MCP server (let AI assistants vet PRs) | ✗ | ✓ | ✗ | ✓ (`lockvet mcp`: vet URLs, local repos, files, audits, whole queues) |
+| Interactive TUI | ✗ | ✓ | ✗ | ✗ |
+| Runs locally / outside CI | ✓ | ✓ | ✗ | ✓ (CLI, [browser playground](https://matteo-sung.github.io/lockvet/), any CI) |
+| Runtime | — | PHP (binaries provided) | JS action on GitHub runners; free on public repos, private repos need GitHub Advanced Security | single static Go binary, zero deps |
 
 whatsdiff is a fine tool if you live in composer/npm and want changelogs and
-a TUI. lockvet's focus is different: *should I trust this diff?* — across
-whatever language your repos are in, with security data inline, in CI.
+a TUI. GitHub's dependency-review-action is a solid default if you're all-in
+on GitHub — it reads the dependency graph (so it also sees manifest-only
+changes lockfiles don't record) and surfaces OpenSSF Scorecard scores; but
+it only checks *known* advisories and licenses, only on GitHub PRs, and
+private repos need an Advanced Security license. lockvet's focus is
+different: *should I trust this diff?* — across whatever forge and language
+your repos are in, with registry-level tampering signals no advisory
+database has heard about yet, locally or in any CI.
 
 ## Non-goals
 
