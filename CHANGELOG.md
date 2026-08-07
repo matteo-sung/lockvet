@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.6 — 2026-08-07
+
+- **Lockfiles pin bytes and sources, not just versions — lockvet now reads
+  them.** Two new fully-offline signals from the integrity hashes and
+  resolution URLs the lockfiles already carry
+  ([docs](https://github.com/matteo-sung/lockvet#integrity--resolution-changes)):
+  - **`‼` integrity changed, version didn't**: a pin keeps its version but
+    swaps its content hash — registries never change a published artifact,
+    so the expected tarball was replaced (registry-side tampering, a
+    hijacked mirror, or a hand-edited lockfile). Rendered as a `REPINNED`
+    row even though no version moved. Hashes compare per algorithm
+    (sha1→sha512 lockfile upgrades and yarn-berry cache-key bumps never
+    flag) and Python hash sets may grow — only fully disjoint sets flag.
+  - **`⇄` resolution moved to the public registry**: a package that used
+    to resolve from a private host now resolves from npmjs / PyPI /
+    crates.io / rubygems.org — the shape of a dependency-confusion
+    attack. Only the private→public direction flags; provably identical
+    bytes stay quiet; ≥5 packages moving between the same two hosts is
+    recognized as a registry migration and stays quiet.
+  - Formats: npm lockfiles v1–v3, pnpm, yarn classic + berry, Cargo,
+    poetry, uv, Pipfile.lock, `requirements.txt --hash`, Gemfile.lock
+    (hosts). Surfaces everywhere: terminal/markdown rows, JSON
+    (`integrity_changed`, `old_host`/`new_host`, `registry_moved`), SARIF
+    (`integrity-changed` error, `registry-moved` warning), `-fail-on
+    integrity,registry`, `.lockvetignore` kinds, queue top tier, MCP.
+  - Validated against ~400 historical lockfile commits across fd, npm/cli,
+    mastodon, grafana, poetry, pnpm and uv: zero false positives.
+- Release assets now include the Sigstore bundle (`lockvet_<tag>.intoto.jsonl`)
+  for offline verification: `gh attestation verify <file> --owner
+  matteo-sung --bundle lockvet_<tag>.intoto.jsonl`.
+
 ## v0.4.5 — 2026-08-07
 
 - **lockvet's own releases are now attested.** Every release artifact —

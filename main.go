@@ -173,7 +173,7 @@ FLAGS
                  BITBUCKET_TOKEN / app password (pullrequest:write).
   -fail-on X     exit 1 if the diff contains X: "major", "vuln", "downgrade",
                  "fresh", "deprecated", "unlisted", "typosquat", "scripts",
-                 "provenance", or "license"
+                 "provenance", "integrity", "registry", or "license"
                  (repeatable as comma list: -fail-on major,vuln,fresh)
   -ignore-file F acknowledged findings that skip the summary and -fail-on
                  (default: .lockvetignore next to the lockfiles, if present;
@@ -1279,12 +1279,20 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 			if sum.ProvenanceDropped > 0 {
 				return 1
 			}
+		case "integrity":
+			if sum.IntegrityChanged > 0 {
+				return 1
+			}
+		case "registry", "resolution":
+			if sum.RegistryMoved > 0 {
+				return 1
+			}
 		case "license":
 			if sum.LicenseChanged > 0 {
 				return 1
 			}
 		default:
-			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, typosquat, scripts, provenance, or license)", cond))
+			fatal(fmt.Sprintf("unknown -fail-on condition %q (want major, vuln, downgrade, fresh, deprecated, unlisted, typosquat, scripts, provenance, integrity, registry, or license)", cond))
 		}
 	}
 	return 0

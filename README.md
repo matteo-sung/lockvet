@@ -156,7 +156,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.5 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.6 lockvet
 ```
 
 ### Shell completions & man page
@@ -181,8 +181,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.4.5_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.5 --owner matteo-sung
+gh attestation verify lockvet_v0.4.6_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.6 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -423,7 +423,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.5
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.6
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -539,7 +539,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.5/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.6/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -573,7 +573,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.5", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.6", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -627,7 +627,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.4.5
+      - uses: matteo-sung/lockvet@v0.4.6
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -654,7 +654,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.4.5
+      - uses: matteo-sung/lockvet@v0.4.6
         with:
           sarif: 'true'
 ```
@@ -674,7 +674,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.4.5
+  image: ghcr.io/matteo-sung/lockvet:0.4.6
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -699,7 +699,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.4.5
+          image: ghcr.io/matteo-sung/lockvet:0.4.6
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -717,7 +717,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.4.5
+    container: ghcr.io/matteo-sung/lockvet:0.4.6
     steps:
       - checkout: none
       - script: >
@@ -741,7 +741,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.4.5
+    image: ghcr.io/matteo-sung/lockvet:0.4.6
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -759,7 +759,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.4.5
+    rev: v0.4.6
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -792,7 +792,8 @@ deprecated:crossbeam-channel until=2026-12-31   # revisit after Q4 freeze
 
 Rules are an advisory ID, a `pkg[@version]`, or a `kind:pkg[@version]`
 where *kind* is one of `vuln`, `fresh`, `deprecated`, `unlisted`,
-`scripts`, `provenance`, `license`, `major`, `downgrade`. An
+`scripts`, `provenance`, `integrity`, `registry`, `license`, `major`,
+`downgrade`. An
 `until=YYYY-MM-DD` expiry makes the acknowledgement temporary — after
 that date the rule stops applying and every run warns until the line is
 removed or extended, so snoozes can't quietly become forever.
@@ -994,6 +995,60 @@ Gate on it with `-fail-on typosquat`; acknowledge a deliberate near-name
 with a `typosquat:pkgname` line in `.lockvetignore`; JSON carries
 `typosquat_of`; SARIF emits a `typosquat-suspect` warning; `queue` sorts
 affected PRs to the top.
+
+## Integrity & resolution changes
+
+Lockfiles don't just pin versions — they pin **bytes** (integrity hashes)
+and **where to get them** (resolution URLs). lockvet is, as far as we know,
+the only lockfile differ that reads them:
+
+**Integrity changed, version didn't** ‼ — registries never change a
+published artifact. If a diff keeps `lodash 4.17.21` but swaps its
+`sha512-…`, the tarball that pin expects has been replaced: registry-side
+tampering, a hijacked mirror, or a hand-edited lockfile. All of them are
+"stop and find out why" events:
+
+```
+‼ lodash 4.17.21  REPINNED (version unchanged)  (direct)
+    ‼ integrity changed: 4.17.21 same version, different content hash —
+      registries never change a published artifact, so the tarball this
+      pin expects was replaced; do not trust this without finding out why
+```
+
+Hashes are compared per algorithm, so a lockfile-format upgrade that
+switches `sha1` → `sha512` (or a yarn berry cache-key bump) never flags,
+and Python hash *sets* may legitimately grow as wheels are added — only a
+fully disjoint set flags.
+
+**Resolution moved to the public registry** ⇄ — the classic
+[dependency-confusion](https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610)
+attack publishes a higher version of an *internal* package name on the
+public registry, and the resolver takes the bait. In the lockfile diff
+that is perfectly visible: the package's resolved host flips from your
+private registry to `registry.npmjs.org` / `pypi.org` / `crates.io` /
+`rubygems.org`:
+
+```
+↑ acme-metrics 1.2.0 → 99.9.9  MAJOR  (direct)
+    ⇄ resolution moved: npm.acme-corp.internal → registry.npmjs.org —
+      the shape of a dependency-confusion attack; make sure the public
+      package is really yours
+```
+
+Only the private → public direction flags (adopting a mirror is routine),
+a move whose content hash provably didn't change is quiet, and when five
+or more packages move between the same two hosts lockvet treats it as a
+registry migration (a config change) and stays quiet.
+
+Both signals are computed **entirely offline** from the two lockfiles —
+they work with `-offline`, in air-gapped CI, and in the browser
+playground. Formats that record the data: npm (v1–v3), pnpm, yarn
+(classic + berry), Cargo, poetry, uv, Pipfile.lock, `requirements.txt
+--hash`, and Gemfile.lock (hosts). Gate with `-fail-on
+integrity,registry`; JSON carries `integrity_changed` /
+`integrity_changed_versions` / `old_host` / `new_host` / `registry_moved`;
+SARIF emits `integrity-changed` (error) and `registry-moved` (warning);
+`queue` sorts affected PRs to the top.
 
 ## Install scripts added by a bump
 
@@ -1262,12 +1317,13 @@ to the cache.
 | Flag new dependencies one edit from a popular name (typosquats) | ✗ | ✗ | ✓ ([`≈ typosquat`](#typosquat-suspects), offline, npm/PyPI/crates.io) |
 | Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
 | Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
+| Flag integrity changes on unchanged versions & private→public registry moves (dependency confusion) | ✗ | ✗ | ✓ ([`‼ integrity` / `⇄ resolution`](#integrity--resolution-changes), offline) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |
 | Diff two container images' SBOMs, with distro CVEs | ✗ | ✗ | ✓ (`lockvet diff old.cdx.json new.cdx.json`) |
 | Audit the *current* pins, not just a change | ✗ | ✗ | ✓ ([`lockvet audit`](#audit-what-you-already-pin--lockvet-audit): advisories, unlisted, deprecated, fresh) |
-| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|typosquat\|scripts\|provenance\|license`) + GitHub Action |
+| CI gate | ✗ | per-package `check` exit codes | policy gate (`-fail-on major\|vuln\|fresh\|deprecated\|unlisted\|typosquat\|scripts\|provenance\|integrity\|registry\|license`) + GitHub Action |
 | Acknowledge a finding without turning the gate off | ✗ | ✗ | `.lockvetignore` (per-advisory / per-package rules with expiry dates; ignored findings stay visible) |
 | Output formats | text | text, JSON, markdown | text, JSON, markdown, SARIF (code scanning alerts) |
 | See what changed upstream | ✗ | ✓ (fetches changelog text) | ✓ (verified tag-to-tag diff links + `-changelogs` fetches release notes, transitives included) |

@@ -22,6 +22,42 @@ var tomlNameRe = regexp.MustCompile(`name\s*=\s*"([^"]+)"`)
 // tomlBareKeyRe matches poetry [package.dependencies] keys: foo = ">=1.0"
 var tomlBareKeyRe = regexp.MustCompile(`^["']?([A-Za-z0-9._-]+)["']?\s*=`)
 
+var (
+	// Cargo.lock: checksum = "<64-hex sha256>"
+	tomlChecksumRe = regexp.MustCompile(`^checksum\s*=\s*"([0-9a-f]{16,})"`)
+	// artifact hashes inside inline tables (poetry files, uv sdist/wheels);
+	// the boundary keeps poetry's lock-wide content-hash from matching
+	tomlHashRe = regexp.MustCompile(`(?:^|[{,]\s*)hash\s*=\s*"([^"]+)"`)
+	tomlURLRe  = regexp.MustCompile(`^url\s*=\s*"([^"]+)"`)
+	tomlTypeRe = regexp.MustCompile(`^type\s*=\s*"([^"]+)"`)
+	// uv: source = { registry = "https://pypi.org/simple" }
+	tomlRegistryRe = regexp.MustCompile(`registry\s*=\s*"([^"]+)"`)
+)
+
+// tomlSourceHost extracts the registry host from a Cargo/uv source line.
+// Cargo: source = "registry+https://github.com/rust-lang/crates.io-index"
+// or "sparse+https://index.crates.io/" (both are crates.io);
+// uv: source = { registry = "https://…" }.
+func tomlSourceHost(line string) string {
+	if strings.Contains(line, "github.com/rust-lang/crates.io-index") ||
+		strings.Contains(line, "index.crates.io") {
+		return "crates.io"
+	}
+	if m := tomlRegistryRe.FindStringSubmatch(line); m != nil {
+		return HostOf(m[1])
+	}
+	v := line
+	if i := strings.IndexByte(v, '"'); i >= 0 {
+		v = strings.Trim(v[i:], `"`)
+	}
+	for _, pre := range []string{"registry+", "sparse+"} {
+		if strings.HasPrefix(v, pre) {
+			return HostOf(strings.TrimPrefix(v, pre))
+		}
+	}
+	return ""
+}
+
 // tomlDepItem extracts the dependency name from one element of a
 // `dependencies = [...]` array.
 //
@@ -47,12 +83,27 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 		f := newFile(p, kind, eco)
 		var name, version string
 		var deps []string
+		var pinHash, pinHost string
+		var srcType, srcURL string
 		hasSource, rootSource, nonRegistry := false, false, false
-		inPackage := false
+		inPackage, inSourceTable := false, false
 		mode := "" // "", "deps-array", "poetry-deps"
 		flush := func() {
 			if inPackage {
 				f.add(name, version)
+				// poetry: no [package.source] table means "from PyPI";
+				// only "legacy" sources (alternate indexes) have a host
+				// worth recording — git/path/url sources do not resolve
+				// from a registry at all.
+				if kind == "poetry.lock" && !nonRegistry && pinHost == "" {
+					pinHost = "pypi.org"
+				}
+				if srcType == "legacy" && srcURL != "" {
+					pinHost = HostOf(srcURL)
+				}
+				if pinHash != "" || pinHost != "" {
+					f.setPin(name, version, pinHash, pinHost)
+				}
 				// Packages that don't come from the public registry:
 				// Cargo.lock: no `source` = workspace member / path dep,
 				// source = "git+..." = git dep. uv.lock / poetry.lock:
@@ -76,7 +127,9 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				}
 			}
 			name, version, deps = "", "", nil
+			pinHash, pinHost, srcType, srcURL = "", "", "", ""
 			hasSource, rootSource, nonRegistry = false, false, false
+			inSourceTable = false
 		}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)
@@ -110,7 +163,8 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 					if inPackage && line == "[package.dependencies]" {
 						mode = "poetry-deps"
 					}
-					if inPackage && line == "[package.source]" {
+					inSourceTable = inPackage && line == "[package.source]"
+					if inSourceTable {
 						// poetry: PyPI packages carry no source table at
 						// all; git/directory/file/url/legacy all do.
 						nonRegistry = true
@@ -132,6 +186,24 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				}
 				continue
 			}
+			if m := tomlChecksumRe.FindStringSubmatch(line); m != nil { // Cargo
+				pinHash = m[1]
+				continue
+			}
+			// Artifact hashes: poetry files = [{file=…, hash="sha256:…"}],
+			// uv sdist = {…, hash = "sha256:…"} / wheels = [{…}].
+			for _, m := range tomlHashRe.FindAllStringSubmatch(line, -1) {
+				pinHash = joinHashSet(pinHash, m[1])
+			}
+			if inSourceTable { // poetry [package.source]: type/url/reference
+				if m := tomlURLRe.FindStringSubmatch(line); m != nil {
+					srcURL = m[1]
+				}
+				if m := tomlTypeRe.FindStringSubmatch(line); m != nil {
+					srcType = m[1]
+				}
+				continue
+			}
 			if strings.HasPrefix(line, "source =") {
 				hasSource = true
 				if strings.Contains(line, "editable") || strings.Contains(line, "virtual") {
@@ -141,6 +213,8 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 					strings.Contains(line, "path =") || strings.Contains(line, "directory =") ||
 					strings.Contains(line, "url =") || rootSource {
 					nonRegistry = true // not the format's public registry
+				} else if h := tomlSourceHost(line); h != "" {
+					pinHost = h // registry source: record the index host
 				}
 				continue
 			}
@@ -194,18 +268,41 @@ func splitTopLevel(s string) []string {
 
 var reqLineRe = regexp.MustCompile(`^([A-Za-z0-9._-]+)(?:\[[^\]]*\])?\s*==\s*([A-Za-z0-9.!+*_-]+)`)
 
+var reqHashRe = regexp.MustCompile(`--hash[= ]([A-Za-z0-9:._-]+)`)
+
 func parseRequirementsTxt(p string, data []byte) (*File, error) {
 	f := newFile(p, "requirements.txt", PyPI)
+	lastName, lastVer := "", ""
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
+		}
+		if strings.HasPrefix(line, "-") {
+			// pip-compile puts --hash options on continuation lines under
+			// the pin they belong to.
+			if lastName != "" {
+				for _, m := range reqHashRe.FindAllStringSubmatch(line, -1) {
+					f.setPin(lastName, lastVer, m[1], "")
+				}
+			}
+			continue
+		}
+		var hashes []string
+		for _, m := range reqHashRe.FindAllStringSubmatch(line, -1) {
+			hashes = append(hashes, m[1])
 		}
 		if i := strings.IndexByte(line, ';'); i >= 0 { // env markers
 			line = strings.TrimSpace(line[:i])
 		}
 		if m := reqLineRe.FindStringSubmatch(line); m != nil {
-			f.add(normalizePyPI(m[1]), m[2])
+			lastName, lastVer = normalizePyPI(m[1]), m[2]
+			f.add(lastName, lastVer)
+			for _, h := range hashes {
+				f.setPin(lastName, lastVer, h, "")
+			}
+		} else {
+			lastName, lastVer = "", ""
 		}
 	}
 	return f, nil
@@ -327,7 +424,7 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 	// (a pinned fork, an unreleased bump) may not exist on the registry
 	// at all, so registry-derived signals must skip them.
 	nonRegistrySection := false
-	currentSpec := ""
+	currentSpec, remoteHost := "", ""
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
 		switch {
@@ -340,6 +437,12 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 		case line != "" && line[0] != ' ': // new top-level section (GEM, PLATFORMS, ...)
 			inSpecs, inDependencies = false, false
 			nonRegistrySection = line != "GEM"
+			remoteHost = ""
+			continue
+		case !inSpecs && strings.HasPrefix(strings.TrimSpace(line), "remote: "):
+			if !nonRegistrySection {
+				remoteHost = HostOf(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "remote:")))
+			}
 			continue
 		}
 		if inDependencies {
@@ -356,6 +459,8 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 			f.add(m[1], m[2])
 			if nonRegistrySection {
 				f.markNonRegistry(m[1])
+			} else if remoteHost != "" {
+				f.setPin(m[1], m[2], "", remoteHost)
 			}
 			currentSpec = m[1]
 			continue

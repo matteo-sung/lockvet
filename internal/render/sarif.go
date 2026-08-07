@@ -184,6 +184,40 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.IntegrityChanged {
+				idx := addRule(rule{
+					ID:               "integrity-changed",
+					ShortDescription: map[string]string{"text": "Pinned version's content hash changed without a version change"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#integrity--resolution-changes",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "integrity-changed", RuleIndex: idx,
+					Level:     "error",
+					Message:   map[string]string{"text": fmt.Sprintf("%s, but the lockfile now records a different content hash for version %s. Registries never change a published artifact, so outside a registry migration the tarball this pin expects was replaced (registry-side tampering, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "integrity"),
+					},
+				})
+			}
+			if c.RegistryMoved {
+				idx := addRule(rule{
+					ID:               "registry-moved",
+					ShortDescription: map[string]string{"text": "Resolution moved from a private host to the public registry"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#integrity--resolution-changes",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "registry-moved", RuleIndex: idx,
+					Level:     "warning",
+					Message:   map[string]string{"text": fmt.Sprintf("%s and now resolves from %s instead of %s. A package that silently moves from a private host to the public registry is the shape of a dependency-confusion attack; make sure the public package is really yours.%s", what, c.NewHost, c.OldHost, via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "registry"),
+					},
+				})
+			}
 			if c.ScriptsAdded {
 				idx := addRule(rule{
 					ID:               "install-scripts-added",
@@ -297,6 +331,8 @@ func describeChange(c diffx.Change, audit bool) string {
 		return fmt.Sprintf("%s was removed (was %s)", c.Name, strings.Join(c.Old, ", "))
 	case diffx.Downgraded:
 		return fmt.Sprintf("%s was downgraded to %s", c.Name, to)
+	case diffx.Repinned:
+		return fmt.Sprintf("%s stays at %s", c.Name, to)
 	case diffx.Changed:
 		return fmt.Sprintf("%s changed to %s", c.Name, to)
 	default:

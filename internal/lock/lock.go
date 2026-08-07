@@ -2,6 +2,7 @@
 package lock
 
 import (
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -130,6 +131,27 @@ type File struct {
 	// git dependencies, alternate indexes. Registry-metadata checks
 	// (like the unlisted-version flag) skip them.
 	NonRegistry map[string]bool
+
+	// Pins records what the lockfile itself pins for a (package, version)
+	// beyond the version string: the content hash it expects and the
+	// registry host it resolves from. Filled only by formats that write
+	// integrity hashes or resolution URLs (npm, pnpm, yarn, Cargo, uv,
+	// poetry, Pipfile, requirements --hash, Gemfile.lock remotes).
+	// name → version → meta.
+	Pins map[string]map[string]PinMeta
+}
+
+// PinMeta is the integrity/resolution metadata a lockfile records for one
+// pinned (package, version).
+type PinMeta struct {
+	// Integrity is a space-joined set of content hashes in whatever
+	// notation the format uses ("sha512-…", "sha256:…", bare hex,
+	// yarn-berry "10c0/…"). A set because Python lockfiles record one
+	// hash per artifact (sdist + wheels) for the same version.
+	Integrity string
+	// Host is the registry/CDN host the package resolves from, e.g.
+	// "registry.npmjs.org". Empty when the format doesn't record it.
+	Host string
 }
 
 func newFile(p, kind string, eco Ecosystem) *File {
@@ -147,6 +169,93 @@ func (f *File) markNonRegistry(name string) {
 		f.NonRegistry = map[string]bool{}
 	}
 	f.NonRegistry[name] = true
+}
+
+// setPin records integrity/host metadata for a pinned (package, version).
+// Integrity strings accumulate as a set (npm nesting can pin the same
+// version at several paths; Python lockfiles hash every artifact); the
+// first non-empty host wins.
+func (f *File) setPin(name, version, integrity, host string) {
+	name, version = Sanitize(name), Sanitize(version)
+	integrity, host = Sanitize(integrity), Sanitize(host)
+	if name == "" || version == "" || (integrity == "" && host == "") {
+		return
+	}
+	if f.Pins == nil {
+		f.Pins = map[string]map[string]PinMeta{}
+	}
+	m := f.Pins[name]
+	if m == nil {
+		m = map[string]PinMeta{}
+		f.Pins[name] = m
+	}
+	pm := m[version]
+	if integrity != "" {
+		pm.Integrity = joinHashSet(pm.Integrity, integrity)
+	}
+	if host != "" && pm.Host == "" {
+		pm.Host = host
+	}
+	m[version] = pm
+}
+
+// Pin returns the recorded integrity/host metadata for (name, version),
+// or a zero PinMeta when the format records none.
+func (f *File) Pin(name, version string) PinMeta {
+	if f == nil || f.Pins == nil {
+		return PinMeta{}
+	}
+	return f.Pins[name][version]
+}
+
+// joinHashSet appends hashes from add (space-separated fields) to set,
+// skipping duplicates. Capped so a hostile file can't grow it unbounded.
+func joinHashSet(set, add string) string {
+	const maxHashes = 128
+	have := strings.Fields(set)
+	for _, h := range strings.Fields(add) {
+		if len(have) >= maxHashes {
+			break
+		}
+		dup := false
+		for _, x := range have {
+			if x == h {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			have = append(have, h)
+		}
+	}
+	return strings.Join(have, " ")
+}
+
+// HostOf extracts the lowercase host from a URL string; "" when it can't.
+func HostOf(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
+}
+
+// PublicRegistryHost reports whether the host is the ecosystem's canonical
+// public registry (or its official CDN). Used to tell "resolution moved to
+// the public registry" — the dependency-confusion direction — apart from
+// ordinary mirror hops.
+func (e Ecosystem) PublicRegistryHost(h string) bool {
+	switch e {
+	case NPM:
+		return h == "registry.npmjs.org" || h == "registry.yarnpkg.com"
+	case PyPI:
+		return h == "pypi.org" || h == "files.pythonhosted.org" || h == "pypi.python.org"
+	case CratesIO:
+		return h == "crates.io" || h == "index.crates.io" || h == "static.crates.io"
+	case RubyGems:
+		return h == "rubygems.org" || h == "index.rubygems.org"
+	}
+	return false
 }
 
 // addEdge records "from depends on to". Self-edges and empty names are dropped.

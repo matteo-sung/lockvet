@@ -11,7 +11,7 @@
 //	major:react@19.*                 accept a specific major bump
 //	GHSA-xxxx-xxxx-xxxx until=2026-12-31   temporary, expires loudly
 //
-// Kinds: vuln, fresh, deprecated, unlisted, typosquat, scripts, provenance, license,
+// Kinds: vuln, fresh, deprecated, unlisted, typosquat, scripts, provenance, integrity, registry, license,
 // major, downgrade. Package names and advisory IDs match case-insensitively
 // and accept * and ? globs. Suppressed findings stay in the JSON output
 // (ignored / ignored_vulns) and appear as a dim marker in reports, but no
@@ -41,7 +41,8 @@ var kinds = map[string]string{
 	"typosquat":  "typosquat", "typosquats": "typosquat",
 	"scripts": "scripts", "install-scripts": "scripts",
 	"provenance": "provenance",
-	"license":    "license", "licenses": "license",
+	"integrity":  "integrity", "registry": "registry", "resolution": "registry",
+	"license": "license", "licenses": "license",
 	"major":     "major",
 	"downgrade": "downgrade", "downgrades": "downgrade",
 }
@@ -251,6 +252,14 @@ func applyChange(c *diffx.Change, rules []Rule) int {
 		if (all || r.Kind == "provenance") && c.ProvenanceDropped {
 			c.ProvenanceDropped = false
 			mark("provenance")
+		}
+		if (all || r.Kind == "integrity") && c.IntegrityChanged {
+			c.IntegrityChanged = false
+			mark("integrity")
+		}
+		if (all || r.Kind == "registry") && c.RegistryMoved {
+			c.RegistryMoved = false
+			mark("registry")
 		}
 		if (all || r.Kind == "license") && c.LicenseChanged {
 			c.LicenseChanged = false

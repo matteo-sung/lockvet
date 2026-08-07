@@ -147,6 +147,12 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 			if c.Unlisted {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
 			}
+			if c.IntegrityChanged {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim("same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"))
+			}
+			if c.RegistryMoved {
+				fmt.Fprintf(w, "      %s %s\n", s.bred("⇄ resolution moved: "+c.OldHost+" → "+c.NewHost), s.dim("this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"))
+			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⚙ install scripts added: "+join(c.ScriptedVersions)), s.dim("the old version ran no install scripts, this one does — a favourite payload vehicle for hijacked npm packages; review before trusting"))
 			}
@@ -210,6 +216,8 @@ func line(s styler, c diffx.Change, nameW, fromW int) string {
 		return fmt.Sprintf("%s %s %s", s.green("+"), name, s.green(to)+s.green("  (added)"))
 	case diffx.Removed:
 		return fmt.Sprintf("%s %s %s", s.dim("-"), name, s.dim(from+"  (removed)"))
+	case diffx.Repinned:
+		return fmt.Sprintf("%s %s %s  %s", s.bred("‼"), name, from, s.bred("REPINNED")+s.dim(" (version unchanged)"))
 	}
 	arrow, lvl := "↑", ""
 	if c.Kind == diffx.Downgraded {
@@ -283,6 +291,12 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 			out += " · " + s.yellow(fmt.Sprintf("%s changed", plural(sum.LicenseChanged, "license")))
 		}
 	}
+	if sum.IntegrityChanged > 0 {
+		out += " · " + s.bred(pluralVerb(sum.IntegrityChanged, "pin changes", "pins change")+" integrity without a version change")
+	}
+	if sum.RegistryMoved > 0 {
+		out += " · " + s.bred(pluralVerb(sum.RegistryMoved, "resolution moves", "resolutions move")+" to the public registry")
+	}
 	if sum.Typosquats > 0 {
 		out += " · " + s.bred(pluralVerb(sum.Typosquats, "name resembles", "names resemble")+" a popular package")
 	}
@@ -353,6 +367,12 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 		}
 		fmt.Fprintf(w, "\nRelease metadata: %s (via [deps.dev](https://deps.dev) and the package registries)\n", strings.Join(bits, ", "))
 	}
+	if sum.IntegrityChanged > 0 {
+		fmt.Fprintf(w, "\nIntegrity: **%s content hash without a version change** ‼ — registries never change a published artifact; find out why before merging\n", pluralVerb(sum.IntegrityChanged, "pin changes its", "pins change their"))
+	}
+	if sum.RegistryMoved > 0 {
+		fmt.Fprintf(w, "\nResolution: **%s from a private host to the public registry** ⇄ — the shape of a dependency-confusion attack; make sure the public package is really yours\n", pluralVerb(sum.RegistryMoved, "package moves", "packages move"))
+	}
 	if sum.Typosquats > 0 {
 		fmt.Fprintf(w, "\nTyposquat check: **%s a popular package** ≈ — new young dependencies one edit away from a well-known name; make sure they are the packages you meant\n", pluralVerb(sum.Typosquats, "added name resembles", "added names resemble"))
 	}
@@ -381,6 +401,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				icon, lvl = "➕", "added"
 			case c.Kind == diffx.Removed:
 				icon, lvl = "➖", "removed"
+			case c.Kind == diffx.Repinned:
+				icon, lvl = "‼", "**REPINNED** (version unchanged)"
 			case c.Kind == diffx.Downgraded:
 				icon, lvl = "🔽", lvl+" **downgrade**"
 			case c.Level == vers.Major:
@@ -431,6 +453,12 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			}
 			if c.Unlisted {
 				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
+			}
+			if c.IntegrityChanged {
+				fmt.Fprintf(w, "| ‼ | ↳ integrity changed | | %s | same version, different content hash — the artifact this pin expects was replaced; find out why before merging |%s\n", esc(join(c.IntegrityVersions)), padCell)
+			}
+			if c.RegistryMoved {
+				fmt.Fprintf(w, "| ⇄ | ↳ resolution moved | %s | %s | now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack |%s\n", esc(c.OldHost), esc(c.NewHost), padCell)
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "| ⚙ | ↳ install scripts added | | %s | the old version ran no install scripts — a favourite payload vehicle for hijacked npm packages |%s\n", esc(join(c.ScriptedVersions)), padCell)
@@ -496,7 +524,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 
 func openAttr(fd diffx.FileDiff) string {
 	for _, c := range fd.Changes {
-		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged {
+		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged || c.IntegrityChanged || c.RegistryMoved {
 			return " open"
 		}
 	}

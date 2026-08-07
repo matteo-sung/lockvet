@@ -15,6 +15,7 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 			Version              string            `json:"version"`
 			Link                 bool              `json:"link"`
 			Resolved             string            `json:"resolved"`
+			Integrity            string            `json:"integrity"`
 			Dependencies         map[string]string `json:"dependencies"`
 			DevDependencies      map[string]string `json:"devDependencies"`
 			OptionalDependencies map[string]string `json:"optionalDependencies"`
@@ -54,6 +55,8 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 			f.add(name, pkg.Version)
 			if strings.HasPrefix(pkg.Resolved, "git") || strings.HasPrefix(pkg.Resolved, "file:") {
 				f.markNonRegistry(name) // git or local-path dependency
+			} else {
+				f.setPin(name, pkg.Version, pkg.Integrity, HostOf(pkg.Resolved))
 			}
 			for dep := range pkg.Dependencies {
 				f.addEdge(name, dep)
@@ -70,11 +73,16 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 		for name, raw := range deps {
 			var e struct {
 				Version      string                     `json:"version"`
+				Resolved     string                     `json:"resolved"`
+				Integrity    string                     `json:"integrity"`
 				Requires     map[string]string          `json:"requires"`
 				Dependencies map[string]json.RawMessage `json:"dependencies"`
 			}
 			if json.Unmarshal(raw, &e) == nil {
 				f.add(name, e.Version)
+				if !strings.HasPrefix(e.Resolved, "git") && !strings.HasPrefix(e.Resolved, "file:") {
+					f.setPin(name, e.Version, e.Integrity, HostOf(e.Resolved))
+				}
 				for dep := range e.Requires {
 					f.addEdge(name, dep)
 				}
@@ -95,6 +103,11 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 //	v5/v6:  /@scope/name@1.2.3(peer@x):   or   /name/1.2.3:
 //	v9:     '@scope/name@1.2.3':          or   name@1.2.3:
 var pnpmKeyRe = regexp.MustCompile(`^  ['"]?(/?[^:'"]+)['"]?:\s*$`)
+
+var (
+	pnpmIntegrityRe = regexp.MustCompile(`integrity:\s*['"]?([A-Za-z0-9+/=_-]+)`)
+	pnpmTarballRe   = regexp.MustCompile(`tarball:\s*['"]?([^'",}\s]+)`)
+)
 
 // pnpmPkgName extracts the package name from a packages:/snapshots: entry key
 // like "/@scope/name@1.2.3(peer@x)", "/name/1.2.3" or "name@1.2.3".
@@ -141,10 +154,11 @@ func pnpmMapKey(line string) string {
 
 func parsePnpmLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "pnpm-lock.yaml", NPM)
-	section := ""   // current top-level section
-	current := ""   // current package (packages:/snapshots:) or importer
-	inDeps := false // inside a dependencies:/optionalDependencies: block
-	depIndent := 0  // indent of the dep-name lines
+	section := ""    // current top-level section
+	current := ""    // current package (packages:/snapshots:) or importer
+	currentVer := "" // version of the current packages: entry
+	inDeps := false  // inside a dependencies:/optionalDependencies: block
+	depIndent := 0   // indent of the dep-name lines
 	isDepsKey := func(s string) bool {
 		return s == "dependencies:" || s == "devDependencies:" || s == "optionalDependencies:"
 	}
@@ -188,17 +202,37 @@ func parsePnpmLock(p string, data []byte) (*File, error) {
 				inDeps = false
 				m := pnpmKeyRe.FindStringSubmatch(line)
 				if m == nil {
-					current = ""
+					current, currentVer = "", ""
 					continue
 				}
 				name, version := pnpmPkgName(m[1])
-				current = name
+				current, currentVer = name, ""
 				if section == "packages" && version != "" && version[0] >= '0' && version[0] <= '9' {
 					f.add(name, version)
+					currentVer = version
 				}
 			case ind == 4:
-				inDeps = isDepsKey(strings.TrimSpace(line))
+				trimmed := strings.TrimSpace(line)
+				inDeps = isDepsKey(trimmed)
 				depIndent = 6
+				if section == "packages" && currentVer != "" && strings.HasPrefix(trimmed, "resolution:") {
+					var integ, host string
+					if m := pnpmIntegrityRe.FindStringSubmatch(trimmed); m != nil {
+						integ = m[1]
+					}
+					if m := pnpmTarballRe.FindStringSubmatch(trimmed); m != nil {
+						host = HostOf(m[1])
+					}
+					f.setPin(current, currentVer, integ, host)
+				}
+			case section == "packages" && currentVer != "" && ind == 6 && !inDeps:
+				// block-style resolution: integrity/tarball on their own lines
+				trimmed := strings.TrimSpace(line)
+				if m := pnpmIntegrityRe.FindStringSubmatch(trimmed); m != nil {
+					f.setPin(current, currentVer, m[1], "")
+				} else if m := pnpmTarballRe.FindStringSubmatch(trimmed); m != nil {
+					f.setPin(current, currentVer, "", HostOf(m[1]))
+				}
 			case inDeps && ind == depIndent && current != "":
 				if k := pnpmMapKey(line); k != "" {
 					f.addEdge(current, k)
@@ -228,7 +262,16 @@ var yarnVersionRe = regexp.MustCompile(`^\s{2}version:?\s+"?([^"\s]+)"?\s*$`)
 func parseYarnLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "yarn.lock", NPM)
 	var currentNames []string
-	isWorkspace, inDeps, versionSeen := false, false, false
+	currentVer := ""
+	isWorkspace, inDeps, versionSeen, skipPins := false, false, false, false
+	setPins := func(integ, host string) {
+		if isWorkspace || skipPins || currentVer == "" {
+			return
+		}
+		for _, n := range currentNames {
+			f.setPin(n, currentVer, integ, host)
+		}
+	}
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -236,12 +279,23 @@ func parseYarnLock(p string, data []byte) (*File, error) {
 		}
 		if line[0] != ' ' && strings.HasSuffix(line, ":") { // entry header
 			currentNames = currentNames[:0]
-			isWorkspace, inDeps, versionSeen = false, false, false
+			currentVer = ""
+			isWorkspace, inDeps, versionSeen, skipPins = false, false, false, false
 			header := strings.TrimSuffix(line, ":")
 			for _, spec := range strings.Split(header, ",") {
 				spec = strings.Trim(strings.TrimSpace(spec), `"`)
 				if strings.Contains(spec, "@workspace:") { // yarn berry project/workspace entry
 					isWorkspace = true
+				}
+				// Non-registry protocols (berry patch:/git/link:/portal:/
+				// file:/exec:, or a bare URL requirement): their checksums
+				// hash locally-built artifacts, which must not be compared
+				// against registry tarball hashes across revisions.
+				for _, proto := range []string{"@patch:", "@git", "@https://", "@http://", "@ssh://", "@link:", "@portal:", "@file:", "@exec:"} {
+					if strings.Contains(spec, proto) {
+						skipPins = true
+						break
+					}
 				}
 				if name := yarnSpecName(spec); name != "" {
 					currentNames = appendUnique(currentNames, name)
@@ -260,6 +314,7 @@ func parseYarnLock(p string, data []byte) (*File, error) {
 			if m := yarnVersionRe.FindStringSubmatch(line); m != nil {
 				versionSeen = true
 				if !isWorkspace {
+					currentVer = m[1]
 					for _, n := range currentNames {
 						f.add(n, m[1])
 					}
@@ -269,6 +324,19 @@ func parseYarnLock(p string, data []byte) (*File, error) {
 		}
 		trimmed := strings.TrimSpace(line)
 		if pnpmIndent(line) == 2 {
+			switch {
+			case strings.HasPrefix(trimmed, "resolved "): // classic
+				v := strings.Trim(strings.TrimPrefix(trimmed, "resolved "), `"`)
+				host, integ := yarnResolvedMeta(v)
+				setPins(integ, host)
+				continue
+			case strings.HasPrefix(trimmed, "integrity "): // classic
+				setPins(strings.TrimSpace(strings.TrimPrefix(trimmed, "integrity ")), "")
+				continue
+			case strings.HasPrefix(trimmed, "checksum: "): // berry
+				setPins(strings.TrimSpace(strings.TrimPrefix(trimmed, "checksum: ")), "")
+				continue
+			}
 			inDeps = trimmed == "dependencies:" || (isWorkspace && trimmed == "devDependencies:")
 			continue
 		}
@@ -287,6 +355,26 @@ func parseYarnLock(p string, data []byte) (*File, error) {
 		}
 	}
 	return f, nil
+}
+
+// yarnResolvedMeta splits a yarn-classic resolved value
+// "https://host/path#sha1hex" into the registry host and the fragment hash.
+// git/file resolutions return "" for both.
+func yarnResolvedMeta(v string) (host, integ string) {
+	if strings.HasPrefix(v, "git") || strings.HasPrefix(v, "file:") {
+		return "", ""
+	}
+	if i := strings.LastIndexByte(v, '#'); i >= 0 {
+		integ = v[i+1:]
+		v = v[:i]
+	}
+	host = HostOf(v)
+	switch host {
+	case "codeload.github.com", "github.com", "gitlab.com", "bitbucket.org":
+		return "", "" // git-hosted tarball, not a registry (and the
+		// fragment is a commit-ish, not a content hash)
+	}
+	return host, integ
 }
 
 // yarnDepName extracts the package name from a dependencies: sub-line —

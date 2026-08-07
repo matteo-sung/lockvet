@@ -1,0 +1,150 @@
+package diffx
+
+import (
+	"testing"
+
+	"github.com/matteo-sung/lockvet/internal/lock"
+)
+
+// parse helper: run a real parser so tests exercise the full path.
+func parseFile(t *testing.T, name, content string) *lock.File {
+	t.Helper()
+	pr := lock.ByBasename(name)
+	if pr == nil {
+		t.Fatalf("no parser for %s", name)
+	}
+	f, err := pr.Parse(name, []byte(content))
+	if err != nil {
+		t.Fatalf("parse %s: %v", name, err)
+	}
+	return f
+}
+
+const npmLockTmpl = `{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {"dependencies": {"left-pad": "^1.3.0"}},
+    "node_modules/left-pad": {
+      "version": "1.3.0",
+      "resolved": "https://%s/left-pad/-/left-pad-1.3.0.tgz",
+      "integrity": "%s"
+    }
+  }
+}`
+
+func TestIntegrityChangedSameVersion(t *testing.T) {
+	oldF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "registry.npmjs.org", "sha512-aaaa"))
+	newF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "registry.npmjs.org", "sha512-bbbb"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged || len(c.IntegrityVersions) != 1 || c.IntegrityVersions[0] != "1.3.0" {
+		t.Fatalf("bad change: %+v", c)
+	}
+	sum := Summarize([]FileDiff{fd})
+	if sum.IntegrityChanged != 1 {
+		t.Fatalf("summary: %+v", sum)
+	}
+}
+
+func TestIntegrityAlgoUpgradeNotFlagged(t *testing.T) {
+	// lockfile upgrade sha1 → sha512: no shared algorithm, not comparable
+	oldF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "registry.npmjs.org", "sha1-aaaa"))
+	newF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "registry.npmjs.org", "sha512-bbbb"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("algo upgrade should not flag: %+v", fd.Changes)
+	}
+}
+
+func TestRegistryMovedFlagsConfusionDirection(t *testing.T) {
+	oldF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "npm.corp.internal", "sha512-aaaa"))
+	newF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "registry.npmjs.org", "sha512-bbbb"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 || !fd.Changes[0].RegistryMoved {
+		t.Fatalf("want registry-moved flag: %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.OldHost != "npm.corp.internal" || c.NewHost != "registry.npmjs.org" {
+		t.Fatalf("hosts: %+v", c)
+	}
+	// reverse direction (adopting a mirror) must NOT flag
+	if fd := Diff(newF, oldF); len(fd.Changes) != 1 || fd.Changes[0].RegistryMoved {
+		// integrity still differs → row exists, but no registry flag
+		for _, c := range fd.Changes {
+			if c.RegistryMoved {
+				t.Fatalf("public→private should not flag: %+v", fd.Changes)
+			}
+		}
+	}
+}
+
+func TestRegistryMoveSuppressedWhenBytesProvenSame(t *testing.T) {
+	oldF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "npm.corp.internal", "sha512-aaaa"))
+	newF := parseFile(t, "package-lock.json", sprintf(npmLockTmpl, "registry.npmjs.org", "sha512-aaaa"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("same hash on both hosts is a benign re-point: %+v", fd.Changes)
+	}
+}
+
+func TestMirrorMigrationSuppressed(t *testing.T) {
+	mk := func(host string) string {
+		out := `{"lockfileVersion": 3, "packages": {"": {},`
+		for _, n := range []string{"a", "b", "c", "d", "e", "f"} {
+			out += `"node_modules/` + n + `": {"version": "1.0.0", "resolved": "https://` + host + `/` + n + `.tgz", "integrity": "sha512-` + n + host + `"},`
+		}
+		return out[:len(out)-1] + "}}"
+	}
+	oldF := parseFile(t, "package-lock.json", mk("npm.corp.internal"))
+	newF := parseFile(t, "package-lock.json", mk("registry.npmjs.org"))
+	fd := Diff(oldF, newF)
+	for _, c := range fd.Changes {
+		if c.RegistryMoved {
+			t.Fatalf("6 packages moving between the same hosts is a migration, not an attack: %+v", c)
+		}
+	}
+}
+
+func TestPythonHashSetGrowthNotFlagged(t *testing.T) {
+	if integrityDiffers("sha256:aa sha256:bb", "sha256:aa sha256:bb sha256:cc") {
+		t.Fatal("adding wheels for an existing release must not flag")
+	}
+	if !integrityDiffers("sha256:aa sha256:bb", "sha256:cc sha256:dd") {
+		t.Fatal("fully disjoint hash sets must flag")
+	}
+	if integrityDiffers("10c0/abc", "8/abc") { // yarn berry cache-key bump
+		t.Fatal("different cache-key namespaces are not comparable")
+	}
+	if !integrityDiffers("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") {
+		t.Fatal("bare sha1 hex hashes should compare")
+	}
+}
+
+func TestRepinnedRanksFirst(t *testing.T) {
+	if kindRank(Repinned) >= kindRank(Downgraded) {
+		t.Fatal("repinned should sort before downgrades")
+	}
+}
+
+func sprintf(format string, args ...any) string {
+	out := format
+	for _, a := range args {
+		i := indexOf(out, "%s")
+		if i < 0 {
+			break
+		}
+		out = out[:i] + a.(string) + out[i+2:]
+	}
+	return out
+}
+
+func indexOf(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}

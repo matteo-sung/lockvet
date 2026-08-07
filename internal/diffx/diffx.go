@@ -18,7 +18,8 @@ const (
 	Removed    Kind = "removed"
 	Upgraded   Kind = "upgraded"
 	Downgraded Kind = "downgraded"
-	Changed    Kind = "changed" // multi-version set changed
+	Changed    Kind = "changed"  // multi-version set changed
+	Repinned   Kind = "repinned" // same version(s), but integrity/resolution changed
 )
 
 // Change describes what happened to one package.
@@ -77,6 +78,28 @@ type Change struct {
 	// UnattestedVersions lists the incoming versions without provenance.
 	ProvenanceDropped  bool     `json:"provenance_dropped,omitempty"`
 	UnattestedVersions []string `json:"unattested_versions,omitempty"`
+
+	// IntegrityChanged: a version pinned on BOTH sides now records a
+	// different content hash — the lockfile expects different bytes for
+	// the same version string. Registries never change a published
+	// artifact, so outside a registry migration this means the tarball
+	// was replaced (registry-side tampering, a hijacked mirror, or a
+	// hand-edited lockfile). Compared per hash algorithm: a lockfile
+	// upgrade that switches sha1 → sha512 is NOT flagged.
+	IntegrityChanged  bool     `json:"integrity_changed,omitempty"`
+	IntegrityVersions []string `json:"integrity_changed_versions,omitempty"`
+
+	// OldHost/NewHost: the registry hosts the package resolved from on
+	// each side, when the lockfile records them and they differ.
+	// RegistryMoved marks the dependency-confusion direction: the
+	// resolution moved FROM a private/alternate host TO the ecosystem's
+	// public registry — exactly what an attacker's higher-versioned
+	// public squat of an internal package name looks like. Whole-file
+	// mirror migrations (many packages moving between the same two
+	// hosts) are recognized and not flagged.
+	OldHost       string `json:"old_host,omitempty"`
+	NewHost       string `json:"new_host,omitempty"`
+	RegistryMoved bool   `json:"registry_moved,omitempty"`
 
 	// TyposquatOf: this package just entered the tree, its release is
 	// young (or of unknown age), and its name is at most one edit away
@@ -190,13 +213,26 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		return ref.Ecosystem
 	}
 
+	hostMoves := countHostMoves(oldF, newF)
 	for name := range names {
 		o, n := oldPkgs[name], newPkgs[name]
 		if equal(o, n) {
+			// Same version(s) on both sides — but did the lockfile change
+			// WHAT it pins for them? A different integrity hash or a
+			// resolution moved onto the public registry is a finding of
+			// its own (tarball swapped / dependency-confusion shape).
+			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n}
+			if annotatePinChange(&c, oldF, newF, hostMoves) {
+				if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
+					c.NonRegistry = true
+				}
+				fd.Changes = append(fd.Changes, c)
+			}
 			continue
 		}
 		eco := ecoOf(name)
 		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n}
+		annotatePinChange(&c, oldF, newF, hostMoves)
 		if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 			c.NonRegistry = true
 		}
@@ -244,18 +280,20 @@ func Diff(oldF, newF *lock.File) FileDiff {
 
 func kindRank(k Kind) int {
 	switch k {
+	case Repinned:
+		return 0 // same version, different bytes/registry — most alarming
 	case Downgraded:
-		return 0
-	case Upgraded:
 		return 1
-	case Changed:
+	case Upgraded:
 		return 2
-	case Added:
+	case Changed:
 		return 3
-	case Removed:
+	case Added:
 		return 4
+	case Removed:
+		return 5
 	}
-	return 5
+	return 6
 }
 
 // maxDelta classifies a multi-version change (a package vendored at several
@@ -515,6 +553,8 @@ type Summary struct {
 	ScriptsAdded                                           int // npm bumps that newly run install scripts
 	Typosquats                                             int // young additions confusable with a popular package
 	ProvenanceDropped                                      int // npm bumps that silently stop attesting provenance
+	IntegrityChanged                                       int // pins whose recorded content hash changed for an unchanged version
+	RegistryMoved                                          int // resolutions moved from a private host to the public registry
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
 	Ignored                                                int // findings acknowledged via .lockvetignore
 }
@@ -567,6 +607,12 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.ProvenanceDropped {
 				s.ProvenanceDropped++
+			}
+			if c.IntegrityChanged && !c.HasIgnored("integrity") {
+				s.IntegrityChanged++
+			}
+			if c.RegistryMoved && !c.HasIgnored("registry") {
+				s.RegistryMoved++
 			}
 			if c.LicenseChanged {
 				s.LicenseChanged++

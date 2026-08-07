@@ -14,19 +14,53 @@ func parsePipfileLock(p string, data []byte) (*File, error) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, err
 	}
+	// _meta.sources: named indexes; the hosts let the diff spot a package
+	// resolution moving between a private index and PyPI.
+	srcHost := map[string]string{}
+	if raw, ok := doc["_meta"]; ok {
+		var meta struct {
+			Sources []struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"sources"`
+		}
+		if json.Unmarshal(raw, &meta) == nil {
+			for _, s := range meta.Sources {
+				srcHost[s.Name] = HostOf(s.URL)
+			}
+		}
+	}
 	for _, section := range []string{"default", "develop"} {
 		raw, ok := doc[section]
 		if !ok {
 			continue
 		}
 		var pkgs map[string]struct {
-			Version string `json:"version"`
+			Version string   `json:"version"`
+			Hashes  []string `json:"hashes"`
+			Index   string   `json:"index"`
+			Git     string   `json:"git"`
+			Path    string   `json:"path"`
+			File    string   `json:"file"`
 		}
 		if err := json.Unmarshal(raw, &pkgs); err != nil {
 			continue // section may hold non-package metadata in odd files
 		}
 		for name, pkg := range pkgs {
-			f.add(normalizePyPI(name), strings.TrimPrefix(pkg.Version, "=="))
+			cname := normalizePyPI(name)
+			f.add(cname, strings.TrimPrefix(pkg.Version, "=="))
+			if pkg.Git != "" || pkg.Path != "" || pkg.File != "" {
+				f.markNonRegistry(cname)
+				continue
+			}
+			host := srcHost[pkg.Index]
+			if host == "" && len(srcHost) == 1 {
+				for _, h := range srcHost {
+					host = h
+				}
+			}
+			f.setPin(cname, strings.TrimPrefix(pkg.Version, "=="),
+				strings.Join(pkg.Hashes, " "), host)
 		}
 	}
 	return f, nil
