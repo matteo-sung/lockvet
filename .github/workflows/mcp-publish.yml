@@ -33,5 +33,5 @@ jobs:
         run: |
           sleep 5
           ver=$(jq -r .version server.json)
-          curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.matteo-sung/lockvet" \
+          curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.matteo-sung/lockvet&version=latest" \
             | jq -e --arg v "$ver" '.servers[] | select(.server.version==$v) | {name: .server.name, version: .server.version, status: ._meta["io.modelcontextprotocol.registry/official"].status}'
