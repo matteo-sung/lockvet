@@ -161,7 +161,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.2 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.3 lockvet
 ```
 
 ### Shell completions & man page
@@ -186,8 +186,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.2_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.2 --owner matteo-sung
+gh attestation verify lockvet_v0.5.3_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.3 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -428,7 +428,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.2
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.3
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -544,7 +544,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.2/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.3/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -586,7 +586,8 @@ lockvet pkg jsr:@std/http terraform:hashicorp/aws pod:Alamofire
 ```
 
 Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
-Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, Hackage, and
+Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, Hackage, conda
+(`conda:[channel/]name` — the channel defaults to conda-forge), and
 GitHub Actions (`actions:owner/repo`); other ecosystems (`conan:`, `julia:`)
 work with an explicit `@version`.
 `-fail-on vuln,unlisted,typosquat` gates scripts the same way it gates CI,
@@ -611,7 +612,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.2", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.3", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -666,7 +667,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.2
+      - uses: matteo-sung/lockvet@v0.5.3
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -693,7 +694,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.2
+      - uses: matteo-sung/lockvet@v0.5.3
         with:
           sarif: 'true'
 ```
@@ -713,7 +714,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.2
+  image: ghcr.io/matteo-sung/lockvet:0.5.3
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -738,7 +739,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.2
+          image: ghcr.io/matteo-sung/lockvet:0.5.3
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -756,7 +757,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.2
+    container: ghcr.io/matteo-sung/lockvet:0.5.3
     steps:
       - checkout: none
       - script: >
@@ -780,7 +781,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.2
+    image: ghcr.io/matteo-sung/lockvet:0.5.3
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -798,7 +799,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.2
+    rev: v0.5.3
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -916,6 +917,13 @@ Every incoming version is checked against its registry (via deps.dev):
   a bump onto an individual version marked deprecated via
   [preferred-versions](https://hackage.haskell.org/packages/preferred) —
   Hackage's yank equivalent, which solvers avoid — is flagged too.
+  Conda packages get theirs straight from anaconda.org: a bump onto a
+  release whose artifacts carry the
+  [`broken` label](https://conda-forge.org/docs/maintainer/updating_pkgs/#removing-broken-packages)
+  — how conda-forge pulls a bad or malicious build without deleting it —
+  is flagged (`● deprecated upstream: marked broken on conda-forge
+  (artifacts moved to the broken label)`), with all-builds-broken and
+  some-builds-broken worded apart.
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -965,7 +973,7 @@ for:
 - Go pseudo-versions and pnpm-style decorated version strings.
 
 For npm, PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, JSR,
-CocoaPods, Go, Maven and Hackage packages — and Terraform/OpenTofu
+CocoaPods, Go, Maven, Hackage and conda packages — and Terraform/OpenTofu
 providers — the flag is **double-checked against the registry itself**: deps.dev can lag
 the registries by days, so before claiming anything lockvet fetches the
 package's real version list from `registry.npmjs.org` / PyPI's simple
@@ -979,7 +987,10 @@ the Terraform registry's per-version endpoint and the OpenTofu registry's
 version index / the per-version POM on Maven Central (falling back to
 Google's Maven repository, where the androidx world lives) / Hackage's
 per-package version map (deprecated versions stay listed there, so
-absence is real signal), and
+absence is real signal) / anaconda.org's per-release endpoint (channels
+pull malicious uploads outright, and marking a build broken keeps it
+listed, so absence is real signal — claimed only after a HEAD on the
+package document proves the package itself exists), and
 clears the flag for any version the registry serves. What survives is a
 version the registry itself no longer lists — and that distinction has
 teeth: on crates.io yanked versions *stay in the index* while deleted
@@ -1305,7 +1316,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
 | Haskell | `stack.yaml.lock`, `cabal.project.freeze`, `cabal.config` (Stackage pins) — Hackage advisories (`HSEC-…`); release ages, deprecated packages (with the maintainer's suggested replacements) and deprecated versions, verified changelog links and the registry-verified unlisted check straight from Hackage |
 | Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]`; ages/retirements/unlisted from hex.pm (git/path packages exempt) |
-| Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — pip packages inside get full PyPI vulnerability/age data |
+| Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — release ages, broken-release flags, license changes and the registry-verified unlisted check straight from anaconda.org (any channel the lockfile resolves from — conda-forge, bioconda, …); pip packages inside get full PyPI vulnerability/age data |
 | Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — release ages, archived/delisted/blocked-provider flags, verified changelog links and the registry-verified unlisted check straight from the Terraform & OpenTofu registries (custom registry hosts exempt) |
 | Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
 | Nix | `flake.lock` |
@@ -1328,17 +1339,17 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform, R and Haskell are the exceptions: deps.dev has no
-Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform, CRAN or Hackage system at all, so lockvet asks Packagist, hex.pm,
-pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries, CRAN (via METACRAN's crandb) and Hackage directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform, R, Haskell and conda are the exceptions: deps.dev has no
+Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform, CRAN, Hackage or conda system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries, CRAN (via METACRAN's crandb), Hackage and anaconda.org directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
 JSR yanked versions and archived packages,
 CocoaPods deprecated pods with their named replacement, archived/delisted
 Terraform providers, packages archived on CRAN, packages and individual
-versions deprecated on Hackage — replacement suggestions included),
-changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock` and `cabal.project.freeze` too (plus license
-changes for Composer, CocoaPods and CRAN; Hex, pub.dev, jsr.io, the Terraform registry and Hackage keep no usable per-release license history,
+versions deprecated on Hackage — replacement suggestions included,
+conda releases marked broken), changelog links and the unlisted check all work for `composer.lock`,
+`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `pixi.lock` and `conda-lock.yml` too (plus license
+changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry and Hackage keep no usable per-release license history,
 so that one check is honestly skipped there). CRAN's unlisted check is
 mirror-lag-safe: before claiming anything, absence is double-checked
 against cran.r-project.org itself (current release *and* the Archive —
@@ -1377,7 +1388,7 @@ parsers are ~50 lines each.
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
    PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, Go, Maven,
-   CRAN and Hackage the flag is double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
+   CRAN, Hackage and conda the flag is double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
    install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
    release was yanked or its project archived or quarantined). Versions younger than `-fresh-days` (default 7) get a
@@ -1386,9 +1397,10 @@ parsers are ~50 lines each.
    RubyGems the compact index's own `created_at` times fill in ages
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
    its ⏱ flag; NuGet registration `published` times do the same for .NET
-   packages; for Composer, Hex, Dart, JSR, R and Haskell packages the ages come straight from
+   packages; for Composer, Hex, Dart, JSR, R, Haskell and conda packages the ages come straight from
    Packagist, hex.pm, pub.dev, jsr.io, CRAN's own per-version timeline
-   (via METACRAN's crandb) and Hackage's upload-time endpoint, which deps.dev doesn't cover at all;
+   (via METACRAN's crandb), Hackage's upload-time endpoint and
+   anaconda.org's per-release upload times, which deps.dev doesn't cover at all;
    pods get theirs from the CocoaPods trunk API's per-version timestamps;
 Terraform/OpenTofu providers from the registries' per-version publish
 times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
@@ -1411,7 +1423,7 @@ queries (package names + versions), anonymous npm-registry / PyPI /
 crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev / jsr.io /
 CocoaPods-CDN-and-trunk / Go-module-proxy / Terraform-and-OpenTofu-registry /
 Maven-Central-and-Google-Maven / ConanCenter / CRAN (crandb +
-cran.r-project.org) / Hackage metadata fetches for
+cran.r-project.org) / Hackage / anaconda.org metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable

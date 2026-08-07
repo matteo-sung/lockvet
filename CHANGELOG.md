@@ -4,6 +4,40 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.3 — 2026-08-07
+
+- **conda registry signals — pixi and conda-lock join the metadata
+  lineup.** Conda has no OSV ecosystem and no deps.dev coverage, so
+  `pixi.lock` and `conda-lock.yml` diffs used to show version changes
+  with no registry data at all. lockvet now asks anaconda.org — keyed on
+  the channel each artifact URL in the lockfile actually resolves from,
+  so conda-forge, bioconda and every other anaconda.org channel work
+  (pixi's prefix.dev mirror URLs for conda-forge/bioconda included):
+  - **Release ages and the ⏱ cooldown flag** from the per-release upload
+    times on api.anaconda.org.
+  - **Broken releases** land in the deprecation lane: conda-forge pulls a
+    bad or malicious build by moving its artifacts to the `broken` label,
+    and a bump onto one is flagged (`● deprecated upstream: marked broken
+    on conda-forge (artifacts moved to the broken label)`) —
+    all-builds-broken and some-builds-broken worded apart.
+  - **License changes** old → new from the artifacts' recipe metadata.
+  - **Registry-verified unlisted:** an incoming version anaconda.org has
+    never seen, while the package itself provably exists (another release
+    answers, or an uncached HEAD on the package document does) gets the
+    ▲ flag — channels pull malicious uploads outright, so a lockfile
+    still pinning one is a red flag. Packages the API doesn't know at
+    all are never flagged; `repo.anaconda.com` defaults-channel and
+    private-mirror artifacts carry no channel lockvet can ask about and
+    are honestly skipped.
+  - **`lockvet pkg conda:[channel/]name[@version]`** — pre-install vetting
+    with a latest-version resolver (`lockvet pkg conda:smmap` resolves
+    anaconda.org's `latest_version` and immediately flags it: that
+    release is marked broken on conda-forge).
+- **Fixed:** `pypi: git+…` / path / direct-URL entries inside `pixi.lock`
+  and `conda-lock.yml` are now marked non-registry — a git-sourced
+  package with a local version string (pixi's own lockfile pins `mike`
+  from a fork) no longer trips the PyPI unlisted check.
+
 ## v0.5.2 — 2026-08-07
 
 - **Hackage registry signals — Haskell joins the metadata lineup.**

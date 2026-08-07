@@ -114,6 +114,11 @@ type Change struct {
 	// a typosquatting attack. Set by the squat layer; empty means clean.
 	TyposquatOf string `json:"typosquat_of,omitempty"`
 
+	// Channel: the conda channel the package resolves from, when the
+	// lockfile's artifact URLs record one (conda.anaconda.org/<ch>/…).
+	// The condareg layer keys its lookups on it; empty elsewhere.
+	Channel string `json:"-"`
+
 	// NonRegistry: the lockfile says this package doesn't come from the
 	// public registry (workspace member, path/git dependency). Suppresses
 	// the unlisted flag; not serialized.
@@ -220,6 +225,21 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		return ref.Ecosystem
 	}
 
+	// Per-package conda channel, from whichever side records one.
+	channelOf := func(name string) string {
+		if newF != nil {
+			if ch, ok := newF.PkgChannel[name]; ok {
+				return ch
+			}
+		}
+		if oldF != nil {
+			if ch, ok := oldF.PkgChannel[name]; ok {
+				return ch
+			}
+		}
+		return ""
+	}
+
 	hostMoves := countHostMoves(oldF, newF)
 	for name := range names {
 		o, n := oldPkgs[name], newPkgs[name]
@@ -228,7 +248,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			// WHAT it pins for them? A different integrity hash or a
 			// resolution moved onto the public registry is a finding of
 			// its own (tarball swapped / dependency-confusion shape).
-			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n}
+			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n, Channel: channelOf(name)}
 			if annotatePinChange(&c, oldF, newF, hostMoves) {
 				if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 					c.NonRegistry = true
@@ -238,7 +258,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			continue
 		}
 		eco := ecoOf(name)
-		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n}
+		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name)}
 		annotatePinChange(&c, oldF, newF, hostMoves)
 		if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 			c.NonRegistry = true

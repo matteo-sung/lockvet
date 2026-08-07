@@ -132,6 +132,12 @@ type File struct {
 	// (like the unlisted-version flag) skip them.
 	NonRegistry map[string]bool
 
+	// PkgChannel records the conda channel a package resolves from
+	// (conda.anaconda.org/<channel>/… artifact URLs). Only the conda
+	// formats fill it; the condareg layer needs the channel to ask
+	// anaconda.org anything. nil elsewhere.
+	PkgChannel map[string]string
+
 	// Pins records what the lockfile itself pins for a (package, version)
 	// beyond the version string: the content hash it expects and the
 	// registry host it resolves from. Filled only by formats that write

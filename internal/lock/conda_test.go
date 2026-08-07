@@ -67,13 +67,25 @@ packages:
   name: myproject
   requires_dist:
   - tzdata
+- pypi: git+https://github.com/squidfunk/mike#2d4ad799442f4592db8ad53b179bfb33db8c69ac
+  name: mike
+  version: 2.2.0+zensical.0.1.0
 `)
 	wantPkgs(t, f, map[string][]string{
 		"_openmp_mutex": {"4.5"},
 		"libgomp":       {"15.2.0"},
 		"tzdata":        {"2025.1"},
 		"pandas_stubs":  {"2.2.0"},
+		"mike":          {"2.2.0+zensical.0.1.0"},
 	})
+	// git-sourced pypi installs are not PyPI's to judge; wheels from
+	// files.pythonhosted.org are.
+	if !f.NonRegistry["mike"] {
+		t.Error("git+ pypi entry must be NonRegistry")
+	}
+	if f.NonRegistry["tzdata"] {
+		t.Error("pythonhosted wheel must stay registry")
+	}
 	if f.PkgEco["tzdata"] != PyPI || f.PkgEco["pandas_stubs"] != PyPI {
 		t.Errorf("PkgEco = %v, want tzdata and pandas_stubs marked PyPI", f.PkgEco)
 	}
@@ -90,6 +102,31 @@ packages:
 	}
 	if f.RootsKnown {
 		t.Error("pixi.lock records no roots; RootsKnown must be false")
+	}
+	// prefix.dev serves the canonical conda-forge mirror → channel known.
+	if f.PkgChannel["libgomp"] != "conda-forge" {
+		t.Errorf("PkgChannel[libgomp] = %q, want conda-forge", f.PkgChannel["libgomp"])
+	}
+	if _, ok := f.PkgChannel["tzdata"]; ok {
+		t.Error("PyPI wheels must not get a conda channel")
+	}
+}
+
+func TestCondaChannel(t *testing.T) {
+	cases := []struct{ url, want string }{
+		{"https://conda.anaconda.org/conda-forge/linux-64/numpy-2.5.1-py312_0.conda", "conda-forge"},
+		{"https://conda.anaconda.org/bioconda/noarch/samtools-1.20-h0.tar.bz2", "bioconda"},
+		{"https://conda.anaconda.org/t/tk-123-456/private-chan/linux-64/x-1.0-0.conda", "private-chan"},
+		{"https://prefix.dev/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda", "conda-forge"},
+		{"https://prefix.dev/bioconda/noarch/y-1.0-0.conda", "bioconda"},
+		{"https://prefix.dev/my-own-channel/linux-64/z-1.0-0.conda", ""},
+		{"https://repo.anaconda.com/pkgs/main/linux-64/python-3.12.0-h0.conda", ""},
+		{"https://my.private.mirror/conda-forge/linux-64/x-1.0-0.conda", ""},
+	}
+	for _, c := range cases {
+		if got := condaChannel(c.url); got != c.want {
+			t.Errorf("condaChannel(%q) = %q, want %q", c.url, got, c.want)
+		}
 	}
 }
 

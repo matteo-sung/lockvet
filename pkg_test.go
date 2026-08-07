@@ -32,6 +32,9 @@ func TestParsePkgSpec(t *testing.T) {
 		{"terraform:hashicorp/aws", lock.Terraform, "hashicorp/aws", ""},
 		{"conan:openssl@3.3.2", lock.Conan, "openssl", "3.3.2"},
 		{"cran:dplyr@1.1.4", lock.CRAN, "dplyr", "1.1.4"},
+		{"conda:numpy", lock.Conda, "numpy", ""},
+		{"conda:numpy@2.5.1", lock.Conda, "numpy", "2.5.1"},
+		{"conda:bioconda/samtools@1.20", lock.Conda, "samtools", "1.20"},
 		{"hex:phoenix", lock.Hex, "phoenix", ""},
 		{"pub:dio@5.0.0", lock.Pub, "dio", "5.0.0"},
 	}

@@ -56,6 +56,37 @@ func condaNV(url string) (name, version string) {
 	return "", ""
 }
 
+// condaChannel extracts the anaconda.org channel from an artifact URL:
+// "https://conda.anaconda.org/conda-forge/linux-64/x.conda" → "conda-forge",
+// tokened URLs (…/t/<token>/<channel>/…) included. prefix.dev URLs count
+// only for the big canonical channels it mirrors from anaconda.org
+// (pixi's default templates resolve conda-forge through prefix.dev);
+// prefix.dev-native channels and anything else not served from
+// conda.anaconda.org (repo.anaconda.com defaults, private mirrors) have
+// no channel anaconda.org can be asked about → "".
+func condaChannel(raw string) string {
+	rest, ok := strings.CutPrefix(raw, "https://conda.anaconda.org/")
+	if !ok {
+		rest, ok = strings.CutPrefix(raw, "http://conda.anaconda.org/")
+	}
+	if !ok {
+		if r, mirrored := strings.CutPrefix(raw, "https://prefix.dev/"); mirrored {
+			ch, _, _ := strings.Cut(r, "/")
+			if ch == "conda-forge" || ch == "bioconda" {
+				return ch
+			}
+		}
+		return ""
+	}
+	if r, tokened := strings.CutPrefix(rest, "t/"); tokened {
+		if i := strings.IndexByte(r, '/'); i >= 0 {
+			rest = r[i+1:]
+		}
+	}
+	ch, _, _ := strings.Cut(rest, "/")
+	return ch
+}
+
 // condaDepName extracts the package name from a conda depends entry like
 // "libgomp >=7.5.0" or "_libgcc_mutex 0.1 conda_forge". Virtual packages
 // ("__glibc >=2.17") describe the platform, not a dependency.
@@ -133,11 +164,26 @@ func flushCondaEntry(f *File, e *condaEntry, pypiEdges *[]pypiEdge) {
 		integ = withPrefixIfSet("sha256:", strings.ToLower(e.sha))
 	}
 	f.setPin(name, version, integ, HostOf(e.url))
+	if e.kind == "conda" {
+		if ch := condaChannel(e.url); ch != "" {
+			if f.PkgChannel == nil {
+				f.PkgChannel = map[string]string{}
+			}
+			f.PkgChannel[Sanitize(name)] = ch
+		}
+	}
 	if e.kind == "pypi" {
 		if f.PkgEco == nil {
 			f.PkgEco = map[string]Ecosystem{}
 		}
 		f.PkgEco[Sanitize(name)] = PyPI
+		// git+/path/direct-URL installs don't come from PyPI (pixi
+		// writes files.pythonhosted.org URLs for real PyPI wheels and
+		// sdists) — registry judgements must not apply to them.
+		if !strings.HasPrefix(e.url, "https://files.pythonhosted.org/") &&
+			!strings.HasPrefix(e.url, "https://pypi.org/") {
+			f.markNonRegistry(name)
+		}
 		for _, r := range e.reqs {
 			if to := pypiReqName(r); to != "" {
 				*pypiEdges = append(*pypiEdges, pypiEdge{name, pypiNorm(to)})

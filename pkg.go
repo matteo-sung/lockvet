@@ -60,6 +60,8 @@ var pkgEcoAliases = map[string]lock.Ecosystem{
 	"tf":             lock.Terraform,
 	"opentofu":       lock.Terraform,
 	"conan":          lock.Conan,
+	"conda":          lock.Conda,
+	"pixi":           lock.Conda,
 	"cran":           lock.CRAN,
 	"r":              lock.CRAN,
 	"bioconductor":   lock.Bioconductor,
@@ -75,6 +77,7 @@ type pkgSpec struct {
 	eco     lock.Ecosystem
 	name    string // as the matching lockfile format would record it
 	version string // empty = resolve latest from the registry
+	channel string // conda only: the anaconda.org channel (default conda-forge)
 	label   string // canonical spec, used as the report heading
 }
 
@@ -96,7 +99,7 @@ func parsePkgSpec(arg string) (pkgSpec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return pkgSpec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, cran, julia, hackage", ecoPart)
+		return pkgSpec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, conda, cran, julia, hackage", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {
@@ -116,17 +119,28 @@ func parsePkgSpec(arg string) (pkgSpec, error) {
 	case lock.Packagist, lock.NuGet:
 		name = strings.ToLower(name)
 	}
+	channel := ""
+	if eco == lock.Conda {
+		channel = "conda-forge"
+		if ch, rest, ok := strings.Cut(name, "/"); ok && ch != "" && rest != "" {
+			channel, name = ch, rest
+		}
+	}
 	if jsr {
 		if !strings.HasPrefix(name, "@") {
 			return pkgSpec{}, fmt.Errorf("JSR package names look like @scope/name (got %q)", name)
 		}
 		name = jsrreg.Prefix + name
 	}
-	label := ecoKey + ":" + strings.TrimPrefix(name, jsrreg.Prefix)
+	labelName := strings.TrimPrefix(name, jsrreg.Prefix)
+	if channel != "" && channel != "conda-forge" {
+		labelName = channel + "/" + labelName
+	}
+	label := ecoKey + ":" + labelName
 	if version != "" {
 		label += "@" + version
 	}
-	return pkgSpec{eco: eco, name: name, version: version, label: label}, nil
+	return pkgSpec{eco: eco, name: name, version: version, channel: channel, label: label}, nil
 }
 
 // vetPkg resolves each spec (asking the registry for the latest version
@@ -143,7 +157,11 @@ func vetPkg(args []string, o vetOptions) (*vetOutcome, error) {
 			if o.noMeta {
 				return nil, fmt.Errorf("%s: -offline/-no-meta can't ask the registry what \"latest\" is — say which version to vet", spec.label)
 			}
-			v, err := latest.Resolve(spec.eco, spec.name)
+			lookupName := spec.name
+			if spec.eco == lock.Conda && spec.channel != "" {
+				lookupName = spec.channel + "/" + spec.name
+			}
+			v, err := latest.Resolve(spec.eco, lookupName)
 			if err != nil {
 				return nil, err
 			}
@@ -155,6 +173,9 @@ func vetPkg(args []string, o vetOptions) (*vetOutcome, error) {
 			Kind:      "pkg",
 			Ecosystem: spec.eco,
 			Packages:  map[string][]string{spec.name: {spec.version}},
+		}
+		if spec.eco == lock.Conda && spec.channel != "" {
+			f.PkgChannel = map[string]string{lock.Sanitize(spec.name): spec.channel}
 		}
 		fd := diffx.Diff(nil, f)
 		diffs = append(diffs, fd)

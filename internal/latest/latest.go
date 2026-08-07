@@ -20,6 +20,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
+	"github.com/matteo-sung/lockvet/internal/condareg"
 	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/goreg"
@@ -94,12 +95,23 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.CocoaPods: podLatest,
 	lock.Terraform: tfLatest,
 	lock.CRAN:      cranreg.Latest,
+	lock.Conda:     condaLatest,
 	lock.Hackage:   hkgreg.Latest,
 
 	// GitHub Actions releases are the action repository's tags; the same
 	// anonymous smart-HTTP advertisement actreg resolves pins with
 	// answers "latest" (highest stable version-shaped tag).
 	lock.GitHubActions: actionsLatest,
+}
+
+// condaLatest resolves [channel/]name against anaconda.org;
+// the channel defaults to conda-forge.
+func condaLatest(name string) (string, error) {
+	channel := "conda-forge"
+	if ch, rest, ok := strings.Cut(name, "/"); ok && ch != "" && rest != "" {
+		channel, name = ch, rest
+	}
+	return condareg.Latest(channel, name)
 }
 
 func actionsLatest(name string) (string, error) {

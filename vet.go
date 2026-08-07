@@ -19,6 +19,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/conanreg"
+	"github.com/matteo-sung/lockvet/internal/condareg"
 	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
@@ -242,6 +243,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if ok, err := hkgreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Hackage registry check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := condareg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("anaconda.org registry check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}
