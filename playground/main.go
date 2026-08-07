@@ -51,6 +51,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/flakereg"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/goreg"
@@ -441,6 +442,7 @@ func run(opts js.Value) (js.Value, error) {
 	// runs even with -no-meta/-offline; with ages unknown the young-release
 	// gate honestly passes everything through. Last so it can use ages when
 	// the metadata layers did run.
+	flakereg.Annotate(diffs, req.freshDays) // fully local, like squat
 	squat.Annotate(diffs)
 
 	sum := diffx.Summarize(diffs)

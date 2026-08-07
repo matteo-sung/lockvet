@@ -24,6 +24,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/flakereg"
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
@@ -767,6 +768,9 @@ func main() {
 	// runs even with -no-meta/-offline; with ages unknown the young-release
 	// gate honestly passes everything through. Last so it can use ages when
 	// the metadata layers did run.
+	// Flake input ages + rev...rev compare links come from the lockfile
+	// itself — fully local, so this runs even with -no-meta/-offline.
+	flakereg.Annotate(diffs, *freshDays)
 	squat.Annotate(diffs)
 
 	ignSet, err := ignore.Resolve(*ignoreFile, *noIgnore, *dir)
@@ -1249,7 +1253,8 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Maven repository check skipped: %v\n", err)
 		}
 	}
-	squat.Annotate(combined) // fully local; runs even with -no-meta/-offline
+	flakereg.Annotate(combined, o.freshDays) // fully local, like squat below
+	squat.Annotate(combined)                 // fully local; runs even with -no-meta/-offline
 
 	// Build, sort, and render the rows.
 	rows := make([]render.QueueRow, len(entries))

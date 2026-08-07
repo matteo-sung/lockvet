@@ -1,6 +1,7 @@
 package diffx
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/matteo-sung/lockvet/internal/lock"
@@ -147,4 +148,78 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+const flakeLockTmpl = `{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1720000000,
+        "narHash": "%s",
+        "owner": "%s",
+        "repo": "nixpkgs",
+        "rev": "deadbeefcafe1234567890",
+        "type": "github"
+      }
+    },
+    "root": {"inputs": {"nixpkgs": "nixpkgs"}}
+  },
+  "root": "root",
+  "version": 7
+}`
+
+func TestFlakeNarHashChangeSameRevRepinned(t *testing.T) {
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-bbbb", "NixOS"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged {
+		t.Errorf("want Repinned+IntegrityChanged, got kind=%s integrity=%v", c.Kind, c.IntegrityChanged)
+	}
+	if c.SourceRepo != "https://github.com/NixOS/nixpkgs" {
+		t.Errorf("SourceRepo = %q", c.SourceRepo)
+	}
+}
+
+func TestFlakeRepointedRepoSurfacesHosts(t *testing.T) {
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newLock := sprintf(flakeLockTmpl, "sha256-bbbb", "evilfork")
+	newLock = strings.Replace(newLock, "deadbeefcafe1234567890", "0123456789abcdef0123", 1)
+	newLock = strings.Replace(newLock, "1720000000", "1720100000", 1)
+	newF := parseFile(t, "flake.lock", newLock)
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.SourceRepo != "" {
+		t.Errorf("re-pointed input must not get a SourceRepo (compare links would lie), got %q", c.SourceRepo)
+	}
+	if c.OldHost != "github.com/nixos/nixpkgs" || c.NewHost != "github.com/evilfork/nixpkgs" {
+		t.Errorf("hosts = %q -> %q", c.OldHost, c.NewHost)
+	}
+	if !c.RegistryMoved {
+		t.Error("re-pointed flake input should flag the resolution-moved lane")
+	}
+}
+
+func TestFlakeRepointProvenSameBytesQuiet(t *testing.T) {
+	// Same rev, same narHash, different owner: content proven identical —
+	// a cosmetic mirror switch, not row-worthy.
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "mirror"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("proven-identical repoint must stay quiet, got %+v", fd.Changes)
+	}
+}
+
+func TestFlakeSameLockNoRows(t *testing.T) {
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("identical locks must produce no rows, got %+v", fd.Changes)
+	}
 }

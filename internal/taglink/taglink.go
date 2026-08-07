@@ -121,6 +121,12 @@ func Annotate(diffs []diffx.FileDiff) {
 			if c.SourceRepo == "" || c.Kind == diffx.Removed || len(c.New) != 1 {
 				continue
 			}
+			if c.Ecosystem == "Nix" {
+				// Flake pins are commit revisions: links need no tag
+				// verification (internal/flakereg writes them without
+				// fetching anything).
+				continue
+			}
 			u, err := url.Parse(c.SourceRepo)
 			if err != nil || forgeOf(u.Hostname()) == forgeNone {
 				continue
@@ -272,6 +278,21 @@ func pseudoVersionSHA(ver string) string {
 		}
 	}
 	return sha
+}
+
+// CompareRevsURL writes a forge compare link between two commit revisions
+// verbatim — a revision addresses itself, so unlike tag links nothing needs
+// verifying against the repository. "" when the forge is unknown.
+func CompareRevsURL(repo, oldRev, newRev string) string {
+	u, err := url.Parse(repo)
+	if err != nil {
+		return ""
+	}
+	f := forgeOf(u.Hostname())
+	if f == forgeNone {
+		return ""
+	}
+	return compareURL(f, repo, oldRev, newRev)
 }
 
 func compareURL(f forge, repo, old, new string) string {

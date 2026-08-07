@@ -23,6 +23,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/depsdev"
 	"github.com/matteo-sung/lockvet/internal/diffx"
+	"github.com/matteo-sung/lockvet/internal/flakereg"
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/gitx"
@@ -292,6 +293,7 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 	// runs even with -no-meta/-offline; with ages unknown the young-release
 	// gate honestly passes everything through. Last so it can use ages when
 	// the metadata layers did run.
+	flakereg.Annotate(diffs, o.freshDays) // fully local, like squat
 	squat.Annotate(diffs)
 	ign, err := ignore.Resolve(o.ignoreFile, o.noIgnore, o.ignoreDir)
 	if err != nil {

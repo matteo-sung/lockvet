@@ -96,8 +96,17 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 	if oh != "" && nh != "" && oh != nh {
 		c.OldHost, c.NewHost = oh, nh
 		eco := lock.Ecosystem(c.Ecosystem)
-		if eco.PublicRegistryHost(nh) && !eco.PublicRegistryHost(oh) &&
-			moves[hostPair{oh, nh}] < migrationThreshold && !sameBytesProven {
+		switch {
+		case eco == lock.Nix:
+			// Flake "hosts" are whole repository locations: a host move
+			// means the input was re-pointed at a different repository —
+			// the flake shape of a hijacked resolution. Content proven
+			// identical (same narHash) stays quiet.
+			if moves[hostPair{oh, nh}] < migrationThreshold && !sameBytesProven {
+				c.RegistryMoved = true
+			}
+		case eco.PublicRegistryHost(nh) && !eco.PublicRegistryHost(oh) &&
+			moves[hostPair{oh, nh}] < migrationThreshold && !sameBytesProven:
 			c.RegistryMoved = true
 		}
 	}

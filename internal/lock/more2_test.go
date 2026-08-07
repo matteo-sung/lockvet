@@ -168,6 +168,44 @@ func TestFlakeLock(t *testing.T) {
 		"flake-utils":   {"2024-03-09.01234567"},
 		"tarball-input": {"QQQQWWWW"},
 	})
+	if got := f.PkgRepo["nixpkgs"]; got != "https://github.com/NixOS/nixpkgs" {
+		t.Errorf("nixpkgs PkgRepo = %q", got)
+	}
+	if _, ok := f.PkgRepo["tarball-input"]; ok {
+		t.Error("tarball input should record no repo")
+	}
+	pin := f.Pin("nixpkgs", "2024-07-03.deadbeef")
+	if pin.Integrity != "sha256-abcdef" {
+		t.Errorf("nixpkgs pin integrity = %q", pin.Integrity)
+	}
+	if pin.Host != "github.com/nixos/nixpkgs" {
+		t.Errorf("nixpkgs pin host = %q", pin.Host)
+	}
+	if got := f.Pin("tarball-input", "QQQQWWWW").Integrity; got != "sha256-QQQQWWWWEEEE" {
+		t.Errorf("tarball pin integrity = %q", got)
+	}
+}
+
+func TestFlakeRepoURL(t *testing.T) {
+	cases := []struct {
+		typ, owner, repo, host, url, want string
+	}{
+		{"github", "NixOS", "nixpkgs", "", "", "https://github.com/NixOS/nixpkgs"},
+		{"github", "o", "r", "ghe.example.com", "", "https://ghe.example.com/o/r"},
+		{"gitlab", "grp%2Fsub", "proj", "", "", "https://gitlab.com/grp/sub/proj"},
+		{"sourcehut", "misterio77", "nix-colors", "", "", "https://git.sr.ht/~misterio77/nix-colors"},
+		{"sourcehut", "~misterio77", "nix-colors", "", "", "https://git.sr.ht/~misterio77/nix-colors"},
+		{"git", "", "", "", "https://example.com/repo.git?ref=main", "https://example.com/repo"},
+		{"git", "", "", "", "ssh://git@example.com/repo.git", ""},
+		{"tarball", "", "", "", "https://example.com/x.tar.gz", ""},
+		{"github", "", "nixpkgs", "", "", ""},
+	}
+	for _, c := range cases {
+		if got := flakeRepoURL(c.typ, c.owner, c.repo, c.host, c.url); got != c.want {
+			t.Errorf("flakeRepoURL(%s,%s,%s,%s,%s) = %q, want %q",
+				c.typ, c.owner, c.repo, c.host, c.url, got, c.want)
+		}
+	}
 }
 
 func TestNixDiffSuppressesLevels(t *testing.T) {

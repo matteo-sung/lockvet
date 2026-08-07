@@ -261,6 +261,28 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		return ""
 	}
 
+	// Per-package source repository, when the lockfile itself records one
+	// (Nix flake inputs). When BOTH sides record a repository and they
+	// disagree, the input was re-pointed at a different repository: no
+	// SourceRepo is set (a compare link across two repos would lie) — the
+	// move itself still surfaces through the pins' host fields.
+	repoOf := func(name string) string {
+		var o, n string
+		if oldF != nil {
+			o = oldF.PkgRepo[name]
+		}
+		if newF != nil {
+			n = newF.PkgRepo[name]
+		}
+		if o != "" && n != "" && o != n {
+			return ""
+		}
+		if n != "" {
+			return n
+		}
+		return o
+	}
+
 	// Carry the new side's own pins (hash or commit) on the change, for
 	// layers that verify them against the outside world (swiftreg).
 	newPinsOf := func(name string, versions []string) map[string]string {
@@ -287,7 +309,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			// WHAT it pins for them? A different integrity hash or a
 			// resolution moved onto the public registry is a finding of
 			// its own (tarball swapped / dependency-confusion shape).
-			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n, Channel: channelOf(name), NewPins: newPinsOf(name, n)}
+			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n, Channel: channelOf(name), SourceRepo: repoOf(name), NewPins: newPinsOf(name, n)}
 			if annotatePinChange(&c, oldF, newF, hostMoves) {
 				if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 					c.NonRegistry = true
@@ -297,7 +319,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			continue
 		}
 		eco := ecoOf(name)
-		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name), NewPins: newPinsOf(name, n)}
+		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name), SourceRepo: repoOf(name), NewPins: newPinsOf(name, n)}
 		annotatePinChange(&c, oldF, newF, hostMoves)
 		if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 			c.NonRegistry = true

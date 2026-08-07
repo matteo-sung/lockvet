@@ -169,13 +169,21 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				}
 			}
 			if c.IntegrityChanged {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim("same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"))
+				integrityWhy := "same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"
+				if c.Ecosystem == "Nix" {
+					integrityWhy = "same revision, different narHash — a git revision's content never changes, so the tree this pin expects was replaced; do not trust this without finding out why"
+				}
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim(integrityWhy))
 			}
 			if c.TagMismatch {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim("the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"))
 			}
 			if c.RegistryMoved {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("⇄ resolution moved: "+c.OldHost+" → "+c.NewHost), s.dim("this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"))
+				movedWhy := "this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"
+				if c.Ecosystem == "Nix" {
+					movedWhy = "this flake input now fetches from a different repository — if you didn't change it in flake.nix yourself, someone re-pointed your dependency"
+				}
+				fmt.Fprintf(w, "      %s %s\n", s.bred("⇄ resolution moved: "+c.OldHost+" → "+c.NewHost), s.dim(movedWhy))
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⚙ install scripts added: "+join(c.ScriptedVersions)), s.dim("the old version ran no install scripts, this one does — a favourite payload vehicle for hijacked npm packages; review before trusting"))
@@ -330,7 +338,7 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 		out += " · " + s.bred(pluralVerb(sum.TagMismatch, "pin doesn't", "pins don't")+" match the upstream tag")
 	}
 	if sum.RegistryMoved > 0 {
-		out += " · " + s.bred(pluralVerb(sum.RegistryMoved, "resolution moves", "resolutions move")+" to the public registry")
+		out += " · " + s.bred(pluralVerb(sum.RegistryMoved, "resolution moves", "resolutions move")+" to a different source")
 	}
 	if sum.Typosquats > 0 {
 		out += " · " + s.bred(pluralVerb(sum.Typosquats, "name resembles", "names resemble")+" a popular package")
@@ -409,7 +417,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 		fmt.Fprintf(w, "\nIntegrity: **%s not what the upstream tag points at** ‼ — released tags are immutable; the tag was moved since resolution or the lockfile was edited\n", pluralVerb(sum.TagMismatch, "pinned commit is", "pinned commits are"))
 	}
 	if sum.RegistryMoved > 0 {
-		fmt.Fprintf(w, "\nResolution: **%s from a private host to the public registry** ⇄ — the shape of a dependency-confusion attack; make sure the public package is really yours\n", pluralVerb(sum.RegistryMoved, "package moves", "packages move"))
+		fmt.Fprintf(w, "\nResolution: **%s to a different source** ⇄ — a private package moving to the public registry (or a flake input re-pointed at another repository) is the shape of a hijacked resolution; make sure each move was intentional\n", pluralVerb(sum.RegistryMoved, "package moves", "packages move"))
 	}
 	if sum.Typosquats > 0 {
 		fmt.Fprintf(w, "\nTyposquat check: **%s a popular package** ≈ — new young dependencies one edit away from a well-known name; make sure they are the packages you meant\n", pluralVerb(sum.Typosquats, "added name resembles", "added names resemble"))
@@ -505,7 +513,11 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				fmt.Fprintf(w, "| ‼ | ↳ tag mismatch | | %s | the pinned commit is not what the upstream tag points at today — the tag was moved since resolution or the lockfile was edited |%s\n", esc(join(c.TagMismatches)), padCell)
 			}
 			if c.RegistryMoved {
-				fmt.Fprintf(w, "| ⇄ | ↳ resolution moved | %s | %s | now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack |%s\n", esc(c.OldHost), esc(c.NewHost), padCell)
+				movedNote := "now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack"
+				if c.Ecosystem == "Nix" {
+					movedNote = "this flake input now fetches from a different repository — make sure that was intentional"
+				}
+				fmt.Fprintf(w, "| ⇄ | ↳ resolution moved | %s | %s | %s |%s\n", esc(c.OldHost), esc(c.NewHost), movedNote, padCell)
 			}
 			if c.ScriptsAdded {
 				fmt.Fprintf(w, "| ⚙ | ↳ install scripts added | | %s | the old version ran no install scripts — a favourite payload vehicle for hijacked npm packages |%s\n", esc(join(c.ScriptedVersions)), padCell)

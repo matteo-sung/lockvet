@@ -138,6 +138,13 @@ type File struct {
 	// anaconda.org anything. nil elsewhere.
 	PkgChannel map[string]string
 
+	// PkgRepo records the source repository URL the lockfile itself
+	// resolves a package from, when the format pins repositories rather
+	// than registry releases (Nix flake inputs). diffx copies it onto
+	// Change.SourceRepo so compare links work without any registry
+	// lookup. nil elsewhere.
+	PkgRepo map[string]string
+
 	// Pins records what the lockfile itself pins for a (package, version)
 	// beyond the version string: the content hash it expects and the
 	// registry host it resolves from. Filled only by formats that write

@@ -194,7 +194,7 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				results = append(results, result{
 					RuleID: "integrity-changed", RuleIndex: idx,
 					Level:     "error",
-					Message:   map[string]string{"text": fmt.Sprintf("%s, but the lockfile now records a different content hash for version %s. Registries never change a published artifact, so outside a registry migration the tarball this pin expects was replaced (registry-side tampering, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)},
+					Message:   map[string]string{"text": integrityMessage(c, what, via)},
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "integrity"),
@@ -228,7 +228,7 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				results = append(results, result{
 					RuleID: "registry-moved", RuleIndex: idx,
 					Level:     "warning",
-					Message:   map[string]string{"text": fmt.Sprintf("%s and now resolves from %s instead of %s. A package that silently moves from a private host to the public registry is the shape of a dependency-confusion attack; make sure the public package is really yours.%s", what, c.NewHost, c.OldHost, via)},
+					Message:   map[string]string{"text": movedMessage(c, what, via)},
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "registry"),
@@ -462,4 +462,21 @@ func lineOf(data []byte, name string, versions []string) int {
 		return nameOnly
 	}
 	return 1
+}
+
+// integrityMessage words the integrity-changed finding for the ecosystem:
+// registry artifacts are immutable by contract, git revisions by definition.
+func integrityMessage(c diffx.Change, what, via string) string {
+	if c.Ecosystem == "Nix" {
+		return fmt.Sprintf("%s, but the lockfile now records a different narHash for %s. A git revision's content never changes, so the tree this pin expects was replaced (upstream rewritten, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
+	}
+	return fmt.Sprintf("%s, but the lockfile now records a different content hash for version %s. Registries never change a published artifact, so outside a registry migration the tarball this pin expects was replaced (registry-side tampering, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
+}
+
+// movedMessage words the resolution-moved finding for the ecosystem.
+func movedMessage(c diffx.Change, what, via string) string {
+	if c.Ecosystem == "Nix" {
+		return fmt.Sprintf("%s and now fetches from %s instead of %s. A flake input that changes repository without you editing flake.nix means someone re-pointed your dependency; make sure the move was intentional.%s", what, c.NewHost, c.OldHost, via)
+	}
+	return fmt.Sprintf("%s and now resolves from %s instead of %s. A package that silently moves from a private host to the public registry is the shape of a dependency-confusion attack; make sure the public package is really yours.%s", what, c.NewHost, c.OldHost, via)
 }

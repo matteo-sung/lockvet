@@ -191,6 +191,15 @@ func denoKey(key string) (name, version string, ok bool) {
 // as "<commit-date>.<short-rev>" so the diff reads chronologically:
 // upgraded/downgraded is judged by commit date, and levels are suppressed
 // (no semver in Nix).
+//
+// Beyond the version string, the lockfile records enough to check real
+// things: narHash is the content hash of the pinned tree (a git revision's
+// content never changes, so a same-revision narHash change means the tree
+// was replaced — recorded via setPin for the integrity check), the
+// locked repository (github/gitlab/sourcehut attrs or a plain git URL)
+// becomes PkgRepo so rev...rev compare links work, and lastModified is the
+// pinned commit's own timestamp (internal/flakereg turns it into ages
+// without any network).
 
 func parseFlakeLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "flake.lock", Nix)
@@ -201,6 +210,11 @@ func parseFlakeLock(p string, data []byte) (*File, error) {
 				Ref          string `json:"ref"`
 				NarHash      string `json:"narHash"`
 				LastModified int64  `json:"lastModified"`
+				Type         string `json:"type"`
+				Owner        string `json:"owner"`
+				Repo         string `json:"repo"`
+				Host         string `json:"host"`
+				URL          string `json:"url"`
 			} `json:"locked"`
 		} `json:"nodes"`
 		Root string `json:"root"`
@@ -232,8 +246,60 @@ func parseFlakeLock(p string, data []byte) (*File, error) {
 			continue // follows-only node without its own pin
 		}
 		f.add(name, ver)
+		if repo := flakeRepoURL(l.Type, l.Owner, l.Repo, l.Host, l.URL); repo != "" {
+			if f.PkgRepo == nil {
+				f.PkgRepo = map[string]string{}
+			}
+			f.PkgRepo[Sanitize(name)] = repo
+			// The repo location doubles as the resolution "host" so an
+			// input silently re-pointed at a different repository
+			// surfaces as a host move.
+			f.setPin(name, ver, l.NarHash, strings.ToLower(strings.TrimPrefix(repo, "https://")))
+		} else if l.NarHash != "" {
+			f.setPin(name, ver, l.NarHash, "")
+		}
 	}
 	return f, nil
+}
+
+// flakeRepoURL maps a flake input's locked repository attrs to a browsable
+// https URL. Tarball/file/path inputs (and ssh-only git URLs) return "".
+func flakeRepoURL(typ, owner, repo, host, rawURL string) string {
+	owner = strings.ReplaceAll(owner, "%2F", "/") // gitlab subgroup encoding
+	owner = strings.ReplaceAll(owner, "%2f", "/")
+	switch typ {
+	case "github":
+		if host == "" {
+			host = "github.com"
+		}
+	case "gitlab":
+		if host == "" {
+			host = "gitlab.com"
+		}
+	case "sourcehut":
+		if host == "" {
+			host = "git.sr.ht"
+		}
+		if owner != "" && !strings.HasPrefix(owner, "~") {
+			owner = "~" + owner // sr.ht user paths are tilde-prefixed
+		}
+	case "git":
+		u := rawURL
+		if i := strings.IndexByte(u, '?'); i >= 0 {
+			u = u[:i]
+		}
+		u = strings.TrimSuffix(strings.TrimSuffix(u, "/"), ".git")
+		if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
+			return u
+		}
+		return ""
+	default:
+		return ""
+	}
+	if owner == "" || repo == "" || strings.Contains(host, "/") {
+		return ""
+	}
+	return "https://" + host + "/" + owner + "/" + repo
 }
 
 // ---- renv.lock (R) ----

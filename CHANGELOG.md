@@ -4,6 +4,32 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.7 — 2026-08-07
+
+- **Nix `flake.lock` inputs get the full treatment** — everything below
+  is computed from the lockfile itself, fully offline (works with
+  `-offline`, in air-gapped CI, and in the browser playground):
+  - **ages & the ⏱ cooldown flag**: each input's `lastModified` is the
+    pinned commit's own timestamp, so `update-flake-lock` PRs now show
+    "published 3 days ago" and `-fail-on fresh` works — with zero
+    registry requests;
+  - **`rev...rev` compare links**: every bump links to the forge's
+    compare page (`github:`/`gitlab:`/https `git:` inputs), so "what
+    did nixpkgs actually change this week" is one click from the
+    report. Commit revisions address themselves — no tag verification,
+    no fetches;
+  - **narHash tampering** ‼: a same-revision `narHash` change means the
+    tree this pin fetches was replaced — a git revision's content never
+    changes. Flags the integrity lane (`-fail-on integrity`, SARIF
+    `integrity-changed`, queue top tier);
+  - **re-pointed inputs** ⇄: an input that silently changes repository
+    (`NixOS/nixpkgs` → someone's fork) flags the resolution-moved lane
+    (`-fail-on registry`). A re-point whose narHash proves the content
+    identical — like the `pre-commit-hooks.nix` → `git-hooks.nix`
+    rename — stays quiet, and no cross-repo compare link is written.
+  Replayed 60+ real flake.lock commits (Hyprland, helix, lanzaboote,
+  devshell): zero false flags.
+
 ## v0.5.6 — 2026-08-07
 
 - **`-changelogs` now reads changelog files, not just GitHub Releases.**
