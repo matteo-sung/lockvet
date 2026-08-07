@@ -78,12 +78,13 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 30 lockfile formats:
+- **across every ecosystem, in one static binary** — 31 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
   Gradle, NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
-  Helm, Nix flakes — plus CycloneDX & SPDX SBOMs
+  Helm, Nix flakes, **GitHub Actions workflows** (`uses:` pins) — plus
+  CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -160,7 +161,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.4.8 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.0 lockvet
 ```
 
 ### Shell completions & man page
@@ -185,8 +186,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.4.8_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.8 --owner matteo-sung
+gh attestation verify lockvet_v0.5.0_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.0 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -427,7 +428,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.4.8
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.0
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -486,7 +487,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 30 formats, SBOMs included — and runs the full
+lockfile it finds — all 31 formats, SBOMs and CI workflows included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -543,7 +544,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.4.8/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.0/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -609,7 +610,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.4.8", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.0", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -664,7 +665,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.4.8
+      - uses: matteo-sung/lockvet@v0.5.0
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -691,7 +692,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.4.8
+      - uses: matteo-sung/lockvet@v0.5.0
         with:
           sarif: 'true'
 ```
@@ -711,7 +712,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.4.8
+  image: ghcr.io/matteo-sung/lockvet:0.5.0
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -736,7 +737,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.4.8
+          image: ghcr.io/matteo-sung/lockvet:0.5.0
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -754,7 +755,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.4.8
+    container: ghcr.io/matteo-sung/lockvet:0.5.0
     steps:
       - checkout: none
       - script: >
@@ -778,7 +779,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.4.8
+    image: ghcr.io/matteo-sung/lockvet:0.5.0
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -796,7 +797,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.4.8
+    rev: v0.5.0
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -1033,6 +1034,57 @@ with a `typosquat:pkgname` line in `.lockvetignore`; JSON carries
 `typosquat_of`; SARIF emits a `typosquat-suspect` warning; `queue` sorts
 affected PRs to the top.
 
+## GitHub Actions workflows are lockfiles too
+
+Every `uses:` line pins a dependency, and Dependabot/Renovate bump those
+pins like any other. lockvet reads workflow files —
+`.github/workflows/*.yml`, composite `action.yml` files, Gitea/Forgejo
+workflow dirs too — in every mode: `lockvet pr <url>`, local diffs,
+`queue`, `audit`. Action bumps get context no plain diff shows:
+
+- **SHA pins resolve to releases.** lockvet fetches the action
+  repository's tags over anonymous git smart-HTTP (one GET per repo, no
+  API, no rate limits) and reports the release each commit stands for —
+  Renovate digest bumps become readable:
+
+  ```console
+  .github/workflows/build-container-image.yml (GitHub Actions)
+    ↑ actions/checkout df4cb1c (=v6.0.3) → d23441a (=v6.1.0)  minor  (direct)
+  ```
+
+- **Floating majors resolve too.** `v4` is reported as the release it
+  points at *today*, and the jump is classified from the real versions —
+  so `v5 → v7` shows as `v5 (=v5.1.0) → v7 (=v7.0.1)  MAJOR`, with the
+  verified compare link.
+- **Advisories, evaluated properly.** OSV.dev has a "GitHub Actions"
+  ecosystem but its API cannot match versions against those advisories
+  server-side — lockvet fetches the affected ranges and evaluates them
+  itself, against the *resolved* release. A SHA pin affected by a GHSA is
+  caught even though no advisory ever names that hash, and a floating
+  `v4` isn't false-flagged for an advisory fixed inside the major.
+- **▲ not a release.** A pinned commit that matches no tag in the
+  action's repository (and isn't a branch or its head). That is exactly
+  what the March 2025 [tj-actions/changed-files
+  attack](https://github.com/tj-actions/changed-files/issues/2463) looked
+  like: version tags across the repo were force-moved to a malicious
+  orphan commit. Replaying the attacked pin today:
+
+  ```console
+  $ lockvet diff old/ci.yml new/ci.yml
+
+  new/ci.yml (GitHub Actions)
+    ↑ tj-actions/changed-files v44 (=v44.0.0) → 0e58ed8  ?  (direct)
+        ▲ not a release: 0e58ed8 pinned ref matches no tag in the action's repository — release
+          tags are how actions ship, and the tj-actions attack pinned exactly like this; verify the commit
+  ```
+
+  (`0e58ed8` is the actual malicious commit from that attack.)
+  `-fail-on unlisted` gates on it in CI.
+
+Branch pins (`@main`) are a deliberate choice and stay quiet, actions
+living outside github.com make no unlisted claims, and `-changelogs`
+shows the release notes of every action release a bump pulls in.
+
 ## Integrity & resolution changes
 
 Lockfiles don't just pin versions — they pin **bytes** (integrity hashes)
@@ -1241,6 +1293,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — release ages, archived/delisted/blocked-provider flags, verified changelog links and the registry-verified unlisted check straight from the Terraform & OpenTofu registries (custom registry hosts exempt) |
 | Helm | `Chart.lock`, `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) |
 | Nix | `flake.lock` |
+| CI / GitHub Actions | `.github/workflows/*.yml`, `action.yml`/`action.yaml` (composite actions), `.gitea/workflows`, `.forgejo/workflows` — every `uses:` pin; SHA and floating-tag pins resolved against the action repo's real tags, advisories from OSV's GitHub Actions ecosystem evaluated client-side |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 
 Notes: direct/`via …` origin labels appear where the lockfile records its
@@ -1361,7 +1414,7 @@ to the cache.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | [dependency-review-action](https://github.com/actions/dependency-review-action) | **lockvet** |
 |---|---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **30** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **31** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ (job summary / PR comment) | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | introduced only (GitHub Advisory DB) | ✓ both (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✗ | ✓ (deps.dev) |
@@ -1373,6 +1426,7 @@ to the cache.
 | Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
 | Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
 | Flag integrity changes on unchanged versions & private→public registry moves (dependency confusion) | ✗ | ✗ | ✗ | ✓ ([`‼ integrity` / `⇄ resolution`](#integrity--resolution-changes), offline) |
+| GitHub Actions `uses:` pins (SHA → release resolution, tag-attack detection) | ✗ | ✗ | GitHub Actions ecosystem via dependency graph | ✓ ([format #31](#github-actions-workflows-are-lockfiles-too), all five forges + locally) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | direct/indirect label, no chain | ✓ |
 | Vet a PR / MR / compare URL without cloning | ✗ | ✗ | GitHub PRs only (runs *as* the PR's workflow) | ✓ (GitHub + GitLab + Bitbucket + Gitea/Forgejo + Azure DevOps, self-hosted incl.) |
 | Triage every open Dependabot/Renovate PR at once | ✗ | ✗ | ✗ | ✓ (`lockvet queue <org>`, on all five forges) |

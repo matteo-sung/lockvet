@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/goreg"
@@ -30,6 +31,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/podreg"
 	"github.com/matteo-sung/lockvet/internal/pubreg"
+	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
 	"github.com/matteo-sung/lockvet/internal/vers"
 )
@@ -89,6 +91,34 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.Maven:     mavenLatest,
 	lock.CocoaPods: podLatest,
 	lock.Terraform: tfLatest,
+
+	// GitHub Actions releases are the action repository's tags; the same
+	// anonymous smart-HTTP advertisement actreg resolves pins with
+	// answers "latest" (highest stable version-shaped tag).
+	lock.GitHubActions: actionsLatest,
+}
+
+func actionsLatest(name string) (string, error) {
+	if strings.Count(name, "/") != 1 {
+		return "", fmt.Errorf("want owner/repo for a GitHub Action, got %q", name)
+	}
+	tags, err := taglink.Tags("https://github.com/" + name)
+	if err != nil {
+		return "", notFound("GitHub", name)
+	}
+	best := ""
+	for t := range tags {
+		if !actreg.VersionLike(t) || strings.ContainsAny(t, "-+") {
+			continue // skip pre-releases; floating majors compare fine
+		}
+		if best == "" || vers.Compare(strings.TrimPrefix(best, "v"), strings.TrimPrefix(t, "v")) < 0 {
+			best = t
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no version-shaped tags in https://github.com/%s", name)
+	}
+	return best, nil
 }
 
 // specPrefix is the canonical spec prefix shown in error hints.

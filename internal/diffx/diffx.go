@@ -101,6 +101,13 @@ type Change struct {
 	NewHost       string `json:"new_host,omitempty"`
 	RegistryMoved bool   `json:"registry_moved,omitempty"`
 
+	// ResolvedRefs maps a pinned ref to the release tag it equals, when
+	// the upstream repository's tags were checked (GitHub Actions pins: a
+	// commit SHA that is exactly the tag vX.Y.Z, or a floating major tag
+	// v4 currently pointing at vX.Y.Z). Display and vulnerability
+	// matching use the resolved version where available.
+	ResolvedRefs map[string]string `json:"resolved_refs,omitempty"`
+
 	// TyposquatOf: this package just entered the tree, its release is
 	// young (or of unknown age), and its name is at most one edit away
 	// from the named popular package on the same registry — the shape of
@@ -260,11 +267,27 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			c.Level = vers.None
 			c.LevelString = ""
 		}
+		if eco == lock.GitHubActions && (c.Kind == Upgraded || c.Kind == Downgraded) &&
+			(looksCommit(o) || looksCommit(n)) {
+			// SHA pins order as hex strings, which means nothing: call it
+			// "changed" until actreg resolves the commits to releases.
+			c.Kind = Changed
+			c.Level = vers.Unknown
+			c.LevelString = c.Level.String()
+		}
 		fd.Changes = append(fd.Changes, c)
 	}
 
 	annotateOrigins(fd.Changes, oldF, newF)
 
+	fd.Sort()
+	return fd
+}
+
+// Sort orders changes most-alarming first (major level, then kind, then
+// name). Diff calls it; annotation layers that rewrite levels afterwards
+// (actreg resolving SHA pins to tags) call it again.
+func (fd *FileDiff) Sort() {
 	sort.Slice(fd.Changes, func(i, j int) bool {
 		a, b := fd.Changes[i], fd.Changes[j]
 		if a.Level != b.Level {
@@ -275,7 +298,30 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		}
 		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	})
-	return fd
+}
+
+// looksCommit reports whether any version in the set is shaped like an
+// (abbreviated) git commit SHA.
+func looksCommit(vs []string) bool {
+	for _, v := range vs {
+		if len(v) < 7 || len(v) > 40 {
+			continue
+		}
+		hex, letter := true, false
+		for i := 0; i < len(v); i++ {
+			switch b := v[i]; {
+			case b >= '0' && b <= '9':
+			case b >= 'a' && b <= 'f', b >= 'A' && b <= 'F':
+				letter = true
+			default:
+				hex = false
+			}
+		}
+		if hex && (letter || len(v) == 40) {
+			return true
+		}
+	}
+	return false
 }
 
 func kindRank(k Kind) int {

@@ -258,7 +258,7 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		parseFile := func(name string, parser *lock.Parser, data []byte) (*lock.File, error) {
 			if parser == nil {
-				parser = lock.SBOMParser()
+				parser = lock.FallbackParser(name)
 			}
 			f, err := parser.Parse(name, data)
 			if err != nil {
@@ -295,7 +295,7 @@ func run(opts js.Value) (js.Value, error) {
 		for _, af := range req.auditFiles {
 			parser := lock.ByBasename(af.name)
 			if parser == nil {
-				parser = lock.SBOMParser()
+				parser = lock.FallbackParser(af.name)
 			}
 			f, err := parser.Parse(af.name, af.data)
 			if err != nil {

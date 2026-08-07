@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
@@ -167,6 +168,17 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 			if depsdev.Covers(c.Ecosystem) {
 				anyMeta = true
 			}
+		}
+	}
+	if !o.noMeta {
+		// Resolve workflow pins (SHA → release tag, floating major →
+		// concrete release) BEFORE the vulnerability check: OSV ranges
+		// for GitHub Actions are evaluated client-side against the
+		// resolved releases.
+		if ok, err := actreg.Annotate(diffs); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("action tag check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
 		}
 	}
 	if !o.noVulns && anyOSV {
@@ -461,7 +473,7 @@ func vetFiles(oldPath, newPath string, o vetOptions) (*vetOutcome, error) {
 			return nil, err
 		}
 		if parser == nil {
-			parser = lock.SBOMParser()
+			parser = lock.FallbackParser(p)
 		}
 		f, err := parser.Parse(p, data)
 		if err != nil {

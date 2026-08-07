@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/adopr"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
@@ -125,7 +126,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 30 formats
+                                      Walks the tree for all 31 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
@@ -541,7 +542,7 @@ func main() {
 			data, err := os.ReadFile(p)
 			check(err)
 			if parser == nil {
-				parser = lock.SBOMParser()
+				parser = lock.FallbackParser(p)
 			}
 			f, err := parser.Parse(p, data)
 			if err != nil {
@@ -641,6 +642,18 @@ func main() {
 		}
 	}
 
+	metaChecked := false
+	if !*noMeta {
+		// Resolve workflow pins before the vulnerability check: OSV
+		// ranges for GitHub Actions are evaluated client-side against
+		// the releases actreg resolves each pin to.
+		if ok, err := actreg.Annotate(diffs); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: action tag check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+	}
+
 	vulnsChecked := false
 	if !*noVulns && anyOSV {
 		if err := osv.Annotate(diffs); err != nil {
@@ -650,7 +663,6 @@ func main() {
 		}
 	}
 
-	metaChecked := false
 	if !*noMeta && anyMeta {
 		if err := depsdev.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: release-metadata check skipped: %v\n", err)
@@ -1109,6 +1121,16 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 			}
 		}
 	}
+	metaChecked := false
+	if !o.noMeta {
+		// Resolve workflow pins before the vulnerability check (queue
+		// PRs bump `uses:` pins constantly).
+		if ok, err := actreg.Annotate(combined); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: action tag check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+	}
 	vulnsChecked := false
 	if !o.noVulns && anyOSV {
 		if err := osv.Annotate(combined); err != nil {
@@ -1117,7 +1139,6 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 			vulnsChecked = true
 		}
 	}
-	metaChecked := false
 	if !o.noMeta && anyMeta {
 		if err := depsdev.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: release-metadata check skipped: %v\n", err)

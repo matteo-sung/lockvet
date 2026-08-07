@@ -349,6 +349,11 @@ type Parser struct {
 // use "/", but file mode (`lockvet diff`, MCP vet_files) gets OS paths,
 // and no supported lockfile basename contains a backslash.
 func ByBasename(p string) *Parser {
+	// Workflow files are matched by their directory, so check before the
+	// path is reduced to a basename.
+	if isWorkflowPath(p) {
+		return &Parser{"github-workflow", GitHubActions, parseWorkflowUses}
+	}
 	if i := strings.LastIndexByte(p, '\\'); i >= 0 {
 		p = p[i+1:]
 	}

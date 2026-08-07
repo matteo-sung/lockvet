@@ -133,7 +133,7 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 		nameW, fromW := 0, 0
 		for _, c := range fd.Changes {
 			nameW = max(nameW, len(c.Name))
-			fromW = max(fromW, len(join(c.Old)))
+			fromW = max(fromW, len(dispVers(c, c.Old)))
 		}
 		for _, c := range fd.Changes {
 			fmt.Fprintln(w, "  "+line(s, c, nameW, fromW)+originSuffix(s, c)+ageSuffix(s, c))
@@ -145,7 +145,11 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● deprecated upstream:"), s.dim(reason))
 			}
 			if c.Unlisted {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
+				if c.Ecosystem == "GitHub Actions" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship, and the tj-actions attack pinned exactly like this; verify the commit"))
+				} else {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
+				}
 			}
 			if c.IntegrityChanged {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim("same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"))
@@ -209,7 +213,7 @@ func sev(v diffx.Vuln) string {
 
 func line(s styler, c diffx.Change, nameW, fromW int) string {
 	name := pad(c.Name, nameW)
-	from, to := join(c.Old), join(c.New)
+	from, to := dispVers(c, c.Old), dispVers(c, c.New)
 	to = s.href(changesLink(c), to) // clickable upstream diff on TTYs
 	switch c.Kind {
 	case diffx.Added:
@@ -437,13 +441,13 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					pkgCell += " <sub>transitive</sub>"
 				}
 			}
-			toCell := join(c.New)
+			toCell := dispVers(c, c.New)
 			// Link the new version to the verified upstream diff (or
 			// its release page): "what actually changed", one click.
 			if u := changesLink(c); u != "" && toCell != "" {
 				toCell = "[" + toCell + "](" + u + ")"
 			}
-			fmt.Fprintf(w, "| %s | %s | %s | %s | %s |%s\n", icon, pkgCell, join(c.Old), toCell, lvl, extra)
+			fmt.Fprintf(w, "| %s | %s | %s | %s | %s |%s\n", icon, pkgCell, dispVers(c, c.Old), toCell, lvl, extra)
 			if c.Deprecated {
 				reason := esc(c.DeprecatedReason)
 				if reason == "" {
@@ -452,7 +456,11 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				fmt.Fprintf(w, "| 🟠 | ↳ deprecated upstream | | | %s |%s\n", reason, padCell)
 			}
 			if c.Unlisted {
-				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				if c.Ecosystem == "GitHub Actions" {
+					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned ref matches no tag in the action's repository — verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
+				} else {
+					fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				}
 			}
 			if c.IntegrityChanged {
 				fmt.Fprintf(w, "| ‼ | ↳ integrity changed | | %s | same version, different content hash — the artifact this pin expects was replaced; find out why before merging |%s\n", esc(join(c.IntegrityVersions)), padCell)
@@ -544,6 +552,41 @@ func changesLink(c diffx.Change) string {
 }
 
 func join(vs []string) string { return strings.Join(vs, ", ") }
+
+// dispVers renders pinned refs for display. Workflow pins get special
+// care: full commit SHAs shorten to 7 hex characters, and a ref actreg
+// resolved carries the release it stands for — "8f4b7f8 (=v4.2.2)".
+func dispVers(c diffx.Change, vs []string) string {
+	if c.Ecosystem != "GitHub Actions" {
+		return join(vs)
+	}
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		out[i] = dispVer(c, v)
+	}
+	return strings.Join(out, ", ")
+}
+
+func dispVer(c diffx.Change, v string) string {
+	d := v
+	if len(v) == 40 && isHex(v) {
+		d = v[:7]
+	}
+	if t := c.ResolvedRefs[v]; t != "" && t != v {
+		d += " (=" + t + ")"
+	}
+	return d
+}
+
+func isHex(s string) bool {
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if (b < '0' || b > '9') && (b < 'a' || b > 'f') && (b < 'A' || b > 'F') {
+			return false
+		}
+	}
+	return true
+}
 
 func pad(s string, w int) string {
 	if len(s) >= w {

@@ -39,12 +39,14 @@ func FuzzAllParsers(f *testing.F) {
 		"version: 1\npackage:\n- name: a\n  version: '1.0'\n  manager: conda\n  dependencies:\n    b: '>=1'\n  hash:\n    md5: x\n",
 		"{\"version\":\"0.5\",\"requires\":[\"zlib/1.3.1#abc%123.4\",\"pkg/1.0@user/ch\"]}",
 		"{\"graph_lock\":{\"nodes\":{\"0\":{\"requires\":[\"1\"]},\"1\":{\"ref\":\"a/1.0#r\",\"requires\":[]}}},\"version\":\"0.4\"}",
+		"jobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: \"o/r/sub@deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\" # v1\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))
 	}
 
 	names := KnownBasenames()
+	names = append(names, ".github/workflows/ci.yml")
 	f.Fuzz(func(t *testing.T, data []byte) {
 		for _, base := range names {
 			p := ByBasename(base)

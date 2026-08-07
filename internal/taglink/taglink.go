@@ -187,6 +187,15 @@ func link(c *diffx.Change, tags map[string]bool) {
 // tag (in one of the naming conventions registries use) or, for Go
 // pseudo-versions, the bare commit hash.
 func resolveRef(c *diffx.Change, ver string, tags map[string]bool) (ref string, isTag bool) {
+	// A workflow pin actreg already resolved (SHA or floating tag → the
+	// release it points at) is addressed by that tag.
+	if t, ok := c.ResolvedRefs[ver]; ok && tags[t] {
+		return t, true
+	}
+	if c.Ecosystem == "GitHub Actions" && tags[ver] {
+		// Workflow pins name tags verbatim (v4, v4.2.2).
+		return ver, true
+	}
 	for _, cand := range candidates(c, ver) {
 		if tags[cand] {
 			return cand, true
@@ -312,48 +321,70 @@ var Transport = func(req *http.Request) (*http.Response, error) { return client.
 // Tags fetches the tag names of a repository via git's smart-HTTP ref
 // advertisement: a single anonymous GET understood by every major forge.
 func Tags(repo string) (map[string]bool, error) {
-	req, err := http.NewRequest("GET", refsURL(repo), nil)
+	shas, err := TagSHAs(repo)
 	if err != nil {
 		return nil, err
+	}
+	tags := make(map[string]bool, len(shas))
+	for t := range shas {
+		tags[t] = true
+	}
+	return tags, nil
+}
+
+// TagSHAs fetches tag name -> commit SHA from the same advertisement.
+// Annotated tags collapse onto their peeled (^{}) commit.
+func TagSHAs(repo string) (map[string]string, error) {
+	tags, _, err := Refs(repo)
+	return tags, err
+}
+
+// Refs fetches tag name -> commit SHA and branch name -> head SHA from
+// one smart-HTTP ref advertisement. Annotated tags collapse onto their
+// peeled (^{}) commit.
+func Refs(repo string) (tags, heads map[string]string, err error) {
+	req, err := http.NewRequest("GET", refsURL(repo), nil)
+	if err != nil {
+		return nil, nil, err
 	}
 	req.Header.Set("User-Agent", "git/2.43.0 (lockvet)")
 	resp, err := Transport(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("%s: HTTP %d", repo, resp.StatusCode)
+		return nil, nil, fmt.Errorf("%s: HTTP %d", repo, resp.StatusCode)
 	}
 	return parseAdvertisement(io.LimitReader(resp.Body, 16<<20))
 }
 
 // parseAdvertisement reads pkt-line framing and collects refs/tags/* names
 // (peeled ^{} entries collapse onto the tag itself).
-func parseAdvertisement(r io.Reader) (map[string]bool, error) {
+func parseAdvertisement(r io.Reader) (tags, heads map[string]string, err error) {
 	br := bufio.NewReader(r)
-	tags := map[string]bool{}
+	tags, heads = map[string]string{}, map[string]string{}
 	for {
 		head := make([]byte, 4)
 		if _, err := io.ReadFull(br, head); err != nil {
 			if err == io.EOF {
-				return tags, nil
+				return tags, heads, nil
 			}
-			return nil, err
+			return nil, nil, err
 		}
 		var n int
 		if _, err := fmt.Sscanf(string(head), "%04x", &n); err != nil {
-			return nil, fmt.Errorf("bad pkt-line length %q", head)
+			return nil, nil, fmt.Errorf("bad pkt-line length %q", head)
 		}
 		if n == 0 {
 			continue // flush-pkt
 		}
 		if n < 4 {
-			return nil, fmt.Errorf("bad pkt-line length %d", n)
+			return nil, nil, fmt.Errorf("bad pkt-line length %d", n)
 		}
 		payload := make([]byte, n-4)
 		if _, err := io.ReadFull(br, payload); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		line := strings.TrimSuffix(string(payload), "\n")
 		if strings.HasPrefix(line, "#") {
@@ -366,10 +397,21 @@ func parseAdvertisement(r io.Reader) (map[string]bool, error) {
 		if sp < 0 {
 			continue
 		}
-		ref := line[sp+1:]
+		sha, ref := line[:sp], line[sp+1:]
+		if h := strings.TrimPrefix(ref, "refs/heads/"); h != ref {
+			heads[h] = sha
+			continue
+		}
 		if !strings.HasPrefix(ref, "refs/tags/") {
 			continue
 		}
-		tags[strings.TrimSuffix(strings.TrimPrefix(ref, "refs/tags/"), "^{}")] = true
+		name := strings.TrimPrefix(ref, "refs/tags/")
+		if peeled := strings.TrimSuffix(name, "^{}"); peeled != name {
+			// The peeled entry carries the commit an annotated tag
+			// points at — always prefer it.
+			tags[peeled] = sha
+		} else if _, seen := tags[name]; !seen {
+			tags[name] = sha
+		}
 	}
 }

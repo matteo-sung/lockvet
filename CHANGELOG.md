@@ -4,6 +4,45 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.0 — 2026-08-07
+
+- **Format #31: GitHub Actions workflows.** Every `uses:` line is a
+  dependency pin, and Dependabot/Renovate bump them like any other —
+  lockvet now reads `.github/workflows/*.yml`, composite
+  `action.yml`/`action.yaml` files, and `.gitea`/`.forgejo` workflow dirs
+  in every mode: local diffs, `pr`/`mr`/`compare`, `queue` (actions-bump
+  PRs no longer show "no lockfile changes"), `audit`, `diff`, SARIF,
+  `-comment`, the GitHub Action, MCP tools, and the playground.
+- **SHA pins resolve to releases** via one anonymous git smart-HTTP GET
+  per action repo (no API, no rate limits): Renovate digest bumps read
+  `df4cb1c (=v6.0.3) → d23441a (=v6.1.0)  minor`, floating majors like
+  `v4` resolve to the release they point at today, and jumps are
+  classified from the resolved versions. Verified compare links and
+  `-changelogs` release notes work for actions too.
+- **Advisories evaluated client-side.** OSV.dev's "GitHub Actions"
+  ecosystem cannot be queried by version (the API returns nothing);
+  lockvet fetches the affected ranges and evaluates them itself against
+  the resolved release — so a SHA pin affected by a GHSA is caught, a
+  floating tag isn't false-flagged for an advisory fixed inside its
+  major, and open-ended ranges the OSV export truncated (GHSA records
+  per-major lines) are capped at the next major when a sibling range
+  carries the fix.
+- **▲ not a release** — the unlisted flag now covers workflow pins: an
+  incoming commit SHA (or version-shaped ref) that matches no tag in the
+  action's repository. That is the exact shape of the March 2025
+  tj-actions/changed-files attack, whose malicious commit `0e58ed86`
+  lockvet flags today (case study). Branch refs and branch-head SHAs stay
+  quiet; repos with no reachable tag data produce no claims.
+- **`lockvet pkg actions:owner/repo`** now resolves the latest release
+  from the action repository's tags (previously an explicit `@version`
+  was required), and version specs tolerate the `v` prefix both ways.
+- `lockvet diff` and playground file drops accept any `*.yml`/`*.yaml`
+  as a workflow when the name isn't a known lockfile (strict: at least
+  one `uses:` pin).
+- Honest classification offline: SHA→SHA bumps say "changed ?" instead
+  of a meaningless hex-string DOWNGRADE verdict when tags can't be
+  checked (`-offline`/`-no-meta`).
+
 ## v0.4.8 — 2026-08-07
 
 - **New mode: `lockvet pkg <eco>:<name>[@version]` — vet a package BEFORE

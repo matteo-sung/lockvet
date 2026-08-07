@@ -160,7 +160,7 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				results = append(results, result{
 					RuleID: "unlisted-version", RuleIndex: idx,
 					Level:     "warning",
-					Message:   map[string]string{"text": fmt.Sprintf("%s, but version %s is missing from the registry index even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)},
+					Message:   map[string]string{"text": unlistedText(c, what, via)},
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "unlisted"),
@@ -338,6 +338,16 @@ func describeChange(c diffx.Change, audit bool) string {
 	default:
 		return fmt.Sprintf("%s was upgraded to %s", c.Name, to)
 	}
+}
+
+// unlistedText phrases the unlisted finding for the ecosystem: workflow
+// pins are checked against the action repository's tags, everything else
+// against its registry index.
+func unlistedText(c diffx.Change, what, via string) string {
+	if c.Ecosystem == "GitHub Actions" {
+		return fmt.Sprintf("%s, but pinned ref %s matches no tag in the action's repository. Release tags are how actions ship; the March-2025 tj-actions/changed-files attack pinned users to exactly such commits. Verify where the commit comes from.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
+	}
+	return fmt.Sprintf("%s, but version %s is missing from the registry index even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 }
 
 func summaryClause(v diffx.Vuln) string {

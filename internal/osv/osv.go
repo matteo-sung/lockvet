@@ -24,7 +24,7 @@ const (
 var client = hcache.Client(20 * time.Second)
 
 type query struct {
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 	Package struct {
 		Name      string `json:"name"`
 		Ecosystem string `json:"ecosystem"`
@@ -40,6 +40,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 	}
 	var queries []query
 	var slots []slot
+	actionChanges := map[string][][2]int{}
 
 	for i := range diffs {
 		for j := range diffs[i].Changes {
@@ -57,6 +58,15 @@ func Annotate(diffs []diffx.FileDiff) error {
 				// about the code actually compiled in.
 				continue
 			}
+			if lock.Ecosystem(c.Ecosystem) == lock.GitHubActions {
+				// OSV cannot evaluate "GitHub Actions" ECOSYSTEM ranges
+				// server-side (version queries return nothing), and pins
+				// are often SHAs or floating majors anyway. Query the
+				// package and evaluate the ranges here, against the
+				// release actreg resolved each pin to.
+				actionChanges[c.Name] = append(actionChanges[c.Name], [2]int{i, j})
+				continue
+			}
 			for _, v := range c.Old {
 				queries = append(queries, mkQuery(c.Name, c.Ecosystem, v))
 				slots = append(slots, slot{i, j, "old"})
@@ -67,7 +77,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 			}
 		}
 	}
-	if len(queries) == 0 {
+	if len(queries) == 0 && len(actionChanges) == 0 {
 		return nil
 	}
 
@@ -95,6 +105,10 @@ func Annotate(diffs []diffx.FileDiff) error {
 				m[key][v.ID] = true
 			}
 		}
+	}
+
+	if err := evalActions(diffs, actionChanges, oldIDs, newIDs); err != nil {
+		return err
 	}
 
 	// Partition IDs per change, then fetch details by priority:
@@ -258,6 +272,21 @@ func runBatch(qs []query) ([]batchResult, error) {
 type vulnDetail struct {
 	summary, severity string
 	aliases           []string
+	affected          []affectedEntry
+}
+
+// affectedEntry is the slice of an OSV record needed to evaluate ranges
+// client-side (GitHub Actions, where the API cannot).
+type affectedEntry struct {
+	Package struct {
+		Name      string `json:"name"`
+		Ecosystem string `json:"ecosystem"`
+	} `json:"package"`
+	Versions []string `json:"versions"`
+	Ranges   []struct {
+		Type   string              `json:"type"`
+		Events []map[string]string `json:"events"`
+	} `json:"ranges"`
 }
 
 // fetchDetails fetches vulnerability details for ids (in priority order),
@@ -301,9 +330,10 @@ func fetchVuln(id string) (vulnDetail, error) {
 	}
 	defer resp.Body.Close()
 	var doc struct {
-		Summary          string   `json:"summary"`
-		Details          string   `json:"details"`
-		Aliases          []string `json:"aliases"`
+		Summary          string          `json:"summary"`
+		Details          string          `json:"details"`
+		Aliases          []string        `json:"aliases"`
+		Affected         []affectedEntry `json:"affected"`
 		DatabaseSpecific struct {
 			Severity string `json:"severity"`
 		} `json:"database_specific"`
@@ -317,6 +347,7 @@ func fetchVuln(id string) (vulnDetail, error) {
 	}
 	v.severity = strings.ToLower(doc.DatabaseSpecific.Severity)
 	v.aliases = doc.Aliases
+	v.affected = doc.Affected
 	return v, nil
 }
 

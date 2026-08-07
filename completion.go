@@ -232,7 +232,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 30 lockfile formats across the npm, pnpm, yarn, bun, Cargo,
+It understands 31 formats (incl. GitHub Actions workflows) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex, pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, and Helm ecosystems, plus CycloneDX and SPDX JSON

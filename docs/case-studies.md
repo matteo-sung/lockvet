@@ -15,6 +15,7 @@ The short version:
 | [Shai-Hulud worm](#4-the-shai-hulud-worm-sept-2025) (Sept 2025) | npm | Sept 15, 2025 | hours–days later | ▲ [MAL-2025-47141](https://osv.dev/vulnerability/MAL-2025-47141) + **not in registry index** |
 | [strong_password](#5-strong_password-2019--the-one-a-human-caught) (2019) | RubyGems | ~1 week undetected | after discovery | ▲ [CVE-2019-13354](https://osv.dev/vulnerability/GHSA-5h5r-ffc4-c455) + **not in registry index** |
 | [Dependency confusion](#9-dependency-confusion-2021--the-attack-the-lockfile-itself-records) (2021) | npm · PyPI · more | copycats live within days | mostly never | ⇄ **resolution moved** private → public + ‼ **integrity changed** |
+| [tj-actions/changed-files](#10-tj-actionschanged-files-march-2025--the-workflow-pin-attack) (Mar 2025) | GitHub Actions | ~1 day, 23k+ repos | next day | ▲ **not a release** on the malicious commit + GHSA once published |
 
 Note the two middle columns. **Advisories lag; release age doesn't.** In every
 one of these incidents there was a window — hours to weeks — where the
@@ -517,6 +518,72 @@ missing the private-registry config, a CI job that regenerated the lock. And
 deliberate migrations don't spam: five or more packages moving between the
 same pair of hosts in one diff reads as an intentional registry migration
 and is summarized, not flagged.
+
+## 10. tj-actions/changed-files (March 2025) — the workflow pin attack
+
+On March 14, 2025 an attacker compromised the `tj-actions/changed-files`
+GitHub Action (~23,000 repos) and force-moved **almost every version tag**
+— `v1` through `v45.0.7` — onto one malicious orphan commit,
+`0e58ed8671d6b60d0890c21b07f8835ace038e67`, which dumped CI runner memory
+(and any secrets in it) into public build logs. Anyone whose workflow said
+`uses: tj-actions/changed-files@v45` ran the payload on their next build.
+[GHSA-mrrh-fwg8-r2c3](https://osv.dev/vulnerability/GHSA-mrrh-fwg8-r2c3)
+arrived the next day; the cleanup re-cut the tags from clean commits.
+
+Workflow pins are dependency pins, so replay it as one. Fixtures:
+
+```console
+$ mkdir -p old new
+$ cat > old/ci.yml <<'EOF'
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tj-actions/changed-files@v44
+EOF
+$ cat > new/ci.yml <<'EOF'
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: tj-actions/changed-files@0e58ed8671d6b60d0890c21b07f8835ace038e67 # v45.0.7
+EOF
+$ lockvet diff old/ci.yml new/ci.yml
+
+new/ci.yml (GitHub Actions)
+  ↑ tj-actions/changed-files v44 (=v44.0.0) → 0e58ed8  ?  (direct)
+      ▲ not a release: 0e58ed8 pinned ref matches no tag in the action's repository — release tags are how actions ship, and the tj-actions attack pinned exactly like this; verify the commit
+  ↓ actions/checkout         v4 (=v4.4.0)   → 11bd719 (=v4.2.2)  minor DOWNGRADE  (direct)
+
+2 packages changed · 1 minor · 1 downgraded · 2 direct · 0 transitive · vulnerabilities: 0 introduced, 0 fixed · 1 version not in registry index
+```
+
+That `0e58ed8` is the real malicious commit. lockvet checks every incoming
+pin against the action repository's actual tag list (one anonymous git
+smart-HTTP request — the same data `git ls-remote` sees) and the attack
+commit matches no tag today, because it never was a release: the attacker
+*moved* tags onto it, and the cleanup moved them away. A workflow bump onto
+a commit that no release ever shipped is exactly what this looks like —
+`-fail-on unlisted` blocks it in CI.
+
+Note the trailing comment in the fixture: `# v45.0.7`. Dependabot-style pin
+comments are what humans review, and the attacker gets to write them. The
+first line of the report ignores the comment and reports what the commit
+*actually is* — in this case, nothing.
+
+Two honest caveats. First, during the attack window itself the malicious
+commit briefly **was** tagged (the attacker moved the tags), so a replay run
+*during* those hours would instead resolve the SHA to a tag — but everyone
+pinned to a floating tag like `@v45` had no diff to review at all: their
+workflows ran the new commit without any change on their side. That is the
+real lesson, and it cuts the other way too: **pin actions to full SHAs**
+(so upstream tag moves can't reach you silently), and vet the SHA when you
+bump it — which is the diff lockvet reads. Second, once
+[GHSA-mrrh-fwg8-r2c3](https://osv.dev/vulnerability/GHSA-mrrh-fwg8-r2c3)
+was published, every affected pin also gets the advisory row: lockvet
+evaluates the affected ranges itself against the release each pin resolves
+to (OSV's API can't do this server-side for actions), so even a SHA pin —
+which no advisory ever names — is matched via the release it stands for.
 
 ## The pattern, and what a gate can actually do
 

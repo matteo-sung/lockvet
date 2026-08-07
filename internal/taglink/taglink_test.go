@@ -82,12 +82,15 @@ func TestParseAdvertisement(t *testing.T) {
 		"refs/tags/v1.0.0^{}",
 		"refs/tags/pkg@2.0.0",
 	)
-	tags, err := parseAdvertisement(bytes.NewReader(body))
+	tags, heads, err := parseAdvertisement(bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tags) != 2 || !tags["v1.0.0"] || !tags["pkg@2.0.0"] {
+	if len(tags) != 2 || tags["v1.0.0"] == "" || tags["pkg@2.0.0"] == "" {
 		t.Errorf("tags = %v", tags)
+	}
+	if len(heads) != 1 || heads["main"] == "" {
+		t.Errorf("heads = %v", heads)
 	}
 }
 

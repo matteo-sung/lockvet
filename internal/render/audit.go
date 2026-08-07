@@ -72,7 +72,7 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 			nameW = max(nameW, len(c.Name))
 		}
 		for _, c := range rows {
-			ver := join(c.New)
+			ver := dispVers(c, c.New)
 			if u := changesLink(c); u != "" {
 				ver = s.href(u, ver)
 			}
@@ -91,7 +91,11 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● deprecated upstream:"), s.dim(reason))
 			}
 			if c.Unlisted {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting"))
+				if c.Ecosystem == "GitHub Actions" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship; verify where the commit comes from"))
+				} else {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting"))
+				}
 			}
 			if c.TyposquatOf != "" {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("≈ name resembles "+c.TyposquatOf+":"), s.dim("pinned recently and one edit away from a popular package — the shape of a typosquat; make sure this is the package you meant"))
@@ -220,7 +224,7 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 					pkgCell += " <sub>transitive</sub>"
 				}
 			}
-			verCell := join(c.New)
+			verCell := dispVers(c, c.New)
 			if u := changesLink(c); u != "" && verCell != "" {
 				verCell = "[" + verCell + "](" + u + ")"
 			}
@@ -250,7 +254,11 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 				fmt.Fprintf(w, "| 🟠 | ↳ deprecated upstream | %s |%s\n", reason, padCell)
 			}
 			if c.Unlisted {
-				fmt.Fprintf(w, "| ❗ | ↳ not in registry index | %s — missing from the registry index though other versions are listed; unpublished/deleted release |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				if c.Ecosystem == "GitHub Actions" {
+					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — pinned ref matches no tag in the action's repository; verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
+				} else {
+					fmt.Fprintf(w, "| ❗ | ↳ not in registry index | %s — missing from the registry index though other versions are listed; unpublished/deleted release |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				}
 			}
 			if c.TyposquatOf != "" {
 				fmt.Fprintf(w, "| ≈ | ↳ name resembles `%s` | pinned recently and one edit away from a popular package — make sure this is the package you meant |%s\n", esc(c.TyposquatOf), padCell)
