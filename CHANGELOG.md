@@ -4,6 +4,19 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.4.5 — 2026-08-07
+
+- **lockvet's own releases are now attested.** Every release artifact —
+  each binary archive, `checksums.txt`, and the multi-arch Docker image —
+  carries [Sigstore build provenance](https://github.com/matteo-sung/lockvet#verifying-a-release)
+  generated at build time by the release workflows. lockvet flags
+  dependencies that drop provenance; it now meets the same bar it checks
+  others against. Verify any download with
+  `gh attestation verify <file> --owner matteo-sung`.
+- **OpenSSF Scorecard** now runs weekly and on every push to `main`,
+  with results published to the OpenSSF API and code scanning.
+- No code changes; binaries are functionally identical to v0.4.4.
+
 ## v0.4.4 — 2026-08-06
 
 - **`≈` typosquat suspects now cover RubyGems and Packagist.** Two more
