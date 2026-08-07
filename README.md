@@ -185,6 +185,11 @@ gh attestation verify lockvet_v0.4.5_linux_amd64.tar.gz --owner matteo-sung
 gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.4.5 --owner matteo-sung
 ```
 
+Each release also ships its Sigstore bundle as an asset
+(`lockvet_<tag>.intoto.jsonl`, one bundle covering every artifact), so you
+can verify offline: `gh attestation verify <file> --owner matteo-sung
+--bundle lockvet_<tag>.intoto.jsonl`.
+
 `checksums.txt` is attested too, and `install.sh` verifies downloads against
 it, so a verified `checksums.txt` transitively covers everything it lists.
 
