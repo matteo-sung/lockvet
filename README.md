@@ -19,8 +19,8 @@ what it pins right now — no install needed. Reports are linkable:
 quietly added 7 transitive crates — one of them flagged by RUSTSEC.*
 
 **[Would lockvet have caught it?](docs/case-studies.md)** — event-stream,
-the chalk/debug takeover, the Shai-Hulud worm, the ultralytics miner, and
-the strong_password gem hijack,
+the chalk/debug takeover, the Shai-Hulud worm, the ultralytics miner, the
+strong_password gem hijack, and the 2021 dependency-confusion attack,
 replayed against real advisories, with reproducible fixtures.
 
 Lockfile diffs are unreadable — a routine `npm install` can rewrite thousands
@@ -1048,7 +1048,9 @@ playground. Formats that record the data: npm (v1–v3), pnpm, yarn
 integrity,registry`; JSON carries `integrity_changed` /
 `integrity_changed_versions` / `old_host` / `new_host` / `registry_moved`;
 SARIF emits `integrity-changed` (error) and `registry-moved` (warning);
-`queue` sorts affected PRs to the top.
+`queue` sorts affected PRs to the top. A full replay of the 2021
+dependency-confusion attack — including the same-version variant that no
+other diff shows — is [case study 9](docs/case-studies.md#9-dependency-confusion-2021--the-attack-the-lockfile-itself-records).
 
 ## Install scripts added by a bump
 

@@ -1,6 +1,6 @@
 # Would lockvet have caught it?
 
-Five real supply-chain attacks, replayed against `lockvet`. Every example is
+Real supply-chain attacks, replayed against `lockvet`. Every example is
 reproducible on your machine: the fixtures are inline below, the output is
 unedited, and the advisories come live from [OSV.dev](https://osv.dev) at run
 time — nothing here is mocked.
@@ -14,6 +14,7 @@ The short version:
 | [chalk + debug takeover](#3-the-chalk--debug-npm-takeover-sept-2025) (Sept 2025) | npm | Sept 8, 2025 (~2 h) | Sept 15, 2025 | ▲ malware advisories + **not in registry index** on both bumps |
 | [Shai-Hulud worm](#4-the-shai-hulud-worm-sept-2025) (Sept 2025) | npm | Sept 15, 2025 | hours–days later | ▲ [MAL-2025-47141](https://osv.dev/vulnerability/MAL-2025-47141) + **not in registry index** |
 | [strong_password](#5-strong_password-2019--the-one-a-human-caught) (2019) | RubyGems | ~1 week undetected | after discovery | ▲ [CVE-2019-13354](https://osv.dev/vulnerability/GHSA-5h5r-ffc4-c455) + **not in registry index** |
+| [Dependency confusion](#9-dependency-confusion-2021--the-attack-the-lockfile-itself-records) (2021) | npm · PyPI · more | copycats live within days | mostly never | ⇄ **resolution moved** private → public + ‼ **integrity changed** |
 
 Note the two middle columns. **Advisories lag; release age doesn't.** In every
 one of these incidents there was a window — hours to weeks — where the
@@ -24,9 +25,9 @@ at time zero is *how new the version is*, which is why lockvet has a
 (`-fail-on fresh`). A second signal appears the moment the registry pulls the
 malicious version — it stops being listed — and lockvet flags that too
 ([`▲ not in registry index`](../README.md#versions-missing-from-the-registry),
-`-fail-on unlisted`); you'll see it on every replay below.
+`-fail-on unlisted`); you'll see it on every takeover replay below.
 
-All five replays use `lockvet diff <old> <new>` on two files. In real life
+All replays use `lockvet diff <old> <new>` on two files. In real life
 you'd hit the same reports via `lockvet` (git working tree), `lockvet pr <url>`
 (a Dependabot/Renovate PR), or the [GitHub Action](../README.md#in-ci-review-dependabotrenovate-prs-automatically).
 And when the question isn't "should I merge this?" but "**are we already
@@ -435,6 +436,88 @@ campaign mostly squatted mid-tier names. The flag catches squats of
 packages people actually depend on at scale, which is also where the
 downloads are.)
 
+## 9. Dependency confusion (2021) — the attack the lockfile itself records
+
+In February 2021, security researcher Alex Birsan published "Dependency
+Confusion": he had collected **internal** package names that companies leak
+in public `package.json` files and build scripts, published packages under
+those names to the *public* registries with sky-high version numbers, and
+watched internal build systems at Apple, Microsoft, PayPal, Shopify, Netflix,
+Uber and dozens of others pull his code instead of theirs — because many
+resolvers, given both a private index and a public one, simply pick the
+highest version they can find anywhere (`pip`'s `--extra-index-url` is the
+canonical foot-gun). Copycat packages appeared on npm and PyPI by the
+hundreds within days of the writeup.
+
+What makes this attack special for lockvet: **no advisory, no popularity
+list, no registry metadata can catch it** — the internal name is unknown to
+every database by definition. But the evidence is sitting in the lockfile,
+because lockfiles record not just *versions* but **where each package
+resolves from and the hash of its bytes**. As of v0.4.6 lockvet reads both.
+
+Replay the shape. Your internal package resolves from your private registry;
+after a poisoned re-resolve, the lockfile pins the attacker's public package:
+
+```sh
+mkdir -p old new
+cat > old/package-lock.json <<'EOF'
+{
+  "name": "acme-web", "version": "1.0.0", "lockfileVersion": 3, "requires": true,
+  "packages": {
+    "": { "name": "acme-web", "version": "1.0.0", "dependencies": { "acme-corp-billing-utils": "^1.2.0" } },
+    "node_modules/acme-corp-billing-utils": { "version": "1.2.4", "resolved": "https://artifacts.acme-corp.example/api/npm/npm-internal/acme-corp-billing-utils/-/acme-corp-billing-utils-1.2.4.tgz", "integrity": "sha512-0DeSPKmpgGm5NyvKGmSXwGcYPUCEd/1dLnFYnpTDVMtqWiati5zoEEd1sa7CMESqTQMZTIGWWxq2oJLmTZ8yRQ==" }
+  }
+}
+EOF
+cat > new/package-lock.json <<'EOF'
+{
+  "name": "acme-web", "version": "1.0.0", "lockfileVersion": 3, "requires": true,
+  "packages": {
+    "": { "name": "acme-web", "version": "1.0.0", "dependencies": { "acme-corp-billing-utils": "^1.2.0" } },
+    "node_modules/acme-corp-billing-utils": { "version": "99.10.9", "resolved": "https://registry.npmjs.org/acme-corp-billing-utils/-/acme-corp-billing-utils-99.10.9.tgz", "integrity": "sha512-x1nP2BMzB5oOjZsBEeXVRTeFO1vaxWQCWMLyTcCiJNCPRUDgP1D5eLcJIYU21RBITB2i8Fmk1saQBBFTfkNPBw==" }
+  }
+}
+EOF
+lockvet diff old/package-lock.json new/package-lock.json
+```
+
+```
+new/package-lock.json (npm)
+  ↑ acme-corp-billing-utils 1.2.4 → 99.10.9  MAJOR  (direct)
+      ⇄ resolution moved: artifacts.acme-corp.example → registry.npmjs.org this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours
+
+1 package changed · 1 major · 1 direct · 0 transitive · vulnerabilities: 0 introduced, 0 fixed · 1 resolution moves to the public registry
+```
+
+The version jump to `99.10.9` is Birsan's actual technique (highest version
+wins), but the ⇄ flag doesn't depend on it. The subtler variant — attacker
+publishes the **same** version number your private registry serves — changes
+no version anywhere. Every diff tool on earth shows nothing. lockvet shows
+this:
+
+```
+new/package-lock.json (npm)
+  ‼ acme-corp-billing-utils 1.2.4  REPINNED (version unchanged)  (direct)
+      ‼ integrity changed: 1.2.4 same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why
+      ⇄ resolution moved: artifacts.acme-corp.example → registry.npmjs.org this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours
+
+1 package changed · 1 direct · 0 transitive · vulnerabilities: 0 introduced, 0 fixed · 1 pin changes integrity without a version change · 1 resolution moves to the public registry
+```
+
+`-fail-on registry,integrity` turns both into merge blockers.
+
+Honest caveats: lockvet can only read what the lockfile records — npm, pnpm,
+yarn, Cargo, poetry, uv, Pipfile, `requirements.txt --hash` and Gemfile.lock
+all pin resolution hosts and/or content hashes, but a build that installs
+without a lockfile (or ignores it) never produces this diff, and *that* is
+the misconfiguration Birsan actually exploited at most targets. The flag
+catches the poisoned re-resolve **the moment it tries to enter your
+lockfile** — a Renovate re-pin, a teammate's `npm install` on a laptop
+missing the private-registry config, a CI job that regenerated the lock. And
+deliberate migrations don't spam: five or more packages moving between the
+same pair of hosts in one diff reads as an intentional registry migration
+and is summarized, not flagged.
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:
@@ -489,6 +572,13 @@ So, honestly stated, here is what each lockvet gate buys you:
   attesting right after Shai-Hulud), but for the growing set that do —
   and it skews toward exactly the high-value targets attackers pick —
   this turns their own supply-chain hygiene into your alarm.
+- **`-fail-on registry,integrity`** works **at T+0, offline, with no
+  metadata at all**: the lockfile itself is the evidence. A resolution that
+  moves from a private host to the public registry (⇄) or a content hash
+  that changes under an unchanged version (‼) is visible the moment the
+  poisoned re-resolve tries to enter your lockfile — it's the only gate in
+  this list that catches a dependency-confusion attack on a package name
+  no database has ever heard of.
 - **Visibility** catches what no rule can: `(added) via <chain>` rows for
   packages you never asked for, license flips, deprecations, and registry
   ages on every line — in a report short enough that a human actually reads
