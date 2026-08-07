@@ -79,10 +79,18 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 			}
 			fmt.Fprintln(w, "  "+s.cyan("•")+" "+pad(c.Name, nameW)+" "+ver+originSuffix(s, c)+ageSuffix(s, c))
 			for _, v := range c.IntroducedVulns {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ affected by "+v.ID+sev(v)), s.dim(v.Summary))
+				fix := ""
+				if v.FixedIn != "" {
+					fix = " " + s.green("· fixed in "+v.FixedIn)
+				}
+				fmt.Fprintf(w, "      %s %s%s\n", s.bred("▲ affected by "+v.ID+sev(v)), s.dim(v.Summary), fix)
 			}
 			if n := len(c.ExistingVulns); n > 0 {
-				fmt.Fprintf(w, "      %s\n", s.yellow(fmt.Sprintf("● %s this version (worst: %s)", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns))))
+				note := fmt.Sprintf("● %s this version (worst: %s)", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns))
+				if fx := allFixedIn(c.ExistingVulns); fx != "" {
+					note += " — all fixed in ≥ " + fx
+				}
+				fmt.Fprintf(w, "      %s\n", s.yellow(note))
 			}
 			if c.Deprecated {
 				reason := c.DeprecatedReason
@@ -253,10 +261,18 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 			}
 			fmt.Fprintf(w, "| 📦 | %s | %s |%s\n", pkgCell, verCell, extra)
 			for _, v := range c.IntroducedVulns {
-				fmt.Fprintf(w, "| ⚠️ | ↳ affected by [%s](%s)%s | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
+				fix := ""
+				if v.FixedIn != "" {
+					fix = " — **fixed in " + esc(v.FixedIn) + "**"
+				}
+				fmt.Fprintf(w, "| ⚠️ | ↳ affected by [%s](%s)%s | %s%s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), fix, padCell)
 			}
 			if k := len(c.ExistingVulns); k > 0 {
-				fmt.Fprintf(w, "| 🟡 | ↳ %s this version | worst: %s |%s\n", pluralVerb(k, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns), padCell)
+				note := "worst: " + worst(c.ExistingVulns)
+				if fx := allFixedIn(c.ExistingVulns); fx != "" {
+					note += " — all fixed in ≥ " + esc(fx)
+				}
+				fmt.Fprintf(w, "| 🟡 | ↳ %s this version | %s |%s\n", pluralVerb(k, "known advisory affects", "known advisories affect"), note, padCell)
 			}
 			if c.Deprecated {
 				reason := esc(c.DeprecatedReason)

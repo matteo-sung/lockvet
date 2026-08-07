@@ -145,9 +145,10 @@ func Annotate(diffs []diffx.FileDiff) error {
 		for j := range diffs[i].Changes {
 			c := &diffs[i].Changes[j]
 			pt := parts[[2]int{i, j}]
-			c.IntroducedVulns = dedupe(pt.intro, details)
-			c.FixedVulns = dedupe(pt.fixed, details)
-			c.ExistingVulns = dedupe(pt.exist, details)
+			tgt := fixTargetFor(c)
+			c.IntroducedVulns = dedupe(pt.intro, details, tgt)
+			c.FixedVulns = dedupe(pt.fixed, details, fixTarget{})
+			c.ExistingVulns = dedupe(pt.exist, details, tgt)
 		}
 	}
 	return nil
@@ -156,7 +157,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 // dedupe collapses advisories that are aliases of each other (e.g. a PYSEC
 // and a GHSA entry for the same CVE), preferring GHSA > CVE > other IDs,
 // and sorts by severity then ID.
-func dedupe(ids map[string]bool, details map[string]vulnDetail) []diffx.Vuln {
+func dedupe(ids map[string]bool, details map[string]vulnDetail, tgt fixTarget) []diffx.Vuln {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -194,7 +195,8 @@ func dedupe(ids map[string]bool, details map[string]vulnDetail) []diffx.Vuln {
 		d := details[id]
 		out = append(out, diffx.Vuln{
 			ID: id, Summary: d.summary, Severity: d.severity,
-			URL: "https://osv.dev/vulnerability/" + id,
+			URL:     "https://osv.dev/vulnerability/" + id,
+			FixedIn: fixedIn(d, tgt),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

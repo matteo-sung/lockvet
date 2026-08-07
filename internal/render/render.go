@@ -36,6 +36,21 @@ func worst(vs []diffx.Vuln) string {
 	return vs[0].ID
 }
 
+// allFixedIn returns the smallest version that clears every advisory in
+// vs, or "" when any of them has no known fix.
+func allFixedIn(vs []diffx.Vuln) string {
+	top := ""
+	for _, v := range vs {
+		if v.FixedIn == "" {
+			return ""
+		}
+		if top == "" || vers.Compare(v.FixedIn, top) > 0 {
+			top = v.FixedIn
+		}
+	}
+	return top
+}
+
 // ANSI helpers (disabled when Color is false).
 type styler struct{ on bool }
 
@@ -175,7 +190,11 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				fmt.Fprintf(w, "      %s %s\n", s.yellow("● license change:"), s.dim(c.OldLicense+" → "+c.NewLicense))
 			}
 			for _, v := range c.IntroducedVulns {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("▲ introduces "+v.ID+sev(v)), s.dim(v.Summary))
+				fix := ""
+				if v.FixedIn != "" {
+					fix = " " + s.green("· fixed in "+v.FixedIn)
+				}
+				fmt.Fprintf(w, "      %s %s%s\n", s.bred("▲ introduces "+v.ID+sev(v)), s.dim(v.Summary), fix)
 			}
 			if bits := ignoredBits(c); bits != "" {
 				fmt.Fprintf(w, "      %s\n", s.dim("○ ignored (.lockvetignore): "+bits))
@@ -188,7 +207,11 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				fmt.Fprintf(w, "      %s %s\n", s.green("▼ fixes "+v.ID+sev(v)), s.dim(v.Summary))
 			}
 			if n := len(c.ExistingVulns); n > 0 {
-				fmt.Fprintf(w, "      %s\n", s.yellow(fmt.Sprintf("● %s both versions (worst: %s)", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns))))
+				note := fmt.Sprintf("● %s both versions (worst: %s)", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns))
+				if fx := allFixedIn(c.ExistingVulns); fx != "" {
+					note += " — all fixed in ≥ " + fx
+				}
+				fmt.Fprintf(w, "      %s\n", s.yellow(note))
 			}
 			for _, nt := range c.ReleaseNotes {
 				head := nt.Tag
@@ -497,7 +520,11 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				fmt.Fprintf(w, "| ⚖️ | ↳ license change | | | %s |%s\n", esc(c.OldLicense+" → "+c.NewLicense), padCell)
 			}
 			for _, v := range c.IntroducedVulns {
-				fmt.Fprintf(w, "| ⚠️ | ↳ introduces [%s](%s)%s | | | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
+				fix := ""
+				if v.FixedIn != "" {
+					fix = " — **fixed in " + esc(v.FixedIn) + "**"
+				}
+				fmt.Fprintf(w, "| ⚠️ | ↳ introduces [%s](%s)%s | | | %s%s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), fix, padCell)
 			}
 			if bits := ignoredBits(c); bits != "" {
 				fmt.Fprintf(w, "| ○ | ↳ ignored via .lockvetignore | | | %s |%s\n", esc(bits), padCell)
@@ -510,7 +537,11 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				fmt.Fprintf(w, "| ✅ | ↳ fixes [%s](%s)%s | | | %s |%s\n", v.ID, v.URL, sev(v), esc(v.Summary), padCell)
 			}
 			if n := len(c.ExistingVulns); n > 0 {
-				fmt.Fprintf(w, "| 🟡 | ↳ %s both versions | | | worst: %s |%s\n", pluralVerb(n, "known advisory affects", "known advisories affect"), worst(c.ExistingVulns), padCell)
+				note := "worst: " + worst(c.ExistingVulns)
+				if fx := allFixedIn(c.ExistingVulns); fx != "" {
+					note += " — all fixed in ≥ " + esc(fx)
+				}
+				fmt.Fprintf(w, "| 🟡 | ↳ %s both versions | | | %s |%s\n", pluralVerb(n, "known advisory affects", "known advisories affect"), note, padCell)
 			}
 		}
 		for _, c := range fd.Changes {

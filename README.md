@@ -35,7 +35,10 @@ what really happened:
   plus its baggage"
 - **what's risky** — vulnerabilities *introduced* by the new versions,
   vulnerabilities the bump *fixes*, and advisories that affect both
-  (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC aliases)
+  (live from [OSV.dev](https://osv.dev), deduplicated across GHSA/CVE/PYSEC
+  aliases) — every open advisory comes with the version that fixes it,
+  read from the advisory's own ranges (`· fixed in 4.17.21`), so the
+  remediation is on the same line as the finding
 - **what's suspicious** — how old every incoming version is, with a ⏱ flag
   on anything published in the last 7 days (most hijacked releases are caught
   within days — a cooldown is cheap insurance), upstream deprecation
@@ -161,7 +164,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.4 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.5 lockvet
 ```
 
 ### Shell completions & man page
@@ -186,8 +189,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.4_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.4 --owner matteo-sung
+gh attestation verify lockvet_v0.5.5_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.5 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -428,7 +431,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.4
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.5
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -502,9 +505,9 @@ $ lockvet audit    # in sharkdp/fd
 
 Cargo.lock (crates.io · 126 packages)
   • anyhow            1.0.102  (direct)  (5mo old)
-      ▲ affected by RUSTSEC-2026-0190 Unsoundness in `Error::downcast_mut()`
+      ▲ affected by RUSTSEC-2026-0190 Unsoundness in `Error::downcast_mut()` · fixed in 1.0.103
   • crossbeam-epoch   0.9.18  via ignore › crossbeam-deque  (2y old)
-      ▲ affected by RUSTSEC-2026-0204 Invalid pointer dereference in `fmt::Pointer` impl…
+      ▲ affected by RUSTSEC-2026-0204 Invalid pointer dereference in `fmt::Pointer` impl… · fixed in 0.9.20
   • proc-macro-error2 2.0.1  via jiff › … › defmt-macros  (23mo old)
       ▲ affected by RUSTSEC-2026-0173 proc-macro-error2 is unmaintained
 
@@ -544,7 +547,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.4/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.5/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -614,7 +617,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.4", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.5", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -669,7 +672,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.4
+      - uses: matteo-sung/lockvet@v0.5.5
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -696,7 +699,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.4
+      - uses: matteo-sung/lockvet@v0.5.5
         with:
           sarif: 'true'
 ```
@@ -716,7 +719,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.4
+  image: ghcr.io/matteo-sung/lockvet:0.5.5
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -741,7 +744,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.4
+          image: ghcr.io/matteo-sung/lockvet:0.5.5
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -759,7 +762,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.4
+    container: ghcr.io/matteo-sung/lockvet:0.5.5
     steps:
       - checkout: none
       - script: >
@@ -783,7 +786,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.4
+    image: ghcr.io/matteo-sung/lockvet:0.5.5
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -802,7 +805,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.4
+    rev: v0.5.5
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1544,9 +1547,10 @@ deprecations, license flips, versions the registry no longer lists,
 typosquats, install-script and provenance transitions, and
 integrity/resolution tampering are the rest — signals that can fire
 *before* any advisory exists (see the [case studies](docs/case-studies.md)).
-If you want tree-wide CVE inventory with remediation planning, use
+If you want tree-wide CVE inventory with remediation *planning*, use
 osv-scanner — [`lockvet audit`](#audit-what-you-already-pin--lockvet-audit)
-overlaps but doesn't plan upgrades. If you want to know whether to merge a
+overlaps and names the fix version on every advisory line, but it won't
+edit your manifests for you. If you want to know whether to merge a
 Dependabot PR, that's lockvet.
 
 **[npq](https://github.com/lirantal/npq)?** npq audits an npm package

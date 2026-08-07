@@ -124,8 +124,8 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 
 			for _, v := range c.IntroducedVulns {
 				idx := vulnRule(v)
-				msg := fmt.Sprintf("%s, which is affected by %s%s.%s%s",
-					what, v.ID, sevParen(v.Severity), summaryClause(v), via)
+				msg := fmt.Sprintf("%s, which is affected by %s%s.%s%s%s",
+					what, v.ID, sevParen(v.Severity), summaryClause(v), fixClause(v), via)
 				results = append(results, result{
 					RuleID: v.ID, RuleIndex: idx,
 					Level:     vulnLevel(v.Severity),
@@ -138,8 +138,8 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 			}
 			for _, v := range c.ExistingVulns {
 				idx := vulnRule(v)
-				msg := fmt.Sprintf("%s, which is still affected by %s%s (the old version was too — this change does not fix it).%s%s",
-					what, v.ID, sevParen(v.Severity), summaryClause(v), via)
+				msg := fmt.Sprintf("%s, which is still affected by %s%s (the old version was too — this change does not fix it).%s%s%s",
+					what, v.ID, sevParen(v.Severity), summaryClause(v), fixClause(v), via)
 				results = append(results, result{
 					RuleID: v.ID, RuleIndex: idx,
 					Level:     "note",
@@ -365,6 +365,13 @@ func unlistedText(c diffx.Change, what, via string) string {
 		return fmt.Sprintf("%s, but pinned ref %s matches no tag in the action's repository. Release tags are how actions ship; the March-2025 tj-actions/changed-files attack pinned users to exactly such commits. Verify where the commit comes from.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}
 	return fmt.Sprintf("%s, but version %s is missing from the registry index even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
+}
+
+func fixClause(v diffx.Vuln) string {
+	if v.FixedIn == "" {
+		return ""
+	}
+	return " Fixed in " + v.FixedIn + "."
 }
 
 func summaryClause(v diffx.Vuln) string {

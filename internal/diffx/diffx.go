@@ -194,6 +194,10 @@ type Vuln struct {
 	Summary  string `json:"summary,omitempty"`
 	Severity string `json:"severity,omitempty"`
 	URL      string `json:"url,omitempty"`
+	// FixedIn is the smallest version that clears this advisory for the
+	// pinned version(s), read from the advisory's own ranges. Empty when
+	// no fix has been released or the ranges don't say.
+	FixedIn string `json:"fixed_in,omitempty"`
 }
 
 // FileDiff is the set of changes within one lockfile.

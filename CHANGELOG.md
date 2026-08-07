@@ -4,6 +4,24 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.5 — 2026-08-07
+
+- **Every open advisory now names its fix version.** Introduced and
+  unresolved (affects-both-versions) findings read the advisory's own
+  OSV ranges and report the smallest release that clears it for your
+  exact pin — `· fixed in 4.17.21` on the terminal line, **fixed in
+  4.17.21** in Markdown, `Fixed in 4.17.21.` appended to SARIF alert
+  messages, `fixed_in` on every vuln object in JSON. Aggregated
+  "N advisories affect both versions" lines add `— all fixed in ≥ X`
+  when every advisory in the group has a released fix (the ≥ version
+  clears them all). Works across every ecosystem lockvet queries OSV
+  for, including RUSTSEC unmaintained-crate notices with successor
+  ranges and GitHub Actions (evaluated against the release each pin
+  resolves to; SHA and floating-major pins make no claim). No fix
+  released, ranges silent, or a multi-version pin only partially
+  fixable → no claim, honestly. Zero extra network requests — the
+  ranges were already fetched.
+
 ## v0.5.4 — 2026-08-07
 
 - **SwiftPM pins verified against upstream tags.** `Package.resolved`
