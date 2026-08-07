@@ -564,15 +564,7 @@ The riskiest moment in dependency management is `npm install something` on a
 package you've never seen. `lockvet pkg` runs the same pipeline over a
 package that isn't in any lockfile yet — at the moment you're deciding:
 
-```text
-$ lockvet pkg npm:chakl        # you meant chalk. lockvet noticed.
-
-npm:chakl@0.0.1-security (latest) (npm)
-  + chakl 0.0.1-security  (added)  (7y old)
-      ▲ introduces MAL-2025-16766 Malicious code in chakl (npm)
-
-1 package changed · 1 added · vulnerabilities: 1 introduced, 0 fixed
-```
+![lockvet pkg vetting a typo'd package name that turns out to be squatted malware, then a deprecated classic](docs/pkg-demo.gif)
 
 You get everything the registry knows: advisories affecting the version
 (including `MAL-*` malicious-package records), release age (⏱ brand-new
