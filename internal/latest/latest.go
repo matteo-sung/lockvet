@@ -20,6 +20,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
+	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/hcache"
@@ -91,6 +92,7 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.Maven:     mavenLatest,
 	lock.CocoaPods: podLatest,
 	lock.Terraform: tfLatest,
+	lock.CRAN:      cranreg.Latest,
 
 	// GitHub Actions releases are the action repository's tags; the same
 	// anonymous smart-HTTP advertisement actreg resolves pins with

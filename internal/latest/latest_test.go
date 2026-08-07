@@ -115,14 +115,14 @@ func TestGemLatestUnknownMeansNoStable(t *testing.T) {
 }
 
 func TestUnsupportedEcosystem(t *testing.T) {
-	if Supported(lock.CRAN) {
-		t.Fatal("CRAN should not have a latest resolver")
+	if Supported(lock.Julia) {
+		t.Fatal("Julia should not have a latest resolver")
 	}
-	if _, err := Resolve(lock.CRAN, "dplyr"); err == nil {
-		t.Fatal("Resolve(CRAN): want unsupported error")
+	if _, err := Resolve(lock.Julia, "DataFrames"); err == nil {
+		t.Fatal("Resolve(Julia): want unsupported error")
 	}
-	if !Supported(lock.NPM) || !Supported(lock.Terraform) {
-		t.Fatal("npm and terraform should be supported")
+	if !Supported(lock.NPM) || !Supported(lock.Terraform) || !Supported(lock.CRAN) {
+		t.Fatal("npm, terraform and cran should be supported")
 	}
 }
 

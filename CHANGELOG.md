@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.1 — 2026-08-07
+
+- **CRAN registry signals — R joins the metadata lineup.** deps.dev has
+  no CRAN system, so `renv.lock` diffs used to get OSV advisories but no
+  release metadata at all. lockvet now asks CRAN itself (via
+  [METACRAN's crandb](https://crandb.r-pkg.org), the JSON API behind
+  r-pkg.org):
+  - **Release ages and the ⏱ cooldown flag** from CRAN's per-version
+    publication timeline — every version ever released is dated.
+  - **Archived packages** land in the deprecation lane
+    (`● deprecated upstream: archived on CRAN (no longer installable
+    from the index)`) — real catches: `rgdal`, `ffbase`, `DataCombine`.
+  - **License changes** between the two pinned versions, from each
+    release's own DESCRIPTION.
+  - **Mirror-lag-safe unlisted check**: a version missing from crandb is
+    double-checked against cran.r-project.org itself (current release
+    *and* the Archive) before lockvet claims anything — a release cut
+    minutes ago never flags.
+  - **Verified changelog links and `-changelogs` release notes** via the
+    DESCRIPTION URL field (`dplyr 1.1.3 → 1.2.1` links the real
+    tidyverse tag-to-tag diff and shows the intermediate release notes).
+  - **`lockvet pkg cran:<name>`** now resolves the latest version by
+    itself (`lockvet pkg cran:dplyr`), like the other 14 ecosystems.
+- The `renv.lock` parser now marks GitHub/GitLab/Bitbucket remotes and
+  local/URL/git installs as non-registry installs, so dev versions like
+  `1.0.0.9000` are exempt from registry judgement (their OSV advisory
+  check still runs).
+- crandb and cran.r-project.org send no CORS headers, so the browser
+  playground skips this layer (like RubyGems and Maven); the native CLI
+  is unaffected.
+
 ## v0.5.0 — 2026-08-07
 
 - **Format #31: GitHub Actions workflows.** Every `uses:` line is a

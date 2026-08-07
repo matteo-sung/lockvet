@@ -218,7 +218,20 @@ func TestRenvLock(t *testing.T) {
       "Source": "Repository",
       "Repository": "CRAN"
     },
-    "noversion": {"Package": "noversion", "Source": "Repository"}
+    "noversion": {"Package": "noversion", "Source": "Repository"},
+    "ggplot2": {
+      "Package": "ggplot2",
+      "Version": "3.5.1.9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteUsername": "tidyverse",
+      "RemoteRepo": "ggplot2"
+    },
+    "mytool": {
+      "Package": "mytool",
+      "Version": "0.0.1",
+      "Source": "Local"
+    }
   }
 }`)
 	if f.Ecosystem != CRAN {
@@ -230,7 +243,19 @@ func TestRenvLock(t *testing.T) {
 		"generics":     {"0.1.3"},
 		"BiocGenerics": {"0.46.0"},
 		"lattice":      {"0.21-8"},
+		"ggplot2":      {"3.5.1.9000"},
+		"mytool":       {"0.0.1"},
 	})
+	// GitHub remotes and local installs are non-registry; repository
+	// installs (CRAN, RSPM) and Bioconductor are not.
+	for name, want := range map[string]bool{
+		"ggplot2": true, "mytool": true,
+		"dplyr": false, "generics": false, "BiocGenerics": false,
+	} {
+		if got := f.NonRegistry[name]; got != want {
+			t.Errorf("NonRegistry[%s] = %v, want %v", name, got, want)
+		}
+	}
 	if got := f.PkgEco["BiocGenerics"]; got != Bioconductor {
 		t.Errorf("BiocGenerics eco = %s, want Bioconductor", got)
 	}

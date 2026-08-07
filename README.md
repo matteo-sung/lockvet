@@ -161,7 +161,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.0 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.1 lockvet
 ```
 
 ### Shell completions & man page
@@ -186,8 +186,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.0_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.0 --owner matteo-sung
+gh attestation verify lockvet_v0.5.1_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.1 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -428,7 +428,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.0
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.1
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -544,7 +544,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.0/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.1/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -610,7 +610,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.0", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.1", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -665,7 +665,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.0
+      - uses: matteo-sung/lockvet@v0.5.1
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -692,7 +692,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.0
+      - uses: matteo-sung/lockvet@v0.5.1
         with:
           sarif: 'true'
 ```
@@ -712,7 +712,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.0
+  image: ghcr.io/matteo-sung/lockvet:0.5.1
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -737,7 +737,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.0
+          image: ghcr.io/matteo-sung/lockvet:0.5.1
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -755,7 +755,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.0
+    container: ghcr.io/matteo-sung/lockvet:0.5.1
     steps:
       - checkout: none
       - script: >
@@ -779,7 +779,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.0
+    image: ghcr.io/matteo-sung/lockvet:0.5.1
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -797,7 +797,7 @@ only fires when a lockfile is part of the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.0
+    rev: v0.5.1
     hooks:
       - id: lockvet
         # optional: block the commit instead of just explaining it
@@ -902,6 +902,11 @@ Every incoming version is checked against its registry (via deps.dev):
   (`● deprecated upstream: relocated to com.mysql:mysql-connector-j —
   MySQL Connector/J artifacts moved to reverse-DNS compliant Maven 2+
   coordinates.`), which deps.dev doesn't model at all.
+  R packages get theirs straight from CRAN: a bump inside a package CRAN
+  has [archived](https://cran.r-project.org/web/packages/policies.html) —
+  removed from the index, so `install.packages()` stops resolving it — is
+  flagged (`● deprecated upstream: archived on CRAN (no longer installable
+  from the index)`).
 - **license change** — the incoming version is published under a different
   license than the one it replaces:
 
@@ -1285,7 +1290,7 @@ handful of packages, `GITHUB_TOKEN` / a logged-in `gh` raises the limit.
 | Swift | `Package.resolved` |
 | C / C++ | `conan.lock` (Conan 2 flat lockfiles and Conan 1 graph locks) — release ages straight from ConanCenter, dated by each version's oldest recipe revision so re-exports don't make old releases look fresh (refs with a user/channel exempt; a ref doesn't record its remote, so no unlisted claims) |
 | iOS / CocoaPods | `Podfile.lock` — release ages, deprecated-pod flags, license changes and the unlisted check straight from the CocoaPods CDN and trunk registry (git/path pods and private specs repos exempt) |
-| R | `renv.lock` (CRAN + Bioconductor advisories, `RSEC-…`) |
+| R | `renv.lock` — CRAN + Bioconductor advisories (`RSEC-…`); release ages, archived-package flags, license changes, changelog links and a mirror-lag-safe unlisted check straight from CRAN itself (GitHub/GitLab/local/git installs exempt) |
 | Julia | `Manifest.toml` (also `Manifest-v1.11.toml` style) — General-registry advisories (`JLSEC-…`), via-chains from the manifest's dependency graph |
 | Haskell | `stack.yaml.lock`, `cabal.project.freeze`, `cabal.config` (Stackage pins) — Hackage advisories (`HSEC-…`) |
 | Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]`; ages/retirements/unlisted from hex.pm (git/path packages exempt) |
@@ -1312,17 +1317,21 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++ and Terraform are the exceptions: deps.dev has no
-Composer, Hex, Pub, JSR, CocoaPods, Conan or Terraform system at all, so lockvet asks Packagist, hex.pm,
-pub.dev, jsr.io, the CocoaPods registry, ConanCenter and the Terraform/OpenTofu registries directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform and R are the exceptions: deps.dev has no
+Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform or CRAN system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries and CRAN (via METACRAN's crandb) directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
 JSR yanked versions and archived packages,
 CocoaPods deprecated pods with their named replacement, archived/delisted
-Terraform providers),
+Terraform providers, packages archived on CRAN),
 changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock` and `.terraform.lock.hcl` too (plus license
-changes for Composer and CocoaPods; Hex, pub.dev, jsr.io and the Terraform registry keep no per-release license history,
-so that one check is honestly skipped there).
+`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl` and `renv.lock` too (plus license
+changes for Composer, CocoaPods and CRAN; Hex, pub.dev, jsr.io and the Terraform registry keep no per-release license history,
+so that one check is honestly skipped there). CRAN's unlisted check is
+mirror-lag-safe: before claiming anything, absence is double-checked
+against cran.r-project.org itself (current release *and* the Archive —
+CRAN archives old versions, it never deletes them, so a version in
+neither place was never on CRAN).
 `conan.lock` gets release ages only: a Conan reference doesn't record
 which remote it came from, so absence from ConanCenter proves nothing and
 lockvet makes no unlisted or deprecation claims there.
@@ -1355,8 +1364,8 @@ parsers are ~50 lines each.
    registry doesn't list — while other versions of the package are listed —
    gets the [`unlisted` flag](#versions-missing-from-the-registry): that's
    what an unpublished (often malicious) release looks like (for npm,
-   PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, Go and Maven the
-   flag is double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
+   PyPI, crates.io, RubyGems, Packagist, NuGet, Hex, Pub, Go, Maven and
+   CRAN the flag is double-checked against the registry itself, which also tells lockvet when a bump [suddenly adds
    install scripts](#install-scripts-added-by-a-bump) or [silently drops
    provenance attestations](#provenance-dropped-by-a-bump), and when a
    release was yanked or its project archived or quarantined). Versions younger than `-fresh-days` (default 7) get a
@@ -1365,8 +1374,9 @@ parsers are ~50 lines each.
    RubyGems the compact index's own `created_at` times fill in ages
    deps.dev hasn't indexed yet, so a gem published minutes ago still gets
    its ⏱ flag; NuGet registration `published` times do the same for .NET
-   packages; for Composer, Hex, Dart and JSR packages the ages come straight from
-   Packagist, hex.pm, pub.dev and jsr.io, which deps.dev doesn't cover at all;
+   packages; for Composer, Hex, Dart, JSR and R packages the ages come straight from
+   Packagist, hex.pm, pub.dev, jsr.io and CRAN's own per-version timeline
+   (via METACRAN's crandb), which deps.dev doesn't cover at all;
    pods get theirs from the CocoaPods trunk API's per-version timestamps;
 Terraform/OpenTofu providers from the registries' per-version publish
 times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
@@ -1388,8 +1398,8 @@ times (so a provider release cut hours ago gets its ⏱ flag too); Go tags cut
 queries (package names + versions), anonymous npm-registry / PyPI /
 crates.io / RubyGems / Packagist / NuGet / hex.pm / pub.dev / jsr.io /
 CocoaPods-CDN-and-trunk / Go-module-proxy / Terraform-and-OpenTofu-registry /
-Maven-Central-and-Google-Maven / ConanCenter
-metadata fetches for
+Maven-Central-and-Google-Maven / ConanCenter / CRAN (crandb +
+cran.r-project.org) metadata fetches for
 changed packages of those ecosystems, and the anonymous git tag listings
 above.
 `-offline` disables all of it; `-no-vulns` / `-no-meta` disable

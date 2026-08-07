@@ -290,6 +290,19 @@ func isAlnumByte(c byte) bool {
 	return c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
+// renvRepositorySource reports whether a renv.lock Source value means
+// "installed from a package repository" (CRAN or a CRAN-like mirror:
+// RSPM / Posit Package Manager snapshots serve the same release set).
+// Everything else — GitHub, GitLab, Bitbucket, Local, Remote, URL, git —
+// is a non-registry install.
+func renvRepositorySource(source string) bool {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case "", "repository", "cran", "rspm", "ppm", "p3m", "bioconductor":
+		return true
+	}
+	return false
+}
+
 func parseRenvLock(p string, data []byte) (*File, error) {
 	data = renvNA(data)
 	var doc struct {
@@ -320,6 +333,11 @@ func parseRenvLock(p string, data []byte) (*File, error) {
 				f.PkgEco = map[string]Ecosystem{}
 			}
 			f.PkgEco[Sanitize(name)] = Bioconductor
+		} else if !renvRepositorySource(pkg.Source) {
+			// GitHub/GitLab/Bitbucket remotes, local/URL installs and
+			// git checkouts carry dev versions (1.0.0.9000) no registry
+			// ever published — registry layers must not judge them.
+			f.markNonRegistry(name)
 		}
 	}
 	for key, pkg := range doc.Packages {
