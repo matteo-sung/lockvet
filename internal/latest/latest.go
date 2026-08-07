@@ -9,7 +9,6 @@ package latest
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -417,7 +416,7 @@ func mavenLatest(name string) (string, error) {
 		return "", fmt.Errorf("Maven package names look like group:artifact (got %s)", name)
 	}
 	path := "/" + strings.ReplaceAll(group, ".", "/") + "/" + artifact + "/maven-metadata.xml"
-	for _, base := range orderedMavenBases(group) {
+	for _, base := range orderedMavenBases(group, artifact) {
 		body, status, err := get(base+path, "")
 		if err != nil {
 			return "", err
@@ -435,7 +434,7 @@ func mavenLatest(name string) (string, error) {
 				Versions []string `xml:"versions>version"`
 			} `xml:"versioning"`
 		}
-		if err := xml.Unmarshal(body, &doc); err != nil {
+		if err := mvnreg.DecodeXML(body, &doc); err != nil {
 			return "", err
 		}
 		if doc.Versioning.Release != "" {
@@ -449,9 +448,13 @@ func mavenLatest(name string) (string, error) {
 	return "", notFound("Maven", name)
 }
 
-// orderedMavenBases mirrors mvnreg's heuristic: androidx/com.android/
-// com.google.android groups live on Google's Maven repository.
-func orderedMavenBases(group string) []string {
+// orderedMavenBases mirrors mvnreg's heuristics: androidx/com.android/
+// com.google.android groups live on Google's Maven repository, and
+// Gradle plugin markers (id:id.gradle.plugin) on the Plugin Portal.
+func orderedMavenBases(group, artifact string) []string {
+	if strings.HasSuffix(artifact, ".gradle.plugin") {
+		return []string{mvnreg.PluginPortalURL, mvnreg.CentralURL}
+	}
 	if strings.HasPrefix(group, "androidx.") || strings.HasPrefix(group, "com.android") ||
 		strings.HasPrefix(group, "com.google.android") {
 		return []string{mvnreg.GoogleURL, mvnreg.CentralURL}

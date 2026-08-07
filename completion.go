@@ -25,7 +25,7 @@ _lockvet() {
         cword=$COMP_CWORD
     fi
 
-    local flags="-md -json -sarif -no-vulns -no-meta -offline -no-cache -cache-ttl -fresh-days -changelogs -only -comment -fail-on -ignore-file -no-ignore -author -limit -C -no-color -version -h"
+    local flags="-md -json -sarif -no-vulns -no-meta -offline -osv-db -no-cache -cache-ttl -fresh-days -changelogs -only -comment -fail-on -ignore-file -no-ignore -author -limit -C -no-color -version -h"
     local subcmds="pr mr compare queue audit pkg diff mcp completion man"
 
     case $prev in
@@ -105,7 +105,8 @@ _lockvet() {
         '-sarif[SARIF 2.1.0 output (GitHub Code Scanning)]' \
         '-no-vulns[skip the OSV.dev vulnerability check]' \
         '-no-meta[skip deps.dev metadata (release ages, deprecations, links)]' \
-        '-offline[no network calls at all]' \
+        '-offline[no network calls at all (with -osv-db, vulns still checked from disk)]' \
+        '-osv-db[use local OSV databases under DIR instead of api.osv.dev]:directory:_files -/' \
         '-no-cache[skip the on-disk registry/advisory response cache]' \
         '-cache-ttl[how long cached registry answers stay fresh (default 1h; 0 disables)]:duration' \
         '-fresh-days[flag versions published fewer than N days ago (default 7)]:days' \
@@ -172,7 +173,8 @@ complete -c lockvet -o json -d 'JSON output'
 complete -c lockvet -o sarif -d 'SARIF 2.1.0 output (GitHub Code Scanning)'
 complete -c lockvet -o no-vulns -d 'skip the OSV.dev vulnerability check'
 complete -c lockvet -o no-meta -d 'skip deps.dev metadata (ages, deprecations, links)'
-complete -c lockvet -o offline -d 'no network calls at all'
+complete -c lockvet -o offline -d 'no network calls at all (with -osv-db, vulns still checked from disk)'
+complete -c lockvet -o osv-db -r -d 'use local OSV databases under DIR instead of api.osv.dev'
 complete -c lockvet -o no-cache -d 'skip the on-disk registry/advisory response cache'
 complete -c lockvet -o cache-ttl -r -d 'how long cached registry answers stay fresh (default 1h; 0 disables)'
 complete -c lockvet -o fresh-days -x -d 'flag versions younger than N days (default 7)'
@@ -232,7 +234,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 32 formats (incl. GitHub Actions workflows) across the npm, pnpm, yarn, bun, Cargo,
+It understands 35 formats (incl. GitHub Actions workflows and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex, pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, Helm, and Bazel (bzlmod) ecosystems, plus CycloneDX and
@@ -304,7 +306,20 @@ Skip the deps.dev metadata check (release ages, deprecations, license
 changes, changelog links).
 .TP
 .B \-offline
-No network calls at all (implies \fB\-no\-vulns \-no\-meta\fR).
+No network calls at all (implies \fB\-no\-vulns \-no\-meta\fR). With
+\fB\-osv\-db\fR the vulnerability check still runs, from the local
+databases.
+.TP
+.BI \-osv\-db " DIR"
+Use local OSV databases under \fIDIR\fR \(em the per\-ecosystem
+\fBall.zip\fR files from OSV.dev's public export \(em instead of querying
+api.osv.dev. Missing or stale ecosystems are downloaded automatically
+(conditional GET, so an unchanged database costs one 304) unless
+\fB\-offline\fR is set: one run with network prepares a fully air\-gapped
+one. A directory of hand\-copied \fBall.zip\fR files works too \(em lockvet
+indexes them locally on first use. The \fBLOCKVET_OSV_DB\fR environment
+variable sets a default. Range evaluation happens client\-side, and
+withdrawn records are excluded, matching the API's answers.
 .TP
 .B \-no\-cache
 Don't read or write the on\-disk response cache. Registry and advisory

@@ -28,7 +28,7 @@ func evalActions(diffs []diffx.FileDiff, actionChanges map[string][][2]int, oldI
 		names = append(names, name)
 		queries = append(queries, mkQuery(name, "GitHub Actions", ""))
 	}
-	results, err := runBatch(queries)
+	results, err := db.batch(queries)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func evalActions(diffs []diffx.FileDiff, actionChanges map[string][][2]int, oldI
 	if len(allIDs) == 0 {
 		return nil
 	}
-	details := fetchDetails(allIDs)
+	details := db.details(allIDs)
 
 	for name, keys := range actionChanges {
 		for _, key := range keys {

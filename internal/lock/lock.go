@@ -402,6 +402,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"poetry.lock", PyPI, parseTOMLPackages("poetry.lock", PyPI)}
 	case "requirements.txt":
 		return &Parser{"requirements.txt", PyPI, parseRequirementsTxt}
+	case "pylock.toml":
+		return &Parser{"pylock.toml", PyPI, parsePylock}
 	case "go.mod":
 		return &Parser{"go.mod", Go, parseGoMod}
 	case "composer.lock":
@@ -455,8 +457,16 @@ func ByBasename(p string) *Parser {
 		return &Parser{"MODULE.bazel.lock", Bazel, parseBazelLock}
 	case "MODULE.bazel":
 		return &Parser{"MODULE.bazel", Bazel, parseBazelModule}
+	case "libs.versions.toml":
+		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
+	case "verification-metadata.xml", "verification-metadata.dryrun.xml":
+		return &Parser{"verification-metadata.xml", Maven, parseVerificationMetadata}
 	}
 	base := path.Base(p)
+	// Gradle allows extra catalogs beside libs (gradle/tools.versions.toml).
+	if strings.HasSuffix(base, ".versions.toml") {
+		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
+	}
 	// conda-lock supports named unified lockfiles (chipyard keeps
 	// conda-reqs.conda-lock.yml, torchlens audio.pixi.lock, …).
 	if strings.HasSuffix(base, ".pixi.lock") {
@@ -469,6 +479,10 @@ func ByBasename(p string) *Parser {
 	// .plat-uw2-dev-kms-key.terraform.lock.hcl and friends).
 	if strings.HasSuffix(base, ".terraform.lock.hcl") {
 		return &Parser{".terraform.lock.hcl", Terraform, parseTerraformLock}
+	}
+	// PEP 751 allows named lockfiles beside the default (pylock.dev.toml).
+	if isPylockName(base) {
+		return &Parser{"pylock.toml", PyPI, parsePylock}
 	}
 	// Julia 1.10.8+ writes version-specific manifests (Manifest-v1.11.toml).
 	if strings.HasPrefix(base, "Manifest-v") && strings.HasSuffix(base, ".toml") {
@@ -498,12 +512,14 @@ func KnownBasenames() []string {
 	return []string{
 		"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
+		"pylock.toml",
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
 		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
-		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel", "bom.json", "sbom.json",
+		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
+		"libs.versions.toml", "verification-metadata.xml", "bom.json", "sbom.json",
 	}
 }

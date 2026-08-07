@@ -151,20 +151,36 @@ func intersectVersions(a, b []string) []string {
 func integrityDiffers(oldSet, newSet string) bool {
 	oldBy := hashesByAlgo(oldSet)
 	newBy := hashesByAlgo(newSet)
-	sharedAlgo := false
+	sharedAlgo, overlap := false, false
 	for algo, oldHashes := range oldBy {
 		newHashes, ok := newBy[algo]
 		if !ok {
+			continue // algo upgrades / added artifacts never flag
+		}
+		if strings.Contains(algo, "#") {
+			// Artifact-scoped (Gradle verification metadata): the SAME
+			// file losing every previously accepted hash means its bytes
+			// changed — regardless of the component's other artifacts.
+			shared := false
+			for h := range oldHashes {
+				if newHashes[h] {
+					shared = true
+					break
+				}
+			}
+			if !shared {
+				return true
+			}
 			continue
 		}
 		sharedAlgo = true
 		for h := range oldHashes {
 			if newHashes[h] {
-				return false // shared artifact hash: same bytes still OK
+				overlap = true
 			}
 		}
 	}
-	return sharedAlgo // comparable and fully disjoint → changed
+	return sharedAlgo && !overlap // comparable and fully disjoint → changed
 }
 
 // integritySame reports whether the two hash sets share at least one
@@ -201,6 +217,16 @@ func hashesByAlgo(set string) map[string]map[string]bool {
 }
 
 func splitHash(h string) (algo, val string) {
+	// Artifact-scoped notation "file.jar#sha256:hex" (Gradle verification
+	// metadata records several artifacts per component; each file's hash
+	// set is compared on its own).
+	if i := strings.IndexByte(h, '#'); i > 0 && i < len(h)-1 {
+		algo, val = splitHash(h[i+1:])
+		if algo == "" {
+			return "", ""
+		}
+		return h[:i] + "#" + algo, val
+	}
 	for _, sep := range []byte{'-', ':', '/'} {
 		if i := strings.IndexByte(h, sep); i > 0 {
 			// require a plausible algorithm label, not a hash that merely

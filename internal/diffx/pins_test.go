@@ -223,3 +223,33 @@ func TestFlakeSameLockNoRows(t *testing.T) {
 		t.Fatalf("identical locks must produce no rows, got %+v", fd.Changes)
 	}
 }
+
+func TestArtifactScopedIntegrity(t *testing.T) {
+	// Gradle verification metadata: hashes scoped per artifact file.
+	cases := []struct {
+		name     string
+		old, new string
+		want     bool
+	}{
+		{"new artifact appears (another variant resolved)",
+			"a-1.0.module#sha256:aa a-1.0.pom#sha256:bb",
+			"a-1.0.aar#sha256:cc a-1.0.module#sha256:aa a-1.0.pom#sha256:bb", false},
+		{"same file loses its hash",
+			"a-1.0.aar#sha256:aa a-1.0.pom#sha256:bb",
+			"a-1.0.aar#sha256:XX a-1.0.pom#sha256:bb", true},
+		{"also-trust added alongside",
+			"a-1.0.aar#sha256:aa",
+			"a-1.0.aar#sha256:aa a-1.0.aar#sha256:bb", false},
+		{"algo upgrade on same file",
+			"a-1.0.aar#sha1:aa",
+			"a-1.0.aar#sha512:bb", false},
+		{"artifact removed entirely",
+			"a-1.0.aar#sha256:aa a-1.0.pom#sha256:bb",
+			"a-1.0.pom#sha256:bb", false},
+	}
+	for _, c := range cases {
+		if got := integrityDiffers(c.old, c.new); got != c.want {
+			t.Errorf("%s: integrityDiffers = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

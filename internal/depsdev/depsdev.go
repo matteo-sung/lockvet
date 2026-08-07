@@ -244,6 +244,16 @@ func Annotate(diffs []diffx.FileDiff, freshDays int) error {
 				continue
 			}
 			c := &diffs[s.fd].Changes[s.ci]
+			if s.vk.System == "MAVEN" && len(c.Old) > 0 && !anyListed(c.Old, vs) {
+				// Maven resolves from whatever repositories the build
+				// declares, and Gradle files don't say which. When the
+				// OUTGOING version wasn't on the public registry either,
+				// the package clearly lives elsewhere (a custom repo,
+				// like Signal's libsignal) — absence proves nothing.
+				// A bump FROM a registry-listed version onto a missing
+				// one keeps the flag.
+				continue
+			}
 			c.Unlisted = true
 			c.UnlistedVersions = append(c.UnlistedVersions, s.vk.Version)
 		}
@@ -390,7 +400,21 @@ func flaggable(vk versionKey) bool {
 	if vk.System == "GO" && goPseudoRE.MatchString(vk.Version) {
 		return false // pseudo-versions are never listed; that's normal
 	}
+	if vk.System == "MAVEN" && strings.Contains(strings.ToUpper(vk.Version), "SNAPSHOT") {
+		// SNAPSHOT versions resolve from snapshot repositories and are
+		// never in the release index — absence proves nothing.
+		return false
+	}
 	return true
+}
+
+func anyListed(versions []string, listed map[string]bool) bool {
+	for _, v := range versions {
+		if listed[v] {
+			return true
+		}
+	}
+	return false
 }
 
 type pkgKey struct{ system, name string }

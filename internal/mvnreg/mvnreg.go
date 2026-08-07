@@ -26,6 +26,7 @@
 package mvnreg
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"github.com/matteo-sung/lockvet/internal/hcache"
@@ -38,11 +39,29 @@ import (
 	"github.com/matteo-sung/lockvet/internal/diffx"
 )
 
+// DecodeXML unmarshals repository XML tolerating the ASCII-family
+// encoding declarations Maven repositories actually serve (the Gradle
+// Plugin Portal declares US-ASCII, which encoding/xml refuses without a
+// CharsetReader). ASCII is a UTF-8 subset, so passing the bytes through
+// is exact.
+func DecodeXML(data []byte, v any) error {
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	dec.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
+		switch strings.ToLower(charset) {
+		case "us-ascii", "ascii", "utf-8", "utf8":
+			return input, nil
+		}
+		return nil, fmt.Errorf("unsupported XML charset %q", charset)
+	}
+	return dec.Decode(v)
+}
+
 // CentralURL and GoogleURL are the repository bases; vars so tests can
 // fake them.
 var (
-	CentralURL = "https://repo1.maven.org/maven2"
-	GoogleURL  = "https://dl.google.com/android/maven2"
+	CentralURL      = "https://repo1.maven.org/maven2"
+	GoogleURL       = "https://dl.google.com/android/maven2"
+	PluginPortalURL = "https://plugins.gradle.org/m2"
 )
 
 // maxVersionsPerChange caps POM probes for multi-version changes.
@@ -221,6 +240,11 @@ func lookup(hosts *hostCache, group, artifact, version string) (*probe, error) {
 	var order []string
 	if base, ok := hosts.get(pkg); ok {
 		order = []string{base}
+	} else if strings.HasSuffix(artifact, ".gradle.plugin") {
+		// Gradle plugin markers (id:id.gradle.plugin, from version
+		// catalogs) live on the Plugin Portal; some are mirrored to
+		// Central too.
+		order = []string{PluginPortalURL, CentralURL}
 	} else if googleFirst(group) {
 		order = []string{GoogleURL, CentralURL}
 	} else {
@@ -279,7 +303,7 @@ func fetchPOM(base, group, artifact, version string) (*probe, error) {
 		return pr, nil // existence + age already known; POM body is a bonus
 	}
 	var p pomFile
-	if xml.Unmarshal(body, &p) == nil {
+	if DecodeXML(body, &p) == nil {
 		pr.reloc = p.DistributionManagement.Relocation
 	}
 	return pr, nil

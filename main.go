@@ -132,7 +132,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 32 formats
+                                      Walks the tree for all 35 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
@@ -168,7 +168,13 @@ FLAGS
   -no-vulns      skip the OSV.dev vulnerability check
   -no-meta       skip the deps.dev metadata check (release age, deprecations)
                  and upstream changelog/diff links
-  -offline       no network calls at all (= -no-vulns -no-meta)
+  -offline       no network calls at all (= -no-vulns -no-meta). With
+                 -osv-db the vulnerability check still runs, from disk
+  -osv-db DIR    use local OSV databases under DIR (the per-ecosystem
+                 all.zip files from osv.dev's export) instead of
+                 api.osv.dev. Missing or stale ecosystems are downloaded
+                 automatically unless -offline is set, so one run with
+                 network prepares an air-gapped one. env: LOCKVET_OSV_DB
   -no-cache      don't read or write the on-disk response cache. Registry
                  and advisory answers are cached for 1h under
                  ~/.cache/lockvet (LOCKVET_CACHE_DIR overrides) so repeat
@@ -238,6 +244,7 @@ func main() {
 		dir        = flag.String("C", ".", "")
 		noColor    = flag.Bool("no-color", false, "")
 		showVer    = flag.Bool("version", false, "")
+		osvDB      = flag.String("osv-db", "", "")
 	)
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	flag.CommandLine.Parse(reorderArgs(os.Args[1:]))
@@ -246,9 +253,17 @@ func main() {
 		fmt.Println("lockvet", effectiveVersion())
 		return
 	}
+	if *osvDB == "" {
+		*osvDB = os.Getenv("LOCKVET_OSV_DB")
+	}
 	if *offline {
-		*noVulns = true
 		*noMeta = true
+		if *osvDB == "" {
+			*noVulns = true // no local database: nothing to check against
+		}
+	}
+	if *osvDB != "" && !*noVulns {
+		osv.UseLocal(*osvDB, !*offline)
 	}
 	hcache.Configure(*noCache, *cacheTTL)
 	if *changelogs && *noMeta {
@@ -583,7 +598,13 @@ func main() {
 		}
 
 		repo, err := gitx.Open(*dir)
-		check(err)
+		if err != nil {
+			fatal(fmt.Sprintf("%v\n\nlockvet's default mode diffs lockfiles in a git repository. Outside one, try:\n"+
+				"  lockvet audit .              vet what a directory already pins\n"+
+				"  lockvet pr <url>             vet a pull request, no clone needed\n"+
+				"  lockvet diff <old> <new>     vet two lockfiles on disk\n"+
+				"  lockvet -h                   everything else", err))
+		}
 		check(repo.ResolveRev(base))
 		if target != "" {
 			check(repo.ResolveRev(target))
@@ -1413,7 +1434,7 @@ func reorderArgs(args []string) []string {
 		"-fail-on": true, "-C": true, "-fresh-days": true, "-only": true, "-ignore-file": true,
 		"--fail-on": true, "--C": true, "--fresh-days": true, "--only": true, "--ignore-file": true,
 		"-author": true, "--author": true, "-limit": true, "--limit": true,
-		"-cache-ttl": true, "--cache-ttl": true,
+		"-cache-ttl": true, "--cache-ttl": true, "-osv-db": true, "--osv-db": true,
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]

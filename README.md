@@ -81,10 +81,10 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 32 formats:
+- **across every ecosystem, in one static binary** — 35 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
-  `requirements.txt`, Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
-  Gradle, NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
+  `requirements.txt`, `pylock.toml` (PEP 751), Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
+  Gradle (lockfiles, version catalogs & verification metadata), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
   Helm, Nix flakes, Bazel modules (bzlmod), **GitHub Actions workflows**
   (`uses:` pins) — plus CycloneDX & SPDX SBOMs
@@ -189,7 +189,7 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.8_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify lockvet_v0.5.9_linux_amd64.tar.gz --owner matteo-sung
 gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.7 --owner matteo-sung
 ```
 
@@ -214,7 +214,8 @@ lockvet -md                # markdown, ready to paste into a PR comment
 lockvet -json              # machine-readable, full vuln ID lists
 lockvet -sarif             # SARIF for GitHub Code Scanning — alerts on the
                            # exact lockfile line (see "In CI" below)
-lockvet -offline           # no network calls (skips vuln + metadata lookups)
+lockvet -offline           # no network calls (skips vuln + metadata lookups —
+                           # unless -osv-db gives it a local vuln database)
 
 lockvet -only jiff         # one package's story: jiff itself plus everything
                            # it dragged in (matches names AND via-chains;
@@ -431,7 +432,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.8
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.9
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -490,7 +491,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 32 formats, SBOMs and CI workflows included — and runs the full
+lockfile it finds — all 35 formats, SBOMs and CI workflows included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -547,7 +548,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.8/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.9/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -673,7 +674,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.8
+      - uses: matteo-sung/lockvet@v0.5.9
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -700,7 +701,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.8
+      - uses: matteo-sung/lockvet@v0.5.9
         with:
           sarif: 'true'
 ```
@@ -806,7 +807,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.8
+    rev: v0.5.9
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1189,7 +1190,9 @@ Both signals are computed **entirely offline** from the two lockfiles —
 they work with `-offline`, in air-gapped CI, and in the browser
 playground. Formats that record the data: npm (v1–v3), pnpm, yarn
 (classic + berry), bun.lock, deno.lock (npm + jsr), Cargo, poetry, uv,
-Pipfile.lock, `requirements.txt --hash`, Gemfile.lock (hosts),
+Pipfile.lock, `requirements.txt --hash`, `pylock.toml` (PEP 751 artifact
+hashes and index hosts — the Python confusion shape flags too),
+Gemfile.lock (hosts),
 mix.lock, Gleam's manifest.toml, pubspec.lock (hashes **and** hosts —
 the Dart confusion shape flags too), Podfile.lock (trunk podspec
 checksums), Package.resolved, composer.lock, Julia Manifest.toml,
@@ -1376,13 +1379,13 @@ files come off the forge's raw endpoint, which is not rate-limited.
 |---|---|
 | JavaScript | `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` (v1 & berry), `bun.lock`, `deno.lock` — JSR packages in `deno.lock` get release ages, yank/archive flags and the registry-verified unlisted check straight from jsr.io |
 | Rust | `Cargo.lock` |
-| Python | `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements.txt` (`==` pins) |
+| Python | `uv.lock`, `poetry.lock`, `Pipfile.lock`, `requirements.txt` (`==` pins), `pylock.toml` + named `pylock.*.toml` (PEP 751 — the standardized lockfile written by uv, pip, pipenv and pdm; vcs/directory/path sources exempt from registry checks) |
 | Go | `go.mod` |
 | PHP | `composer.lock` |
 | Ruby | `Gemfile.lock` |
 | Elixir | `mix.lock` — release ages, retirements and the unlisted check straight from hex.pm; renamed forks (`{:hex, :ts_chatterbox, …}`) resolve under their real Hex package name |
 | Dart / Flutter | `pubspec.lock` — release ages, discontinued/retracted flags and the unlisted check straight from pub.dev (git/path/SDK/private-host packages exempt) |
-| Java / JVM | `gradle.lockfile` — bumps onto [relocation stubs](https://maven.apache.org/guides/mini/guide-relocation.html) (`mysql:mysql-connector-java` → `com.mysql:mysql-connector-j`) land in the deprecation lane, and unlisted checks are verified against Maven Central and Google's Maven repository |
+| Java / JVM | `gradle.lockfile`, `libs.versions.toml` (Gradle version catalogs — the file Renovate and Dependabot actually bump, plugins resolved as their `id:id.gradle.plugin` marker against the Gradle Plugin Portal) and `verification-metadata.xml` (Gradle dependency verification — the wall-of-XML diff nobody reviews becomes package changes, and a same-version checksum change surfaces as ‼ repinned) — bumps onto [relocation stubs](https://maven.apache.org/guides/mini/guide-relocation.html) (`mysql:mysql-connector-java` → `com.mysql:mysql-connector-j`) land in the deprecation lane, and unlisted checks are verified against Maven Central, Google's Maven repository and the Plugin Portal |
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
 | C / C++ | `conan.lock` (Conan 2 flat lockfiles and Conan 1 graph locks) — release ages straight from ConanCenter, dated by each version's oldest recipe revision so re-exports don't make old releases look fresh (refs with a user/channel exempt; a ref doesn't record its remote, so no unlisted claims) |
@@ -1516,6 +1519,43 @@ vulnerability and metadata+links lookups individually. The typosquat check
 makes no requests at all — the popularity lists ship inside the binary.
 No telemetry, ever.
 
+### Air-gapped vulnerability checks (`-osv-db`)
+
+`-offline` doesn't have to mean "no vulnerability data". Point lockvet at a
+directory of local OSV databases — the per-ecosystem `all.zip` files
+[OSV.dev publishes](https://google.github.io/osv.dev/data/#data-dumps) — and
+the vulnerability check runs entirely from disk:
+
+```console
+# On a machine with network: downloads (and later revalidates) the
+# databases for whatever ecosystems the diff actually touches.
+lockvet -osv-db ~/osvdb
+
+# Air-gapped / locked-down CI: same check, zero network.
+lockvet -offline -osv-db ~/osvdb -fail-on vuln
+```
+
+Details that matter:
+
+- **Same answers.** Range evaluation happens client-side with the same
+  walk lockvet already uses for GitHub Actions advisories; withdrawn
+  records are excluded, matching the API. On real repos the output is
+  byte-identical to the API path — including `MAL-…` malware records, so
+  the [chalk/debug replay](docs/case-studies.md) works with the cable
+  unplugged.
+- **Cheap refreshes.** Downloads are conditional (ETag): an unchanged
+  database costs one 304. `LOCKVET_OSV_DB` sets a default directory, so
+  CI can cache it like any other build cache.
+- **Hand-copied zips work.** If your air-gapped side only accepts files
+  through a transfer process, copy the `all.zip` files in by hand —
+  lockvet indexes them locally on first use.
+- **Sizes are honest.** Most ecosystems are a few MB; npm is ~200 MB
+  because it includes every `MAL-…` malware record — that's the point.
+  Indexing npm takes ~15 s once per refresh; warm runs are seconds.
+- **Missing databases fail loud.** An ecosystem in the diff with no local
+  database skips the vulnerability check with an instruction, never
+  silently reports "no vulnerabilities".
+
 **Caching:** registry and advisory answers are cached on disk for one hour
 (`~/.cache/lockvet`, override with `LOCKVET_CACHE_DIR`), so repeat runs are
 fast — running `lockvet`, then `lockvet -md` for the PR comment, doesn't ask
@@ -1533,7 +1573,7 @@ to the cache.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | [dependency-review-action](https://github.com/actions/dependency-review-action) | **lockvet** |
 |---|---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **32** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **34** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ (job summary / PR comment) | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | introduced only (GitHub Advisory DB) | ✓ both (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✗ | ✓ (deps.dev) |
@@ -1545,6 +1585,7 @@ to the cache.
 | Flag bumps that suddenly add npm install scripts | ✗ | ✗ | ✗ | ✓ ([`⚙ scripts`](#install-scripts-added-by-a-bump)) |
 | Flag young releases that silently drop provenance (sigstore / trusted publishing) | ✗ | ✗ | ✗ | ✓ ([`⛨ provenance`](#provenance-dropped-by-a-bump)) |
 | Flag integrity changes on unchanged versions & private→public registry moves (dependency confusion) | ✗ | ✗ | ✗ | ✓ ([`‼ integrity` / `⇄ resolution`](#integrity--resolution-changes), offline) |
+| Air-gapped vulnerability check from a local database | ✗ | ✗ | ✗ | ✓ ([`-osv-db`](#air-gapped-vulnerability-checks--osv-db), incl. `MAL-…` malware records) |
 | GitHub Actions `uses:` pins (SHA → release resolution, tag-attack detection) | ✗ | ✗ | GitHub Actions ecosystem via dependency graph | ✓ ([format #31](#github-actions-workflows-are-lockfiles-too), all five forges + locally) |
 | Verify SwiftPM pins against upstream tags (moved tag / deleted release) | ✗ | ✗ | ✗ | ✓ ([`‼ tag mismatch`](#swiftpm-pins-verified-against-upstream-tags)) |
 | Direct vs. transitive, with pull-in chain (`via a › b`) | ✗ | ✗ | direct/indirect label, no chain | ✓ |

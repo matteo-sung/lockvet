@@ -4,6 +4,72 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.9 — 2026-08-07
+
+- **Gradle version catalogs and dependency verification — formats #33 and
+  #34.**
+  - **`libs.versions.toml`** (any `*.versions.toml` beside it): the file
+    Renovate and Dependabot actually bump in Gradle and Android projects.
+    Exact pins from `[versions]` / `[libraries]` / `[plugins]` (string
+    shorthand, inline tables, `version.ref`, rich versions by Gradle's
+    strictly > require > prefer precedence); dynamic versions (`1.+`,
+    ranges, `latest.release`) skipped. Plugins are resolved as their
+    plugin-marker coordinate (`id:id.gradle.plugin`) — what Gradle itself
+    resolves — against the Gradle Plugin Portal, with Maven Central and
+    Google Maven fallbacks; ages, unlisted re-verification and
+    `pkg maven:…` latest lookups all work for markers.
+  - **`verification-metadata.xml`**: the wall-of-XML diff nobody reviews
+    becomes ordinary package changes with the full registry treatment,
+    and every artifact's checksums become integrity pins scoped per file —
+    a component's SAME artifact changing its accepted hashes at an
+    unchanged version surfaces as ‼ REPINNED (the exact tampering the
+    file exists to catch), while Gradle ADDING an artifact entry because
+    a new configuration resolved another variant stays quiet (that was
+    the noisy case on real Signal-Android history), as do `also-trust`
+    additions and SNAPSHOT re-resolutions.
+  - Maven unlisted-version claims got a repository-honesty gate: Gradle
+    files don't record which repositories a build declares, so a bump
+    whose OUTGOING version already wasn't on the public registry (a
+    custom-repo dependency, like Signal's libsignal) no longer flags —
+    absence proves nothing there. A bump FROM a registry-listed version
+    onto a missing one, and `-SNAPSHOT` versions never claiming
+    unlisted, keep the signal honest. Validated on 80+ real
+    nowinandroid + Signal-Android history replays: zero noise, true
+    positives kept.
+- **`pylock.toml` (PEP 751) — format #35.** Python's standardized
+  lockfile — written by `uv export`, `pip lock`, pipenv and pdm — gets
+  the full PyPI treatment (advisories incl. malware records, release
+  ages, deprecations/yanks, registry-verified unlisted versions,
+  provenance-drop and install-script checks, typosquat suspects), plus:
+  - **integrity + resolution pins**: every artifact hash (inline uv/
+    pipenv `hashes = { sha256 = … }` tables and pip's
+    `[packages.wheels.hashes]` sub-tables both parse) and the index or
+    artifact host become pins — a same-version hash change flags
+    ‼ REPINNED, and a package moving from a private index onto PyPI
+    flags the dependency-confusion lane ⇄.
+  - `vcs` / `directory` / `archive` sources and local-path-only wheels
+    are exempt from registry judgement; wheel-filename `name` keys in
+    sub-tables never masquerade as package names; the optional PEP 751
+    `dependencies` arrays become `via …` chains when a locker records
+    them. Named lockfiles (`pylock.dev.toml`) are recognized everywhere,
+    including `audit`'s tree walk and the pre-commit hook.
+- **Air-gapped vulnerability checks: `-osv-db DIR`.** Point lockvet at a
+  directory of local OSV databases — the per-ecosystem `all.zip` files
+  [OSV.dev publishes](https://google.github.io/osv.dev/data/#data-dumps) —
+  and the vulnerability check runs entirely from disk, so `-offline`
+  (air-gapped CI, locked-down build environments) still gets real
+  advisories, including `MAL-…` malware records. Missing or stale
+  ecosystems are downloaded automatically when network is available
+  (conditional GET: an unchanged database costs one 304); hand-copied
+  `all.zip` files are indexed locally on first use; withdrawn records are
+  excluded and ranges are evaluated client-side, matching the API's
+  answers (byte-identical output on real repos). A missing database fails
+  loud with instructions, never a silent "no vulnerabilities".
+  `LOCKVET_OSV_DB` sets a default directory. Works in every mode —
+  diff, `pr`/`mr`, `compare`, `audit`, `pkg`, `queue`, MCP.
+- Friendlier error when the default mode runs outside a git repository:
+  points at `lockvet audit .`, `lockvet pr <url>`, and `lockvet diff`.
+
 ## v0.5.8 — 2026-08-07
 
 - **Bazel modules (bzlmod) — format #32.** Two files, one ecosystem:

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -22,6 +23,23 @@ const (
 )
 
 var client = hcache.Client(20 * time.Second)
+
+// backend answers the two questions Annotate asks of the OSV database:
+// which advisory IDs affect a (package, version), and what do those
+// advisories say. The default asks api.osv.dev; UseLocal switches to
+// zip databases from OSV's GCS export so air-gapped runs still get a
+// real vulnerability check.
+type backend interface {
+	batch(qs []query) ([]batchResult, error)
+	details(ids []string) map[string]vulnDetail
+}
+
+var db backend = apiBackend{}
+
+type apiBackend struct{}
+
+func (apiBackend) batch(qs []query) ([]batchResult, error)    { return runBatch(qs) }
+func (apiBackend) details(ids []string) map[string]vulnDetail { return fetchDetails(ids) }
 
 type query struct {
 	Version string `json:"version,omitempty"`
@@ -87,7 +105,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 
 	for start := 0; start < len(queries); start += 1000 {
 		end := min(start+1000, len(queries))
-		results, err := runBatch(queries[start:end])
+		results, err := db.batch(queries[start:end])
 		if err != nil {
 			return err
 		}
@@ -139,7 +157,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 			parts[key] = pt
 		}
 	}
-	details := fetchDetails(append(append(pri1, pri2...), pri3...))
+	details := db.details(append(append(pri1, pri2...), pri3...))
 
 	for i := range diffs {
 		for j := range diffs[i].Changes {
@@ -331,16 +349,26 @@ func fetchVuln(id string) (vulnDetail, error) {
 		return v, err
 	}
 	defer resp.Body.Close()
-	var doc struct {
-		Summary          string          `json:"summary"`
-		Details          string          `json:"details"`
-		Aliases          []string        `json:"aliases"`
-		Affected         []affectedEntry `json:"affected"`
-		DatabaseSpecific struct {
-			Severity string `json:"severity"`
-		} `json:"database_specific"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	return decodeVulnDoc(resp.Body)
+}
+
+// vulnDoc is the slice of a full OSV record lockvet reads, shared by the
+// API and local-database backends.
+type vulnDoc struct {
+	Summary          string          `json:"summary"`
+	Details          string          `json:"details"`
+	Aliases          []string        `json:"aliases"`
+	Withdrawn        string          `json:"withdrawn"`
+	Affected         []affectedEntry `json:"affected"`
+	DatabaseSpecific struct {
+		Severity string `json:"severity"`
+	} `json:"database_specific"`
+}
+
+func decodeVulnDoc(r io.Reader) (vulnDetail, error) {
+	var v vulnDetail
+	var doc vulnDoc
+	if err := json.NewDecoder(r).Decode(&doc); err != nil {
 		return v, err
 	}
 	v.summary = doc.Summary

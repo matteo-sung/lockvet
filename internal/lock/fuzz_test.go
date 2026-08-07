@@ -43,6 +43,10 @@ func FuzzAllParsers(f *testing.F) {
 		"{\"lockFileVersion\":28,\"registryFileHashes\":{\"https://bcr.bazel.build/modules/a/1.0/source.json\":\"ab\"},\"selectedYankedVersions\":{\"a@1.0\":\"why\"}}",
 		"{\"lockFileVersion\":3,\"moduleDepGraph\":{\"<root>\":{\"deps\":{\"a\":\"a@1.0\"}},\"a@1.0\":{\"name\":\"a\",\"version\":\"1.0\",\"deps\":{},\"repoSpec\":{\"ruleClassName\":\"http_archive\",\"attributes\":{\"integrity\":\"sha256-x=\"}}}}}",
 		"bazel_dep(name = \"rules_java\", version = \"8.6.1\")\nsingle_version_override(\n    module_name = \"rules_java\",\n    version = \"9.0.0\",\n)\n# bazel_dep(name = \"x\", version = \"1\")\n",
+		"[versions]\nagp = \"8.1.1\"\n[libraries]\na = { module = \"g:n\", version.ref = \"agp\" }\nb = \"g:n2:1.0\"\n[plugins]\np = { id = \"x.y\", version = { strictly = \"1.0\" } }\n",
+		"lock-version = \"1.0\"\ncreated-by = \"uv\"\n\n[[packages]]\nname = \"a\"\nversion = \"1.0\"\nindex = \"https://pypi.org/simple/\"\nwheels = [\n{ url = \"https://x/a.whl\", hashes = { sha256 = \"00dca57bca26fa62a6d7d0\" } },\n]\n",
+		"lock-version = \"1.0\"\n[[packages]]\nname = \"b\"\nversion = \"2.0\"\n[[packages.wheels]]\nname = \"b.whl\"\nurl = \"https://x/b.whl\"\n[packages.wheels.hashes]\nsha256 = \"13f3eecb844759ab66efec\"\n[[packages]]\nname = \"c\"\n[packages.vcs]\nurl = \"https://github.com/x/c\"\n",
+		"<verification-metadata><components><component group=\"g\" name=\"n\" version=\"1.0\"><artifact name=\"n-1.0.jar\"><sha256 value=\"ab\"/></artifact></component></components></verification-metadata>",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))
