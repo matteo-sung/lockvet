@@ -84,12 +84,12 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 40 formats:
+- **across every ecosystem, in one static binary** — 41 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, `pylock.toml` (PEP 751), Go modules, Composer, Bundler, Hex (mix & rebar3), pub/Flutter,
   Gradle (lockfiles, version catalogs & verification metadata), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
-  Helm, Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
+  Helm, Ansible Galaxy (`requirements.yml`), Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
   (`uses:` pins), **container base images** (Dockerfile / Containerfile /
   Compose `image:` pins), **pre-commit hook pins**
   (`.pre-commit-config.yaml` `rev:`) — plus CycloneDX & SPDX SBOMs
@@ -162,22 +162,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.15/lockvet_v0.5.15_linux_amd64.deb
-sudo dpkg -i lockvet_v0.5.15_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.16/lockvet_v0.5.16_linux_amd64.deb
+sudo dpkg -i lockvet_v0.5.16_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.15/lockvet_v0.5.15_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.16/lockvet_v0.5.16_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.15/lockvet_v0.5.15_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.5.15_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.16/lockvet_v0.5.16_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.5.16_linux_amd64.apk
 ```
 
 Go:
@@ -197,7 +197,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.15 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.16 lockvet
 ```
 
 ### Shell completions & man page
@@ -222,8 +222,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.15_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.15 --owner matteo-sung
+gh attestation verify lockvet_v0.5.16_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.16 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -465,7 +465,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.15
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.16
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -524,7 +524,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 40 formats, SBOMs, CI workflows and Dockerfiles included — and runs the full
+lockfile it finds — all 41 formats, SBOMs, CI workflows and Dockerfiles included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -581,7 +581,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.15/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.16/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -622,6 +622,7 @@ lockvet pkg maven:com.google.guava:guava    # Maven group:artifact
 lockvet pkg jsr:@std/http terraform:hashicorp/aws pod:Alamofire
 lockvet pkg swift:Alamofire/Alamofire       # SwiftPM (github.com implied)
 lockvet pkg helm:https://charts.bitnami.com/bitnami/postgresql  # Helm charts
+lockvet pkg ansible:community.general       # Ansible Galaxy (collections & roles)
 ```
 
 Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
@@ -630,6 +631,8 @@ the Bazel Central Registry (`bazel:<module>`), conda
 (`conda:[channel/]name` — the channel defaults to conda-forge),
 Helm charts (`helm:<repo-url>/<chart>` — resolved against that
 repository's own index, skipping deprecated releases),
+Ansible Galaxy (`ansible:namespace.name` — collections first, classic
+roles as fallback),
 GitHub Actions (`actions:owner/repo`), and Swift packages
 (`swift:host/owner/repo` — latest is the highest stable tag); other
 ecosystems (`conan:`, `julia:`) work with an explicit `@version`.
@@ -640,7 +643,7 @@ shareable URL —
 [`#pkg=npm:chakl`](https://matteo-sung.github.io/lockvet/#pkg=npm%3Achakl)
 resolves the registry's "latest" for a typo of `chalk` and reports the
 malware record attached to it. (A few registries don't answer browsers at
-all — RubyGems, Maven, conda among them — the CLI covers everything.)
+all — RubyGems, Maven, conda, Ansible Galaxy among them — the CLI covers everything.)
 
 `-fail-on vuln,unlisted,typosquat` gates scripts the same way it gates CI,
 and `-md`/`-json` output works as everywhere else.
@@ -664,7 +667,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.15", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.16", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -719,7 +722,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.15
+      - uses: matteo-sung/lockvet@v0.5.16
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -746,7 +749,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.15
+      - uses: matteo-sung/lockvet@v0.5.16
         with:
           sarif: 'true'
 ```
@@ -766,7 +769,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.15
+  image: ghcr.io/matteo-sung/lockvet:0.5.16
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -791,7 +794,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.15
+          image: ghcr.io/matteo-sung/lockvet:0.5.16
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -809,7 +812,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.15
+    container: ghcr.io/matteo-sung/lockvet:0.5.16
     steps:
       - checkout: none
       - script: >
@@ -833,7 +836,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.15
+    image: ghcr.io/matteo-sung/lockvet:0.5.16
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -852,7 +855,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.15
+    rev: v0.5.16
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1517,7 +1520,8 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | Gleam | `manifest.toml` — Hex advisories, via-chains, direct deps from `[requirements]`; ages/retirements/unlisted from hex.pm (git/path packages exempt) |
 | Conda | `pixi.lock` (v4–v7), `conda-lock.yml` (also `*.pixi.lock`, `*.conda-lock.yml`) — release ages, broken-release flags, license changes and the registry-verified unlisted check straight from anaconda.org (any channel the lockfile resolves from — conda-forge, bioconda, …); pip packages inside get full PyPI vulnerability/age data |
 | Terraform / OpenTofu | `.terraform.lock.hcl` (also suffix-named `*.terraform.lock.hcl`) — release ages, archived/delisted/blocked-provider flags, verified changelog links and the registry-verified unlisted check straight from the Terraform & OpenTofu registries (custom registry hosts exempt) |
-| Helm | `Chart.lock`, `Chart.yaml` (most repos commit only the manifest — exact version pins are read, range constraints skipped), `requirements.yaml` (Helm v2, content-sniffed so Ansible Galaxy files never match), `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) — release ages, deprecated-chart flags, verified changelog links and a prune-guarded unlisted check straight from each chart repository's own `index.yaml`, the exact document `helm dependency update` resolves against (`oci://` and `file://` references exempt) |
+| Helm | `Chart.lock`, `Chart.yaml` (most repos commit only the manifest — exact version pins are read, range constraints skipped), `requirements.yaml` (Helm v2, content-sniffed apart from Ansible Galaxy files), `requirements.lock` (Helm v2; pip-style `requirements.lock` from rye is auto-detected and treated as PyPI) — release ages, deprecated-chart flags, verified changelog links and a prune-guarded unlisted check straight from each chart repository's own `index.yaml`, the exact document `helm dependency update` resolves against (`oci://` and `file://` references exempt) |
+| Ansible | `requirements.yml` / `requirements.yaml` — Galaxy collections (`namespace.name`) and classic roles, exact version pins only (range constraints skipped); release ages, deprecated-collection flags, verified changelog links and the registry-verified unlisted check straight from galaxy.ansible.com (the v3 collection index `ansible-galaxy` itself resolves against, plus the classic v1 role index); `git`/`file`/`url` entries and private Automation Hub sources exempt; roles never get absence claims (their index only updates when the owner re-imports) |
 | Nix | `flake.lock` |
 | Zig | `build.zig.zon` — Zig has no lockfile beyond it and no registry: every dependency pins a source URL + content hash, and lockvet reads both (rev/tag/hash-derived versions, ‼ same-version hash swaps, ⇄ same-version source re-points, verified tag compare links + release notes from the dependency's own repo) |
 | CI / GitHub Actions | `.github/workflows/*.yml`, `action.yml`/`action.yaml` (composite actions), `.gitea/workflows`, `.forgejo/workflows` — every `uses:` pin; SHA and floating-tag pins resolved against the action repo's real tags, advisories from OSV's GitHub Actions ecosystem evaluated client-side |
@@ -1542,19 +1546,19 @@ when the purl names a release (`distro=alpine-3.18.4` → `Alpine:v3.18`) —
 Ubuntu/RPM packages are diffed without it.
 Release ages / deprecations / license changes come from deps.dev, which covers
 npm, crates.io, PyPI, Go, Maven, NuGet, and RubyGems — other ecosystems simply
-skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform, R, Haskell, Bazel, conda and Helm are the exceptions: deps.dev has no
-Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform, CRAN, Hackage, Bazel, conda or Helm system at all, so lockvet asks Packagist, hex.pm,
-pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries, CRAN (via METACRAN's crandb), Hackage, the Bazel Central Registry, anaconda.org and each Helm chart repository's own `index.yaml` directly — release ages, deprecation warnings (Composer `abandoned`,
+skip those checks. PHP, the BEAM world, Dart, JSR, iOS, C/C++, Terraform, R, Haskell, Bazel, conda, Helm and Ansible are the exceptions: deps.dev has no
+Composer, Hex, Pub, JSR, CocoaPods, Conan, Terraform, CRAN, Hackage, Bazel, conda, Helm or Ansible system at all, so lockvet asks Packagist, hex.pm,
+pub.dev, jsr.io, the CocoaPods registry, ConanCenter, the Terraform/OpenTofu registries, CRAN (via METACRAN's crandb), Hackage, the Bazel Central Registry, anaconda.org, Ansible Galaxy and each Helm chart repository's own `index.yaml` directly — release ages, deprecation warnings (Composer `abandoned`,
 Hex retirements, pub.dev discontinued packages and retracted versions,
 JSR yanked versions and archived packages,
 CocoaPods deprecated pods with their named replacement, archived/delisted
 Terraform providers, packages archived on CRAN, packages and individual
 versions deprecated on Hackage — replacement suggestions included,
 Bazel module versions yanked from the Bazel Central Registry with the
-registry's reason, conda releases marked broken, Helm charts marked `deprecated` in their repository's index), changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, `rebar.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `MODULE.bazel.lock`, `MODULE.bazel`, `pixi.lock`, `conda-lock.yml`, `Chart.lock` and `Chart.yaml` too (plus license
-changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry, Hackage, the Bazel Central Registry and Helm chart indexes keep no usable per-release license history,
-so that one check is honestly skipped there). Helm's unlisted check carries a pruning guard: chart repositories routinely prune old releases from their index, so only a missing version that sorts at or above the oldest release the index still lists is flagged. The Bazel Central Registry
+registry's reason, conda releases marked broken, Helm charts marked `deprecated` in their repository's index, Ansible collections marked deprecated on Galaxy), changelog links and the unlisted check all work for `composer.lock`,
+`mix.lock`, `rebar.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `MODULE.bazel.lock`, `MODULE.bazel`, `pixi.lock`, `conda-lock.yml`, `Chart.lock`, `Chart.yaml` and Ansible `requirements.yml` too (plus license
+changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry, Hackage, the Bazel Central Registry, Helm chart indexes and Ansible Galaxy keep no usable per-release license history,
+so that one check is honestly skipped there). Ansible's checks carry their own honesty rules: classic roles never get absence claims (the v1 role index only updates when the owner re-imports, so a missing version proves lag, not malice), and versions published before Galaxy's 2023 migration all carry the migration date, so historical ages are upper bounds. Helm's unlisted check carries a pruning guard: chart repositories routinely prune old releases from their index, so only a missing version that sorts at or above the oldest release the index still lists is flagged. The Bazel Central Registry
 also records no publish timestamps (they live only in its git history),
 so Bazel modules honestly carry no release ages or ⏱ cooldown flags. CRAN's unlisted check is
 mirror-lag-safe: before claiming anything, absence is double-checked

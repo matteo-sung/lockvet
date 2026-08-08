@@ -94,6 +94,15 @@ const (
 	// repositories' real tags.
 	PreCommit Ecosystem = "pre-commit"
 
+	// Ansible covers Galaxy requirements.yml files: collections
+	// (namespace.name) and classic roles (owner.name), which OSV.dev and
+	// deps.dev both lack entirely. internal/ansreg reads galaxy.ansible.com
+	// itself (the v3 collection index and v1 role index): release ages,
+	// collection deprecation, registry-verified unlisted versions, source
+	// repositories. Roles are marked per-package via File.PkgEco.
+	Ansible     Ecosystem = "Ansible Galaxy"
+	AnsibleRole Ecosystem = "Ansible Galaxy role"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -469,10 +478,10 @@ func ByBasename(p string) *Parser {
 		// bumps its dependencies block. Exact pins only.
 		return &Parser{"Chart.yaml", Helm, parseChartYAML}
 	case "requirements.yaml", "requirements.yml":
-		// Helm v2 kept chart dependencies here, same shape — but the
-		// basename also belongs to Ansible Galaxy role files, so this
-		// one must actually contain a dependencies: block.
-		return &Parser{"Chart.yaml", Helm, parseHelmRequirementsYAML}
+		// Helm v2 kept chart dependencies here (a dependencies: block);
+		// Ansible Galaxy requirements files share the basename
+		// (collections:/roles: blocks, or a bare role list) — sniffed.
+		return &Parser{"requirements.yml", Ansible, sniffRequirementsYAML}
 	case "requirements.lock":
 		// Helm v2 chart lock, or pip-frozen requirements — sniffed.
 		return &Parser{"requirements.lock", Helm, parseRequirementsLock}

@@ -12,6 +12,7 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "package-lock.json", NPM)
 	var doc struct {
 		Packages map[string]struct {
+			Name                 string            `json:"name"`
 			Version              string            `json:"version"`
 			Link                 bool              `json:"link"`
 			Resolved             string            `json:"resolved"`
@@ -53,6 +54,13 @@ func parseNPMLock(p string, data []byte) (*File, error) {
 				continue // workspace member itself, not an installed package
 			}
 			f.add(name, pkg.Version)
+			if pkg.Name != "" && pkg.Name != name {
+				// An aliased install ("react-loadable": "npm:@docusaurus/
+				// react-loadable@^5.5.2"): the entry's name field records
+				// the REAL package. Registry claims under the alias name
+				// would be wrong (yarn alias precedent).
+				f.markNonRegistry(name)
+			}
 			if strings.HasPrefix(pkg.Resolved, "git") || strings.HasPrefix(pkg.Resolved, "file:") {
 				f.markNonRegistry(name) // git or local-path dependency
 			} else {

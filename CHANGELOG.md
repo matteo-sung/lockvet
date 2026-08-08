@@ -4,6 +4,36 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.16 — 2026-08-08
+
+- **Ansible Galaxy: `requirements.yml` is format #41 and registry #20.**
+  Ansible content has no OSV ecosystem and no deps.dev coverage — nothing
+  vets a `requirements.yml` bump. Now lockvet parses Galaxy requirements
+  files (collections and classic roles, the old bare role-list shape
+  included; exact version pins only — pip-style `==8.6.0` spellings
+  count, range constraints are skipped) and asks
+  galaxy.ansible.com itself: release ages and the ⏱ cooldown flag from
+  the v3 collection index (the exact API `ansible-galaxy collection
+  install` resolves against) and the v1 role index, deprecated
+  collections in the deprecation lane, upstream source repositories from
+  each collection version's own metadata (verified compare links and
+  `-changelogs` work), and a registry-verified unlisted check for
+  collections — Galaxy keeps every published version, so a 404 while the
+  collection IS listed is what a pulled release looks like; absence is
+  re-proven uncached before it is claimed. Honesty rules: classic roles
+  never get absence claims (their index only updates when the owner
+  re-imports), `git`/`file`/`url` entries and private Automation Hub
+  `source:` hosts are exempt, and the Helm-shared `requirements.yaml`
+  basename is content-sniffed. `lockvet pkg ansible:namespace.name`
+  resolves latest (collections first, roles as fallback). The browser
+  playground skips this layer (galaxy.ansible.com sends no CORS
+  headers); the CLI covers it fully.
+- **package-lock v2/v3 aliased installs no longer flag as unlisted.**
+  `"react-loadable": "npm:@docusaurus/react-loadable@^5.5.2"` records the
+  real package in the entry's `name` field; registry claims under the
+  alias name were wrong (the yarn `npm:` alias fix from v0.4.0, now
+  applied to package-lock.json too).
+
 ## v0.5.15 — 2026-08-08
 
 - **Helm chart repositories: registry signals for `Chart.lock` — and

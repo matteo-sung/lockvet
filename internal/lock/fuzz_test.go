@@ -29,6 +29,7 @@ func FuzzAllParsers(f *testing.F) {
 		"org.example:lib:1.0=classpath\nempty=\n",
 		"lockfileVersion: '9.0'\npackages:\n  /a@1.0.0:\n    resolution: {}\n",
 		"\"a@^1.0.0\":\n  version \"1.0.1\"\n",
+		"collections:\n  - name: community.general\n    version: 8.6.0\nroles:\n  - src: geerlingguy.docker\n    version: 7.0.0\n",
 		"\x00\xff\xfe garbage \x80",
 		"{\"version\":2,\"dependencies\":{\"net6.0\":{\"A\":{\"type\":\"Direct\",\"resolved\":\"1.0.0\"}}}}",
 		"{\"pins\":[{\"identity\":\"swift-nio\",\"location\":\"https://github.com/apple/swift-nio.git\",\"state\":{\"version\":\"2.0.0\"}}]}",

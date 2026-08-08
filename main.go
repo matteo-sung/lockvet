@@ -17,6 +17,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/adopr"
+	"github.com/matteo-sung/lockvet/internal/ansreg"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
@@ -134,7 +135,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 40 formats
+                                      Walks the tree for all 41 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
@@ -743,6 +744,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := ansreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Ansible Galaxy check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if ok, err := conanreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: ConanCenter registry check skipped: %v\n", err)
 		} else if ok {
@@ -1254,6 +1260,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := helmreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Helm chart repository check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := ansreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Ansible Galaxy check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

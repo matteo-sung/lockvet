@@ -16,6 +16,7 @@ import (
 
 	"github.com/matteo-sung/lockvet/internal/actreg"
 	"github.com/matteo-sung/lockvet/internal/adopr"
+	"github.com/matteo-sung/lockvet/internal/ansreg"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
@@ -246,6 +247,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if ok, err := helmreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Helm chart repository check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := ansreg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("Ansible Galaxy check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}

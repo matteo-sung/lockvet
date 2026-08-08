@@ -26,9 +26,9 @@ const mcpLatestProtocol = "2025-06-18"
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
 version is, what's deprecated, what's missing from the registry index, what looks like a typosquat, what suddenly runs install scripts, what silently drops sigstore provenance, what changes its content hash without a version change, what moves from a private registry to the public one
-(unpublished/pulled releases), and license changes — across 40 lockfile
+(unpublished/pulled releases), and license changes — across 41 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
-conda, Julia, Haskell, Terraform, Helm, renv, SBOMs, and more).
+conda, Julia, Haskell, Terraform, Helm, Ansible Galaxy, renv, SBOMs, and more).
 
 Use vet_url for a pull/merge request, compare, or commit URL on GitHub,
 GitLab, Bitbucket, Gitea/Forgejo, or Azure DevOps (no clone needed);
@@ -159,7 +159,7 @@ func mcpTools() []map[string]any {
 			"name":  "vet_url",
 			"title": "Vet a pull request, compare range, or commit by URL",
 			"description": "Explain the lockfile/dependency changes of a pull/merge request, compare range, or commit on GitHub, GitLab, Bitbucket Cloud, Gitea/Forgejo (incl. Codeberg), or Azure DevOps — no clone needed. " +
-				"Reports every added/removed/bumped package with semver severity, vulnerabilities introduced/fixed/unresolved (OSV.dev), release age, deprecations, license changes, unlisted versions, typosquat-suspect additions (new young packages one edit from a popular name), integrity changes on unchanged versions, SwiftPM/workflow pins verified against upstream tags (moved-tag and not-a-release catches) and private-to-public registry resolution moves (dependency-confusion shape), npm install-script and npm/PyPI/crates.io/RubyGems provenance-dropped transitions (ages/deprecations cover Packagist, hex.pm, pub.dev, jsr.io, CocoaPods, CRAN and Helm chart repositories too), direct-vs-transitive origin with via-chains, and verified upstream changelog/diff links. " +
+				"Reports every added/removed/bumped package with semver severity, vulnerabilities introduced/fixed/unresolved (OSV.dev), release age, deprecations, license changes, unlisted versions, typosquat-suspect additions (new young packages one edit from a popular name), integrity changes on unchanged versions, SwiftPM/workflow pins verified against upstream tags (moved-tag and not-a-release catches) and private-to-public registry resolution moves (dependency-confusion shape), npm install-script and npm/PyPI/crates.io/RubyGems provenance-dropped transitions (ages/deprecations cover Packagist, hex.pm, pub.dev, jsr.io, CocoaPods, CRAN, Helm chart repositories and Ansible Galaxy too), direct-vs-transitive origin with via-chains, and verified upstream changelog/diff links. " +
 				"Accepts PR/MR URLs, compare URLs, commit URLs, or shorthands like owner/repo#123 (GitHub) and group/project!123 (GitLab). Uses GITHUB_TOKEN / GITLAB_TOKEN / BITBUCKET_TOKEN / GITEA_TOKEN / AZURE_DEVOPS_TOKEN from the environment when present; public repos work unauthenticated.",
 			"inputSchema": map[string]any{
 				"type": "object",
@@ -237,7 +237,7 @@ func mcpTools() []map[string]any {
 			"title": "Vet a package before installing it",
 			"description": "Vet one or more packages BEFORE they are in any lockfile — the moment you are deciding whether to npm install / pip install / cargo add them. " +
 				"Reports known advisories affecting the version (OSV.dev, including MAL malicious-package records), release age (brand-new releases are higher-risk), deprecation/retraction/yank status with the upstream reason, versions missing from the registry index (what an unpublished or pulled — often malicious — release looks like), and typosquat suspicion (names one edit from a popular package). " +
-				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http, swift:Alamofire/Alamofire. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform, conda, CRAN, Hackage, Bazel, Helm charts (helm:<repo-url>/<chart>), GitHub Actions, Swift, pre-commit:owner/repo hook repos). " +
+				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http, swift:Alamofire/Alamofire. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform, conda, CRAN, Hackage, Bazel, Helm charts (helm:<repo-url>/<chart>), Ansible Galaxy (ansible:namespace.name — collections and classic roles), GitHub Actions, Swift, pre-commit:owner/repo hook repos). " +
 				"Run this before adding any new dependency.",
 			"inputSchema": map[string]any{
 				"type": "object",

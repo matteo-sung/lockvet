@@ -46,6 +46,7 @@ import (
 	"syscall/js"
 
 	"github.com/matteo-sung/lockvet/internal/adopr"
+	"github.com/matteo-sung/lockvet/internal/ansreg"
 	"github.com/matteo-sung/lockvet/internal/bbpr"
 	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
@@ -95,6 +96,7 @@ func main() {
 	podreg.UseTrunk = false
 	// center.conan.io sends no CORS headers: the browser cannot query
 	// ConanCenter at all, so conan.lock diffs carry no registry claims.
+	ansreg.Enabled = false // no CORS on galaxy.ansible.com
 	conanreg.Enabled = false
 	cranreg.Enabled = false  // no CORS on crandb / cran.r-project.org
 	condareg.Enabled = false // no CORS on api.anaconda.org

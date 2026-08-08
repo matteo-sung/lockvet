@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/matteo-sung/lockvet/internal/actreg"
+	"github.com/matteo-sung/lockvet/internal/ansreg"
 	"github.com/matteo-sung/lockvet/internal/bzlreg"
 	"github.com/matteo-sung/lockvet/internal/cargoreg"
 	"github.com/matteo-sung/lockvet/internal/condareg"
@@ -100,6 +101,11 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.Conda:     condaLatest,
 	lock.Hackage:   hkgreg.Latest,
 	lock.Bazel:     bzlreg.Latest,
+
+	// Ansible Galaxy collections resolve via the v3 index's
+	// highest_version; classic roles fall back to the v1 role index.
+	lock.Ansible:     ansreg.Latest,
+	lock.AnsibleRole: ansreg.Latest,
 
 	// GitHub Actions releases are the action repository's tags; the same
 	// anonymous smart-HTTP advertisement actreg resolves pins with

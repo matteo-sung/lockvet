@@ -47,6 +47,10 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"pod":            lock.CocoaPods,
 	"pods":           lock.CocoaPods,
 	"cocoapods":      lock.CocoaPods,
+	"ansible":        lock.Ansible,
+	"galaxy":         lock.Ansible,
+	"ansible-galaxy": lock.Ansible,
+	"ansible-role":   lock.AnsibleRole,
 	"helm":           lock.Helm,
 	"chart":          lock.Helm,
 	"terraform":      lock.Terraform,
@@ -99,7 +103,7 @@ func Parse(arg string) (Spec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, swift", ecoPart)
+		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, ansible, swift", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {
