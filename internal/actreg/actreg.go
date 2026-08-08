@@ -32,8 +32,8 @@ var Enabled = true
 // Concurrency bounds parallel tag fetches.
 var Concurrency = 8
 
-// Annotate resolves workflow pins in place. ok reports whether at least
-// one repository's tags were checked.
+// Annotate resolves workflow and pre-commit pins in place. ok reports
+// whether at least one repository's tags were checked.
 func Annotate(diffs []diffx.FileDiff) (bool, error) {
 	if !Enabled {
 		return false, nil
@@ -42,8 +42,8 @@ func Annotate(diffs []diffx.FileDiff) (bool, error) {
 	for i := range diffs {
 		for j := range diffs[i].Changes {
 			c := &diffs[i].Changes[j]
-			if wants(c) {
-				repos[c.Name] = true
+			if u := repoURL(c); u != "" {
+				repos[u] = true
 			}
 		}
 	}
@@ -61,8 +61,8 @@ func Annotate(diffs []diffx.FileDiff) (bool, error) {
 		touched := false
 		for j := range fd.Changes {
 			c := &fd.Changes[j]
-			rr, ok := refs[c.Name]
-			if !wants(c) || !ok {
+			rr, ok := refs[repoURL(c)]
+			if !ok {
 				continue
 			}
 			annotateChange(c, rr)
@@ -75,13 +75,26 @@ func Annotate(diffs []diffx.FileDiff) (bool, error) {
 	return true, nil
 }
 
-// wants reports whether the change is a GitHub Actions pin this layer can
-// check: an owner/repo name hosted (by workflow convention) on github.com.
-func wants(c *diffx.Change) bool {
-	if lock.Ecosystem(c.Ecosystem) != lock.GitHubActions || c.NonRegistry {
-		return false
+// repoURL returns the repository URL behind a pin this layer can check —
+// a GitHub Actions `uses:` name (owner/repo, hosted by workflow convention
+// on github.com) or a pre-commit hook repository (host/path, any forge) —
+// or "" for changes that are not tag-verifiable pins.
+func repoURL(c *diffx.Change) string {
+	if c.NonRegistry {
+		return ""
 	}
-	return strings.Count(c.Name, "/") == 1
+	switch lock.Ecosystem(c.Ecosystem) {
+	case lock.GitHubActions:
+		if strings.Count(c.Name, "/") == 1 {
+			return "https://github.com/" + c.Name
+		}
+	case lock.PreCommit:
+		if host, path, ok := strings.Cut(c.Name, "/"); ok &&
+			strings.Contains(host, ".") && path != "" {
+			return "https://" + c.Name
+		}
+	}
+	return ""
 }
 
 // repoRefs is one repository's ref advertisement: its release tags and
@@ -95,27 +108,27 @@ func fetchAll(repos map[string]bool) map[string]repoRefs {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	out := map[string]repoRefs{}
-	for name := range repos {
+	for u := range repos {
 		wg.Add(1)
-		go func(name string) {
+		go func(u string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			tags, heads, err := taglink.Refs("https://github.com/" + name)
+			tags, heads, err := taglink.Refs(u)
 			if err != nil || len(tags)+len(heads) == 0 {
 				return // no ref data: make no claims about this repo
 			}
 			mu.Lock()
-			out[name] = repoRefs{tags: tags, heads: heads}
+			out[u] = repoRefs{tags: tags, heads: heads}
 			mu.Unlock()
-		}(name)
+		}(u)
 	}
 	wg.Wait()
 	return out
 }
 
 func annotateChange(c *diffx.Change, rr repoRefs) {
-	c.SourceRepo = "https://github.com/" + c.Name
+	c.SourceRepo = repoURL(c)
 	tags := rr.tags
 
 	resolve := func(ref string) string {

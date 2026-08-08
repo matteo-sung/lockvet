@@ -368,6 +368,9 @@ func unlistedText(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "GitHub Actions" {
 		return fmt.Sprintf("%s, but pinned ref %s matches no tag in the action's repository. Release tags are how actions ship; the March-2025 tj-actions/changed-files attack pinned users to exactly such commits. Verify where the commit comes from.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}
+	if c.Ecosystem == "pre-commit" {
+		return fmt.Sprintf("%s, but pinned rev %s matches no tag in the hook repository. pre-commit clones and runs this rev on every commit on every contributor's machine. Verify where it comes from.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
+	}
 	if c.Ecosystem == "Docker" {
 		return fmt.Sprintf("%s, but the image registry does not serve %s for this image. A deleted tag, the wrong repository, or a fabricated digest pin looks exactly like this. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}

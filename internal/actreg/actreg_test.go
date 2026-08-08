@@ -153,3 +153,46 @@ func TestVersionLike(t *testing.T) {
 		}
 	}
 }
+
+func TestAnnotatePreCommitPins(t *testing.T) {
+	defer fakeTransport(t)()
+
+	diffs := []diffx.FileDiff{{Path: ".pre-commit-config.yaml", Kind: "pre-commit-config", Ecosystem: "pre-commit", Changes: []diffx.Change{
+		// Tag bump on a hook repo: resolved, classified, source repo set.
+		{Name: "github.com/actions/checkout", Ecosystem: "pre-commit", Kind: diffx.Upgraded,
+			Old: []string{"v4.2.1"}, New: []string{"v5.0.0"}, Level: vers.Major, LevelString: "major"},
+		// Incoming rev that matches no tag or branch: unlisted.
+		{Name: "github.com/actions/checkout", Ecosystem: "pre-commit", Kind: diffx.Changed,
+			Old: []string{"v4.2.1"}, New: []string{orphan}},
+		// Non-github host goes through the same machinery.
+		{Name: "gitlab.example.com/group/hooks", Ecosystem: "pre-commit", Kind: diffx.Added,
+			New: []string{"v1.0.0"}},
+	}}}
+	ok, err := Annotate(diffs)
+	if err != nil || !ok {
+		t.Fatalf("Annotate = %v, %v", ok, err)
+	}
+	for i := range diffs[0].Changes {
+		c := &diffs[0].Changes[i]
+		switch {
+		case len(c.New) == 1 && c.New[0] == "v5.0.0":
+			if c.SourceRepo != "https://github.com/actions/checkout" {
+				t.Errorf("source repo = %q", c.SourceRepo)
+			}
+			if c.Unlisted {
+				t.Errorf("tag bump wrongly unlisted: %v", c.UnlistedVersions)
+			}
+		case len(c.New) == 1 && c.New[0] == orphan:
+			if !c.Unlisted || c.UnlistedVersions[0] != orphan {
+				t.Errorf("orphan rev not flagged: %+v", c)
+			}
+		case len(c.New) == 1 && c.New[0] == "v1.0.0":
+			if c.SourceRepo != "https://gitlab.example.com/group/hooks" {
+				t.Errorf("source repo = %q", c.SourceRepo)
+			}
+			if c.Unlisted {
+				t.Errorf("v1.0.0 wrongly unlisted (fake serves it): %v", c.UnlistedVersions)
+			}
+		}
+	}
+}

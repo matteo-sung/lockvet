@@ -87,6 +87,13 @@ const (
 	// ages included).
 	Docker Ecosystem = "Docker"
 
+	// PreCommit covers .pre-commit-config.yaml `rev:` pins: each entry
+	// names a hook repository (on any git forge — names keep their host)
+	// at an exact tag or commit that pre-commit clones and runs. No
+	// OSV.dev ecosystem; internal/actreg verifies revs against the hook
+	// repositories' real tags.
+	PreCommit Ecosystem = "pre-commit"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -442,6 +449,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"deno.lock", NPM, parseDenoLock}
 	case "flake.lock":
 		return &Parser{"flake.lock", Nix, parseFlakeLock}
+	case ".pre-commit-config.yaml", ".pre-commit-config.yml":
+		return &Parser{"pre-commit-config", PreCommit, parsePreCommitConfig}
 	case "renv.lock":
 		return &Parser{"renv.lock", CRAN, parseRenvLock}
 	case "pixi.lock":
@@ -554,6 +563,7 @@ func KnownBasenames() []string {
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
 		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
+		".pre-commit-config.yaml",
 		"bom.json", "sbom.json",
 	}
 }

@@ -63,6 +63,8 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"haskell":        lock.Hackage,
 	"actions":        lock.GitHubActions,
 	"github-actions": lock.GitHubActions,
+	"pre-commit":     lock.PreCommit,
+	"precommit":      lock.PreCommit,
 	"swift":          lock.SwiftURL,
 	"swiftpm":        lock.SwiftURL,
 	"spm":            lock.SwiftURL,
@@ -127,6 +129,19 @@ func Parse(arg string) (Spec, error) {
 			name = "github.com/" + name
 		}
 		version = strings.TrimPrefix(version, "v")
+	case lock.PreCommit:
+		// .pre-commit-config.yaml records the repo URL; names keep their
+		// host ("github.com/psf/black"). `pre-commit:owner/repo` implies
+		// github.com, matching the actions shorthand. Revs stay as
+		// written: hook tags usually carry the v-prefix.
+		name = strings.TrimSuffix(strings.TrimSuffix(name, "/"), ".git")
+		for _, prefix := range []string{"https://", "http://", "ssh://", "git@"} {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		name = strings.Replace(name, ":", "/", 1)
+		if first, _, ok := strings.Cut(name, "/"); ok && !strings.Contains(first, ".") {
+			name = "github.com/" + name
+		}
 	}
 	channel := ""
 	if eco == lock.Conda {

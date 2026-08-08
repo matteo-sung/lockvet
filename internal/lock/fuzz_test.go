@@ -51,6 +51,7 @@ func FuzzAllParsers(f *testing.F) {
 		".{ .name = \"a\", .dependencies = .{ .@\"b-c\" = .{ .url = \"git+https://github.com/a/b?ref=v1.2#deadbeefcafe\", .hash = \"1220ab\" } } }",
 		"# syntax=docker/dockerfile:1\nARG B=alpine:3.21@sha256:ab\nFROM --platform=$BUILDPLATFORM golang:1.26 AS build\nFROM ${B}\nCOPY --from=build /a /a\nCOPY --from=ghcr.io/o/r:v1 /t /t\n",
 		"services:\n  db:\n    image: postgres:18@sha256:ab\n  app:\n    build: .\n  x:\n    image: ${REG}/svc:${TAG}\n",
+		"repos:\n-   repo: https://github.com/psf/black\n    rev: \"24.3.0\"\n    hooks:\n    -   id: black\n- repo: git@gitlab.com:g/h\n  rev: v1 # x\n- repo: local\n  hooks: []\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

@@ -107,6 +107,11 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	// SwiftPM has no registry: releases ARE the package repository's
 	// semver tags, read from the same smart-HTTP advertisement.
 	lock.SwiftURL: swiftLatest,
+
+	// pre-commit hooks have no registry either: `pre-commit autoupdate`
+	// pins the hook repository's newest tag, so "latest" is the highest
+	// stable version-shaped tag (kept as written, v-prefix and all).
+	lock.PreCommit: preCommitLatest,
 }
 
 // condaLatest resolves [channel/]name against anaconda.org;
@@ -159,6 +164,33 @@ func swiftLatest(name string) (string, error) {
 		}
 		if best == "" || vers.Compare(best, v) < 0 {
 			best = v
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no version-shaped tags in https://%s", name)
+	}
+	return best, nil
+}
+
+// preCommitLatest resolves a hook repository's newest stable tag — what
+// `pre-commit autoupdate` would pin. The tag is returned as written
+// (v-prefix kept): .pre-commit-config.yaml revs are literal tag names.
+func preCommitLatest(name string) (string, error) {
+	first, rest, ok := strings.Cut(name, "/")
+	if !ok || !strings.Contains(first, ".") || rest == "" {
+		return "", fmt.Errorf("want host/owner/repo for a pre-commit hook repo, got %q", name)
+	}
+	tags, err := taglink.Tags("https://" + name)
+	if err != nil {
+		return "", notFound("the repository host", name)
+	}
+	best := ""
+	for t := range tags {
+		if !actreg.VersionLike(t) || strings.ContainsAny(t, "-+") {
+			continue // autoupdate skips pre-releases too
+		}
+		if best == "" || vers.Compare(strings.TrimPrefix(best, "v"), strings.TrimPrefix(t, "v")) < 0 {
+			best = t
 		}
 	}
 	if best == "" {

@@ -4,6 +4,27 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.13 — 2026-08-08
+
+- **pre-commit configs: format #39.** `.pre-commit-config.yaml` is a
+  lockfile too: every `repos:` entry pins a hook repository at an exact
+  `rev:` — code pre-commit clones and runs on every commit on every
+  contributor's machine, bumped by `pre-commit autoupdate` and Renovate
+  like any other dependency. Names keep their host
+  (`github.com/psf/black`), so hooks on any git forge work. Revs get the
+  same treatment as GitHub Actions workflow pins: SHA revs resolve to
+  the release they equal, jumps are classified from the real versions,
+  verified compare links + `-changelogs` release notes, and a rev that
+  matches no tag in the hook repository raises `▲ not a release`
+  (`-fail-on unlisted` gates; `repo: local` / `repo: meta` exempt).
+  Works in every mode: diff, PR URLs, `audit`, `queue`, MCP, the
+  playground, and the pre-commit hook itself now watches the config that
+  runs it.
+- **`lockvet pkg pre-commit:owner/repo`** vets a hook repo before you add
+  it (`github.com` implied; any `host/owner/repo` works), resolving
+  "latest" to the newest stable tag — what `pre-commit autoupdate` would
+  pin.
+
 ## v0.5.12 — 2026-08-08
 
 - **Container base images: formats #37 and #38.** `Dockerfile` /
