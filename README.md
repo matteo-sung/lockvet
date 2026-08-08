@@ -150,6 +150,13 @@ aqua g -i matteo-sung/lockvet
 mise use -g aqua:matteo-sung/lockvet
 ```
 
+GitHub CLI extension ([gh-lockvet](https://github.com/matteo-sung/gh-lockvet) —
+`gh lockvet` vets the PR you're standing in, reusing your `gh` auth):
+
+```sh
+gh extension install matteo-sung/gh-lockvet
+```
+
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
