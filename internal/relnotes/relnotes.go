@@ -34,6 +34,15 @@ var MaxRepos = 40
 // reports; the compare link already covers the full span.
 const maxNotesPerChange = 5
 
+// maxByTagPerRepo caps the exact /releases/tags/{tag} probes one
+// repository gets for changes the newest-100 release list didn't cover;
+// maxByTagCandidates caps how many tag-naming conventions the Fallback
+// path (no verified tag) tries per change.
+const (
+	maxByTagPerRepo    = 8
+	maxByTagCandidates = 6
+)
+
 const (
 	maxExcerptLines = 12
 	maxExcerptChars = 900
@@ -140,6 +149,55 @@ func Annotate(diffs []diffx.FileDiff, token string) (warnings []string) {
 							c.ReleaseNotes = notesFor(c, tag, rels)
 						}
 					}
+
+					// By-tag fallback for what the list missed: busy
+					// monorepos (Helm chart repos cut releases daily) push
+					// mid-history tags far past the newest-100 window, and
+					// the changelog-file fallback rightly refuses monorepo
+					// tag conventions. One exact /releases/tags/{tag} call
+					// per still-empty change settles it either way.
+					if !limited {
+						budget := maxByTagPerRepo
+						for k, c := range w.changes {
+							if budget <= 0 {
+								break
+							}
+							if len(c.ReleaseNotes) > 0 {
+								continue
+							}
+							cands := []string{w.tags[k]}
+							if w.tags[k] == "" {
+								// Fallback path (no verified tag): try the
+								// usual tag-naming conventions directly.
+								if !Fallback || len(c.New) != 1 {
+									continue
+								}
+								cands = taglink.Candidates(c, c.New[0])
+								if len(cands) > maxByTagCandidates {
+									cands = cands[:maxByTagCandidates]
+								}
+							}
+							for _, cand := range cands {
+								if budget <= 0 {
+									break
+								}
+								budget--
+								r, lim, err := fetchReleaseByTag(w.owner, w.repo, cand, token)
+								if lim {
+									mu.Lock()
+									rateLimited = true
+									mu.Unlock()
+									budget = 0
+									break
+								}
+								if err != nil || r.Draft {
+									continue
+								}
+								c.ReleaseNotes = notesFor(c, cand, []release{r})
+								break
+							}
+						}
+					}
 				}
 
 				// Changelog-file fallback for whatever the release list
@@ -232,6 +290,45 @@ func fetchReleases(owner, repo, token string) (rels []release, rateLimited bool,
 		return nil, false, err
 	}
 	return rels, false, nil
+}
+
+// fetchReleaseByTag fetches one release by its exact tag name (one call);
+// used when the tag sits past the newest-100 window of fetchReleases.
+func fetchReleaseByTag(owner, repo, tag, token string) (r release, rateLimited bool, err error) {
+	req, err := http.NewRequest("GET",
+		fmt.Sprintf("%s/repos/%s/%s/releases/tags/%s", APIBase,
+			url.PathEscape(owner), url.PathEscape(repo), url.PathEscape(tag)), nil)
+	if err != nil {
+		return release{}, false, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "lockvet (+https://github.com/matteo-sung/lockvet)")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return release{}, false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		if resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.StatusCode == http.StatusTooManyRequests {
+			return release{}, true, fmt.Errorf("rate limited")
+		}
+		return release{}, false, fmt.Errorf("forbidden")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return release{}, false, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return release{}, false, err
+	}
+	if err := json.Unmarshal(body, &r); err != nil {
+		return release{}, false, err
+	}
+	return r, false, nil
 }
 
 // notesFor picks the releases a bump pulls in: the new version's release

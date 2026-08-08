@@ -34,9 +34,22 @@ func srv(t *testing.T, rels map[string][]release, status int) *httptest.Server {
 			w.WriteHeader(status)
 			return
 		}
-		// path: /repos/{owner}/{repo}/releases
+		// paths: /repos/{owner}/{repo}/releases and
+		//        /repos/{owner}/{repo}/releases/tags/{tag}
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 		key := parts[1] + "/" + parts[2]
+		if len(parts) >= 6 && parts[4] == "tags" {
+			// By-tag lookups also see releases listed under "{key}@tags"
+			// (test stand-in for releases beyond the newest-100 window).
+			for _, rel := range append(append([]release{}, rels[key]...), rels[key+"@tags"]...) {
+				if rel.TagName == parts[5] {
+					json.NewEncoder(w).Encode(rel)
+					return
+				}
+			}
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		json.NewEncoder(w).Encode(rels[key])
 	}))
 }
@@ -188,5 +201,81 @@ func TestParseGitHubRepo(t *testing.T) {
 		if o != c.owner || r != c.repo {
 			t.Errorf("parseGitHubRepo(%q) = %q,%q; want %q,%q", c.in, o, r, c.owner, c.repo)
 		}
+	}
+}
+
+func TestAnnotateByTagFallback(t *testing.T) {
+	s := srv(t, map[string][]release{
+		"o/big": { // newest-100 window: only unrelated recent releases
+			{TagName: "otherchart-9.9.9", Body: "unrelated", HTMLURL: "uo"},
+		},
+		"o/big@tags": { // reachable only via /releases/tags/{tag}
+			{TagName: "kube-prometheus-stack-66.3.1", Name: "kube-prometheus-stack-66.3.1",
+				Body: "mid-history monorepo release", HTMLURL: "ub"},
+			{TagName: "drafted-1.0.0", Body: "draft", Draft: true, HTMLURL: "ud"},
+		},
+	}, 0)
+	defer s.Close()
+	old := APIBase
+	APIBase = s.URL
+	defer func() { APIBase = old }()
+
+	mk := func(name, oldV, newV, tag string) diffx.Change {
+		c := change(name, oldV, newV, "")
+		if tag != "" {
+			c.ReleaseURL = "https://github.com/o/big/releases/tag/" + tag
+		}
+		return c
+	}
+	diffs := []diffx.FileDiff{{Changes: []diffx.Change{
+		mk("kube-prometheus-stack", "66.2.1", "66.3.1", "kube-prometheus-stack-66.3.1"),
+		mk("drafted", "0.9.0", "1.0.0", "drafted-1.0.0"),
+		mk("gone", "1.0.0", "2.0.0", "gone-2.0.0"),
+	}}}
+	if w := Annotate(diffs, ""); len(w) != 0 {
+		t.Fatalf("warnings: %v", w)
+	}
+	got := diffs[0].Changes
+	if len(got[0].ReleaseNotes) != 1 || got[0].ReleaseNotes[0].Excerpt != "mid-history monorepo release" {
+		t.Errorf("by-tag fallback missed: %+v", got[0].ReleaseNotes)
+	}
+	if got[0].ReleaseNotes != nil && got[0].ReleaseNotes[0].Title != "" {
+		t.Errorf("redundant title kept: %+v", got[0].ReleaseNotes[0])
+	}
+	if len(got[1].ReleaseNotes) != 0 {
+		t.Errorf("draft release surfaced: %+v", got[1].ReleaseNotes)
+	}
+	if len(got[2].ReleaseNotes) != 0 {
+		t.Errorf("missing tag got notes: %+v", got[2].ReleaseNotes)
+	}
+}
+
+func TestAnnotateByTagFallbackViaCandidates(t *testing.T) {
+	// Playground path: no verified tag, tag resolved by trying naming
+	// conventions directly against /releases/tags/{tag}.
+	s := srv(t, map[string][]release{
+		"o/mono": {
+			{TagName: "recent-1.0.0", Body: "unrelated", HTMLURL: "ur"},
+		},
+		"o/mono@tags": {
+			{TagName: "chart-3.2.1", Body: "old mono release", HTMLURL: "um"},
+		},
+	}, 0)
+	defer s.Close()
+	old := APIBase
+	APIBase = s.URL
+	defer func() { APIBase = old }()
+	Fallback = true
+	defer func() { Fallback = false }()
+
+	c := change("chart", "3.1.0", "3.2.1", "")
+	c.SourceRepo = "https://github.com/o/mono"
+	diffs := []diffx.FileDiff{{Changes: []diffx.Change{c}}}
+	if w := Annotate(diffs, ""); len(w) != 0 {
+		t.Fatalf("warnings: %v", w)
+	}
+	got := diffs[0].Changes[0].ReleaseNotes
+	if len(got) != 1 || got[0].Tag != "chart-3.2.1" || got[0].Excerpt != "old mono release" {
+		t.Errorf("candidate by-tag fallback missed: %+v", got)
 	}
 }

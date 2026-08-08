@@ -4,6 +4,21 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.21 — 2026-08-08
+
+- **`-changelogs` now finds mid-history releases in busy monorepos.**
+  Release-notes lookup used to read only a repository's newest 100
+  releases; in monorepos that cut releases daily (Helm chart repos like
+  `prometheus-community/helm-charts`, release-please workspaces), any
+  bump older than a few weeks fell past that window and rendered a
+  compare link with no excerpt — the known gap for chart pins in
+  Kubernetes manifests, Flux HelmReleases, Argo CD Applications and
+  `Chart.lock`. Now every change the list missed gets one exact
+  `releases/tags/{tag}` probe (capped per repository), so the excerpt
+  renders for any release age. The playground's no-verified-tag path
+  tries the usual tag-naming conventions directly, so in-browser
+  reports gain the same coverage.
+
 ## v0.5.20 — 2026-08-08
 
 - **Argo CD Application chart pins are lockfile entries.** An
