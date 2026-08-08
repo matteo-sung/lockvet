@@ -22,8 +22,8 @@
     introduced (OSV.dev), release ages, deprecations, versions missing from
     the registry index, newly added install scripts, dropped provenance,
     typosquat lookalikes, integrity/resolution tampering, and the dependency
-    chain pulling each transitive change in. 32 lockfile formats plus SBOMs
-    and CI workflow pins.
+    chain pulling each transitive change in. 32 lockfile formats plus SBOMs,
+    CI workflow pins, and container base images (Dockerfile / Compose).
   entry: lockvet
   args: ["-fail-on", "vuln,unlisted,scripts,provenance,typosquat,integrity,registry"]
   language: golang
@@ -43,6 +43,9 @@
       Chart\.lock|requirements\.lock|[Mm]anifest\.toml|Manifest-v[^/]*\.toml|
       stack\.yaml\.lock|cabal\.project\.freeze|cabal\.config|conan\.lock|
       MODULE\.bazel|MODULE\.bazel\.lock|build\.zig\.zon|
+      Dockerfile|Containerfile|Dockerfile\.[^/]+|[^/]+\.[Dd]ockerfile|
+      Containerfile\.[^/]+|[^/]+\.Containerfile|
+      (docker-)?compose(\.[^/]+)?\.ya?ml|
       [^/]*\.versions\.toml|verification-metadata(\.dryrun)?\.xml|
       bom\.json|sbom\.json|cyclonedx\.json|spdx\.json|
       [^/]*\.(cdx|spdx|cyclonedx)\.json|

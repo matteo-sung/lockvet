@@ -104,6 +104,8 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship; verify where the commit comes from"))
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags; verify what this pin fetches"))
+				} else if c.Ecosystem == "Docker" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in the registry: "+join(c.UnlistedVersions)), s.dim("the registry does not serve this for the image — a deleted tag, the wrong repository, or a fabricated pin; verify before trusting"))
 				} else {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release; you may not be able to install this again; verify before trusting"))
 				}
@@ -286,6 +288,8 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — pinned ref matches no tag in the action's repository; verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — no matching tag in the package's repository; version pins only resolve from tags |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				} else if c.Ecosystem == "Docker" {
+					fmt.Fprintf(w, "| ❗ | ↳ not in the registry | %s — the registry does not serve this for the image; deleted tag, wrong repository, or fabricated pin |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else {
 					fmt.Fprintf(w, "| ❗ | ↳ not in registry index | %s — missing from the registry index though other versions are listed; unpublished/deleted release |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				}

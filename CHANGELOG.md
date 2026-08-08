@@ -4,6 +4,41 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.12 — 2026-08-08
+
+- **Container base images: formats #37 and #38.** `Dockerfile` /
+  `Containerfile` (variant names like `Dockerfile.alpine` and
+  `dev.Dockerfile` included) and Compose files (`docker-compose.yml`,
+  `compose.yaml`, overrides) are lockfiles now: every `FROM` base image
+  (multi-stage aware, `ARG` defaults expanded, `--platform` flags and
+  stage references skipped), `COPY --from=` images, the `# syntax=`
+  BuildKit parser directive Renovate manages, and every `image:` under
+  Compose `services:` (local `build:` contexts skipped) — in every mode:
+  diff, PR URLs, `audit`, `queue`, MCP, the pre-commit hook.
+- **Verified against the image registry itself** (new `ocireg` layer —
+  whole images have no OSV ecosystem and no deps.dev system): digest
+  pins (`image:tag@sha256:…`) are checked against what the tag serves
+  *today* — exact match shows `✔ digest verified`, a pin the tag no
+  longer serves lands in the `‼ tag mismatch` lane, a digest the
+  registry has never seen is `▲` unlisted; a tag the registry doesn't
+  serve (while the repository is known) is `▲ not in the registry`
+  (`-fail-on unlisted` gates); release ages + the ⏱ fresh flag come
+  from Docker Hub's per-tag `last_updated` for Hub images. Lookups run
+  only against a fixed allowlist of public registries (Docker Hub,
+  ghcr.io, quay.io, mcr.microsoft.com, gcr.io, registry.k8s.io,
+  public.ecr.aws, registry.gitlab.com) — private hosts are never
+  queried.
+- Same-tag digest bumps (the routine Renovate "update digest" PR) render
+  as a neutral `↻ digest a → b` row — with the new pin verified — not as
+  an alarming repin.
+- Cache honesty fix (found pre-release): anonymous registry pull tokens
+  are short-lived credentials and are now **never cached** — the response
+  cache had been storing them, so a warm run could replay an expired
+  token, get 401s, and silently drop every digest claim. Registry answers
+  fetched with an anonymous token are cached keyed as anonymous (they are
+  what any anonymous client gets), so warm runs stay fast; no credential
+  is ever written to disk.
+
 ## v0.5.11 — 2026-08-08
 
 - **Native Linux packages.** Every release now ships `.deb`, `.rpm`, and

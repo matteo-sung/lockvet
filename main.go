@@ -41,6 +41,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/mvnreg"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
+	"github.com/matteo-sung/lockvet/internal/ocireg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/podreg"
@@ -132,7 +133,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 36 formats
+                                      Walks the tree for all 38 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —
@@ -761,6 +762,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := ocireg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: image registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if metaChecked || anyZigChanges(diffs) {
 			// build.zig.zon has no registry layer: the repo's own tags
 			// (taglink) ARE the metadata source for Zig-only diffs.
@@ -1262,6 +1268,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := condareg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: anaconda.org registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := ocireg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: image registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

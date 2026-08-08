@@ -234,3 +234,36 @@ func TestLargeBodyNotStored(t *testing.T) {
 		t.Fatalf("hits = %d, want 2 (oversized bodies never stored)", hits)
 	}
 }
+
+func TestAnonAuthKeyedAsAnonymous(t *testing.T) {
+	Configure(false, time.Hour)
+	defer Configure(true, DefaultTTL)
+	var sawMarker bool
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if r.Header.Get(AnonAuthHeader) != "" {
+			sawMarker = true
+		}
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	t.Cleanup(srv.Close)
+	c := Client(5 * time.Second)
+	// Two runs with ROTATED anonymous tokens must share one cache entry.
+	get(t, c, srv.URL+"/pkg/anontok", map[string]string{
+		"Authorization": "Bearer rotating-tok-1", AnonAuthHeader: "1"})
+	get(t, c, srv.URL+"/pkg/anontok", map[string]string{
+		"Authorization": "Bearer rotating-tok-2", AnonAuthHeader: "1"})
+	if hits != 1 {
+		t.Fatalf("hits = %d, want 1 (anon-token entries must be shared)", hits)
+	}
+	if sawMarker {
+		t.Fatal("cache marker header leaked onto the wire")
+	}
+	// A REAL credential (no marker) must not read the anon entry.
+	get(t, c, srv.URL+"/pkg/anontok", map[string]string{
+		"Authorization": "Bearer sekrit-user-cred"})
+	if hits != 2 {
+		t.Fatalf("hits = %d, want 2 (user credential must not share anon entry)", hits)
+	}
+}

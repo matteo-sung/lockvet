@@ -80,6 +80,13 @@ const (
 	// vulnerability claims.
 	Zig Ecosystem = "Zig"
 
+	// Docker covers container base-image pins: Dockerfile / Containerfile
+	// FROM lines and Compose file image: values. There is no OSV.dev
+	// ecosystem for whole images; internal/ocireg verifies tags and
+	// digest pins against the image registries themselves (Docker Hub
+	// ages included).
+	Docker Ecosystem = "Docker"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -470,8 +477,24 @@ func ByBasename(p string) *Parser {
 		return &Parser{"verification-metadata.xml", Maven, parseVerificationMetadata}
 	case "build.zig.zon":
 		return &Parser{"build.zig.zon", Zig, parseZigZon}
+	case "Dockerfile", "Containerfile":
+		return &Parser{"Dockerfile", Docker, parseDockerfile}
+	case "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml":
+		return &Parser{"docker-compose.yml", Docker, parseComposeFile}
 	}
 	base := path.Base(p)
+	// Variant-named Dockerfiles are everywhere: Dockerfile.alpine,
+	// dev.Dockerfile, Containerfile.builder. Same for Compose overrides
+	// (docker-compose.prod.yml, compose.override.yaml).
+	if strings.HasPrefix(base, "Dockerfile.") || strings.HasSuffix(base, ".Dockerfile") ||
+		strings.HasSuffix(base, ".dockerfile") ||
+		strings.HasPrefix(base, "Containerfile.") || strings.HasSuffix(base, ".Containerfile") {
+		return &Parser{"Dockerfile", Docker, parseDockerfile}
+	}
+	if (strings.HasPrefix(base, "docker-compose.") || strings.HasPrefix(base, "compose.")) &&
+		(strings.HasSuffix(base, ".yml") || strings.HasSuffix(base, ".yaml")) {
+		return &Parser{"docker-compose.yml", Docker, parseComposeFile}
+	}
 	// Gradle allows extra catalogs beside libs (gradle/tools.versions.toml).
 	if strings.HasSuffix(base, ".versions.toml") {
 		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
@@ -530,6 +553,7 @@ func KnownBasenames() []string {
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
 		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
+		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
 		"bom.json", "sbom.json",
 	}
 }

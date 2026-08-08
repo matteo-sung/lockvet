@@ -124,6 +124,25 @@ func Client(timeout time.Duration) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: &transport{base: http.DefaultTransport}}
 }
 
+// ClientHTTP1 is Client with HTTP/1.1 forced on the underlying
+// transport. Some CDN fronts (Docker Hub's) challenge Go's HTTP/2
+// fingerprint while serving the same request fine over HTTP/1.1.
+func ClientHTTP1(timeout time.Duration) *http.Client {
+	t := &http.Transport{}
+	t.Protocols = new(http.Protocols)
+	t.Protocols.SetHTTP1(true)
+	return &http.Client{Timeout: timeout, Transport: &transport{base: t}}
+}
+
+// AnonAuthHeader marks a request whose Authorization header carries an
+// ANONYMOUS, short-lived token for public data (e.g. a Docker registry
+// anonymous pull token): the answer is exactly what any anonymous client
+// would get, so the cache keys the entry as anonymous — otherwise every
+// rotated token would orphan the previous run's entries. The marker is
+// stripped before the request goes on the wire. Never set it on requests
+// carrying user credentials.
+const AnonAuthHeader = "X-Lockvet-Anon-Auth"
+
 type transport struct {
 	base http.RoundTripper
 }
@@ -136,6 +155,10 @@ type meta struct {
 }
 
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	anonAuth := req.Header.Get(AnonAuthHeader) != ""
+	if anonAuth {
+		req.Header.Del(AnonAuthHeader) // internal marker, never on the wire
+	}
 	if !enabled() {
 		return t.base.RoundTrip(req)
 	}
@@ -162,7 +185,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return t.base.RoundTrip(req)
 	}
 
-	path := filepath.Join(d, key(req, body))
+	path := filepath.Join(d, key(req, body, anonAuth))
 	if resp := load(path, req, currentTTL()); resp != nil {
 		return resp, nil
 	}
@@ -197,10 +220,10 @@ type readCloser struct {
 // representation (Accept — npm's abbreviated docs), a fingerprint of the
 // credential used (so authed and anonymous answers never cross), and the
 // POST body if any.
-func key(req *http.Request, body []byte) string {
+func key(req *http.Request, body []byte, anonAuth bool) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\n%s\n%s\n", req.Method, req.URL.String(), req.Header.Get("Accept"))
-	if auth := req.Header.Get("Authorization"); auth != "" {
+	if auth := req.Header.Get("Authorization"); auth != "" && !anonAuth {
 		fmt.Fprintf(h, "%x\n", sha256.Sum256([]byte(auth)))
 	}
 	h.Write(body)

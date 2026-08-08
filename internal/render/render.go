@@ -164,6 +164,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship, and the tj-actions attack pinned exactly like this; verify the commit"))
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags, so this one was deleted or renamed after resolution; verify what the pin fetches"))
+				} else if c.Ecosystem == "Docker" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in the registry: "+join(c.UnlistedVersions)), s.dim("the registry does not serve this for the image — a deleted tag, the wrong repository, or a fabricated pin; verify before trusting"))
 				} else {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in registry index: "+join(c.UnlistedVersions)), s.dim("missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting"))
 				}
@@ -178,7 +180,14 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim(integrityWhy))
 			}
 			if c.TagMismatch {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim("the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"))
+				mismatchWhy := "the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"
+				if c.Ecosystem == "Docker" {
+					mismatchWhy = "the pinned digest is not what the registry serves for this tag today — image tags do move, so this may only mean the tag was rebuilt since the pin was made (re-pin to refresh); it can also mean the pin never came from this registry — verify before trusting"
+				}
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim(mismatchWhy))
+			}
+			if c.DigestVerified {
+				fmt.Fprintf(w, "      %s %s\n", s.green("✔ digest verified:"), s.dim("the registry serves exactly this digest for the tag today"))
 			}
 			if c.RegistryMoved {
 				movedWhy := "this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"
@@ -261,6 +270,12 @@ func line(s styler, c diffx.Change, nameW, fromW int) string {
 	case diffx.Removed:
 		return fmt.Sprintf("%s %s %s", s.dim("-"), name, s.dim(from+"  (removed)"))
 	case diffx.Repinned:
+		if c.DigestChanged && !c.IntegrityChanged && !c.RegistryMoved {
+			// Container digest update under an unchanged tag: routine by
+			// design (registries rebuild tags); rendered neutrally, the
+			// registry checks below say whether the new pin is real.
+			return fmt.Sprintf("%s %s %s  %s", s.cyan("↻"), name, from, s.dim("digest "+shortHash(c.OldDigest)+" → "+shortHash(c.NewDigest)))
+		}
 		return fmt.Sprintf("%s %s %s  %s", s.bred("‼"), name, from, s.bred("REPINNED")+s.dim(" (version unchanged)"))
 	}
 	arrow, lvl := "↑", ""
@@ -452,7 +467,11 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			case c.Kind == diffx.Removed:
 				icon, lvl = "➖", "removed"
 			case c.Kind == diffx.Repinned:
-				icon, lvl = "‼", "**REPINNED** (version unchanged)"
+				if c.DigestChanged && !c.IntegrityChanged && !c.RegistryMoved {
+					icon, lvl = "\U0001F504", "digest updated ("+esc(shortHash(c.OldDigest))+" → "+esc(shortHash(c.NewDigest))+")"
+				} else {
+					icon, lvl = "‼", "**REPINNED** (version unchanged)"
+				}
 			case c.Kind == diffx.Downgraded:
 				icon, lvl = "🔽", lvl+" **downgrade**"
 			case c.Level == vers.Major:
@@ -506,6 +525,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned ref matches no tag in the action's repository — verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | no matching tag in the package's repository — version pins only resolve from tags; verify what this pin fetches |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				} else if c.Ecosystem == "Docker" {
+					fmt.Fprintf(w, "| ❗ | ↳ not in the registry | | %s | the registry does not serve this for the image — a deleted tag, the wrong repository, or a fabricated pin |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else {
 					fmt.Fprintf(w, "| ❗ | ↳ not in registry index | | %s | missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				}
@@ -514,7 +535,14 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				fmt.Fprintf(w, "| ‼ | ↳ integrity changed | | %s | same version, different content hash — the artifact this pin expects was replaced; find out why before merging |%s\n", esc(join(c.IntegrityVersions)), padCell)
 			}
 			if c.TagMismatch {
-				fmt.Fprintf(w, "| ‼ | ↳ tag mismatch | | %s | the pinned commit is not what the upstream tag points at today — the tag was moved since resolution or the lockfile was edited |%s\n", esc(join(c.TagMismatches)), padCell)
+				mismatchNote := "the pinned commit is not what the upstream tag points at today — the tag was moved since resolution or the lockfile was edited"
+				if c.Ecosystem == "Docker" {
+					mismatchNote = "the pinned digest is not what the registry serves for this tag today — rebuilt tag (re-pin to refresh) or a pin that never came from this registry"
+				}
+				fmt.Fprintf(w, "| ‼ | ↳ tag mismatch | | %s | %s |%s\n", esc(join(c.TagMismatches)), mismatchNote, padCell)
+			}
+			if c.DigestVerified {
+				fmt.Fprintf(w, "| ✔ | ↳ digest verified | | | the registry serves exactly this digest for the tag today |%s\n", padCell)
 			}
 			if c.RegistryMoved {
 				movedNote := "now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack"
@@ -672,4 +700,15 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// shortHash trims a digest to a readable prefix ("sha256:48b0309ca019").
+func shortHash(d string) string {
+	if i := strings.IndexByte(d, ':'); i >= 0 && len(d) > i+13 {
+		return d[:i+13]
+	}
+	if len(d) > 12 {
+		return d[:12]
+	}
+	return d
 }

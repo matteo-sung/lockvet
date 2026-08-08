@@ -49,6 +49,8 @@ func FuzzAllParsers(f *testing.F) {
 		"<verification-metadata><components><component group=\"g\" name=\"n\" version=\"1.0\"><artifact name=\"n-1.0.jar\"><sha256 value=\"ab\"/></artifact></component></components></verification-metadata>",
 		".{\n    .name = .zls,\n    .version = \"0.1.0\",\n    .dependencies = .{\n        .diffz = .{\n            .url = \"https://github.com/ziglibs/diffz/archive/d080c1eb782fff15068cabb3b82da85ce6054b74.tar.gz\",\n            .hash = \"diffz-0.0.1-G2tlIfLNAQCc06RFk0tFGj2M-X-id4WHFkMVw2JoMILR\",\n        },\n        .l = .{ .path = \"../l\" },\n    },\n    .paths = .{\"\"},\n    .fingerprint = 0xa66330b97eb969ae,\n}\n",
 		".{ .name = \"a\", .dependencies = .{ .@\"b-c\" = .{ .url = \"git+https://github.com/a/b?ref=v1.2#deadbeefcafe\", .hash = \"1220ab\" } } }",
+		"# syntax=docker/dockerfile:1\nARG B=alpine:3.21@sha256:ab\nFROM --platform=$BUILDPLATFORM golang:1.26 AS build\nFROM ${B}\nCOPY --from=build /a /a\nCOPY --from=ghcr.io/o/r:v1 /t /t\n",
+		"services:\n  db:\n    image: postgres:18@sha256:ab\n  app:\n    build: .\n  x:\n    image: ${REG}/svc:${TAG}\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

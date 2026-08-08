@@ -208,10 +208,14 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					HelpURI:          "https://github.com/matteo-sung/lockvet#integrity--resolution-changes",
 					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
 				})
+				text := fmt.Sprintf("%s, but the pinned commit is not what the upstream repository's release tag points at today (%s). Released tags are supposed to be immutable — either the tag has been re-pointed since this was resolved, or the lockfile was edited to fetch a different commit while displaying an innocent version. Verify the commit before trusting it.%s", what, strings.Join(c.TagMismatches, "; "), via)
+				if c.Ecosystem == "Docker" {
+					text = fmt.Sprintf("%s, but the pinned digest is not what the registry serves for this tag today (%s). Image tags do move — the tag may simply have been rebuilt since this pin was made (re-pin to refresh) — but a pin that never came from this registry looks the same. Verify before trusting.%s", what, strings.Join(c.TagMismatches, "; "), via)
+				}
 				results = append(results, result{
 					RuleID: "tag-mismatch", RuleIndex: idx,
 					Level:     "error",
-					Message:   map[string]string{"text": fmt.Sprintf("%s, but the pinned commit is not what the upstream repository's release tag points at today (%s). Released tags are supposed to be immutable — either the tag has been re-pointed since this was resolved, or the lockfile was edited to fetch a different commit while displaying an innocent version. Verify the commit before trusting it.%s", what, strings.Join(c.TagMismatches, "; "), via)},
+					Message:   map[string]string{"text": text},
 					Locations: locs,
 					PartialFingerprints: map[string]string{
 						"lockvetFinding": fingerprint(fd.Path, c.Name, "tag-mismatch"),
@@ -363,6 +367,9 @@ func describeChange(c diffx.Change, audit bool) string {
 func unlistedText(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "GitHub Actions" {
 		return fmt.Sprintf("%s, but pinned ref %s matches no tag in the action's repository. Release tags are how actions ship; the March-2025 tj-actions/changed-files attack pinned users to exactly such commits. Verify where the commit comes from.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
+	}
+	if c.Ecosystem == "Docker" {
+		return fmt.Sprintf("%s, but the image registry does not serve %s for this image. A deleted tag, the wrong repository, or a fabricated digest pin looks exactly like this. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}
 	return fmt.Sprintf("%s, but version %s is missing from the registry index even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 }

@@ -39,6 +39,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/mvnreg"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
+	"github.com/matteo-sung/lockvet/internal/ocireg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/podreg"
@@ -264,6 +265,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if ok, err := condareg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("anaconda.org registry check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := ocireg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("image registry check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}

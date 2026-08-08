@@ -89,6 +89,20 @@ type Change struct {
 	IntegrityChanged  bool     `json:"integrity_changed,omitempty"`
 	IntegrityVersions []string `json:"integrity_changed_versions,omitempty"`
 
+	// DigestChanged: a container image tag pinned on both sides now pins
+	// a different digest. Unlike registry tarballs, image tags MOVE by
+	// design (base images are rebuilt for security fixes), so a digest
+	// bump under an unchanged tag is routine — the row is shown
+	// neutrally, and the ocireg layer verifies the new digest against
+	// the registry instead: DigestVerified means the registry serves
+	// exactly this digest for the tag today. A pin the registry does NOT
+	// serve for the tag surfaces via TagMismatch; a digest the registry
+	// has never seen at all surfaces via Unlisted.
+	DigestChanged  bool   `json:"digest_changed,omitempty"`
+	DigestVerified bool   `json:"digest_verified,omitempty"`
+	OldDigest      string `json:"old_digest,omitempty"`
+	NewDigest      string `json:"new_digest,omitempty"`
+
 	// OldHost/NewHost: the registry hosts the package resolved from on
 	// each side, when the lockfile records them and they differ.
 	// RegistryMoved marks the dependency-confusion direction: the

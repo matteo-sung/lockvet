@@ -81,8 +81,18 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 			continue
 		}
 		if integrityDiffers(oi, ni) {
-			c.IntegrityChanged = true
-			c.IntegrityVersions = append(c.IntegrityVersions, v)
+			if lock.Ecosystem(c.Ecosystem) == lock.Docker {
+				// Image tags move by design: registries rebuild the same
+				// tag for base-image security fixes, and digest-update
+				// PRs re-pin it. Not an integrity alarm — record the
+				// digests so the row renders neutrally and the ocireg
+				// layer can verify the NEW pin against the registry.
+				c.DigestChanged = true
+				c.OldDigest, c.NewDigest = firstHash(oi), firstHash(ni)
+			} else {
+				c.IntegrityChanged = true
+				c.IntegrityVersions = append(c.IntegrityVersions, v)
+			}
 		}
 		if !integritySame(oi, ni) {
 			sameBytesProven = false
@@ -119,7 +129,17 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 			c.RegistryMoved = true
 		}
 	}
-	return c.IntegrityChanged || c.RegistryMoved
+	return c.IntegrityChanged || c.RegistryMoved || c.DigestChanged
+}
+
+// firstHash returns the first hash in a space-joined set (container
+// image pins record exactly one digest per (name, tag)).
+func firstHash(set string) string {
+	f := strings.Fields(set)
+	if len(f) == 0 {
+		return ""
+	}
+	return f[0]
 }
 
 // sideEco is the ecosystem one side resolves the package with (per-package
