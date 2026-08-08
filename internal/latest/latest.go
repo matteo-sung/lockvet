@@ -25,6 +25,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/hcache"
+	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/hkgreg"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
@@ -94,6 +95,7 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.Maven:     mavenLatest,
 	lock.CocoaPods: podLatest,
 	lock.Terraform: tfLatest,
+	lock.Helm:      helmLatest,
 	lock.CRAN:      cranreg.Latest,
 	lock.Conda:     condaLatest,
 	lock.Hackage:   hkgreg.Latest,
@@ -112,6 +114,16 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	// pins the hook repository's newest tag, so "latest" is the highest
 	// stable version-shaped tag (kept as written, v-prefix and all).
 	lock.PreCommit: preCommitLatest,
+}
+
+// helmLatest resolves <repo-url>/<chart> against the chart repository's
+// own index.yaml (pkgspec packs the repository into the lookup name).
+func helmLatest(name string) (string, error) {
+	i := strings.LastIndex(name, "/")
+	if i <= 0 {
+		return "", fmt.Errorf("want <repo-url>/<chart> for a Helm chart, got %q", name)
+	}
+	return helmreg.Latest(name[:i], name[i+1:])
 }
 
 // condaLatest resolves [channel/]name against anaconda.org;

@@ -47,6 +47,8 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"pod":            lock.CocoaPods,
 	"pods":           lock.CocoaPods,
 	"cocoapods":      lock.CocoaPods,
+	"helm":           lock.Helm,
+	"chart":          lock.Helm,
 	"terraform":      lock.Terraform,
 	"tf":             lock.Terraform,
 	"opentofu":       lock.Terraform,
@@ -75,7 +77,7 @@ type Spec struct {
 	Eco     lock.Ecosystem
 	Name    string // as the matching lockfile format would record it
 	Version string // empty = resolve latest from the registry
-	Channel string // conda only: the anaconda.org channel (default conda-forge)
+	Channel string // conda: the anaconda.org channel; helm: the chart repository URL
 	Label   string // canonical spec, used as the report heading
 }
 
@@ -97,7 +99,7 @@ func Parse(arg string) (Spec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, terraform, conan, conda, cran, julia, hackage, bazel, swift", ecoPart)
+		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, swift", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {
@@ -109,6 +111,7 @@ func Parse(arg string) (Spec, error) {
 		return Spec{}, fmt.Errorf("package specs look like <ecosystem>:<name>[@version] (got %q)", arg)
 	}
 	// Normalize per-ecosystem quirks the way the lockfile formats do.
+	helmChannel := ""
 	switch eco {
 	case lock.Go:
 		if version != "" && !strings.HasPrefix(version, "v") {
@@ -129,6 +132,24 @@ func Parse(arg string) (Spec, error) {
 			name = "github.com/" + name
 		}
 		version = strings.TrimPrefix(version, "v")
+	case lock.Helm:
+		// Helm has no central registry: the spec names the chart
+		// repository AND the chart — helm:<repo-url>/<chart>. The last
+		// path segment is the chart name, the rest is the repository
+		// (https:// implied). The repo URL lands in Channel, exactly
+		// where the Chart.lock parser puts it.
+		name = strings.TrimSuffix(name, "/")
+		for _, prefix := range []string{"https://", "http://"} {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		i := strings.LastIndex(name, "/")
+		if i <= 0 || !strings.Contains(name[:i], ".") {
+			return Spec{}, fmt.Errorf("Helm specs name the chart repository and the chart: helm:<repo-url>/<chart>, e.g. helm:https://charts.bitnami.com/bitnami/postgresql (got %q)", rest)
+		}
+		channelURL := "https://" + name[:i]
+		name = name[i+1:]
+		version = strings.TrimPrefix(version, "v")
+		helmChannel = channelURL
 	case lock.PreCommit:
 		// .pre-commit-config.yaml records the repo URL; names keep their
 		// host ("github.com/psf/black"). `pre-commit:owner/repo` implies
@@ -143,7 +164,7 @@ func Parse(arg string) (Spec, error) {
 			name = "github.com/" + name
 		}
 	}
-	channel := ""
+	channel := helmChannel
 	if eco == lock.Conda {
 		channel = "conda-forge"
 		if ch, rest, ok := strings.Cut(name, "/"); ok && ch != "" && rest != "" {
@@ -160,6 +181,9 @@ func Parse(arg string) (Spec, error) {
 	if channel != "" && channel != "conda-forge" {
 		labelName = channel + "/" + labelName
 	}
+	if eco == lock.Helm {
+		labelName = strings.TrimPrefix(channel, "https://") + "/" + name
+	}
 	label := ecoKey + ":" + labelName
 	if version != "" {
 		label += "@" + version
@@ -168,9 +192,12 @@ func Parse(arg string) (Spec, error) {
 }
 
 // LookupName is the name to ask the registry's latest-version resolver
-// about (conda prefixes the channel).
+// about (conda prefixes the channel; helm prefixes the repository URL).
 func (s Spec) LookupName() string {
 	if s.Eco == lock.Conda && s.Channel != "" {
+		return s.Channel + "/" + s.Name
+	}
+	if s.Eco == lock.Helm && s.Channel != "" {
 		return s.Channel + "/" + s.Name
 	}
 	return s.Name
@@ -186,7 +213,7 @@ func (s Spec) File() *lock.File {
 		Ecosystem: s.Eco,
 		Packages:  map[string][]string{s.Name: {s.Version}},
 	}
-	if s.Eco == lock.Conda && s.Channel != "" {
+	if (s.Eco == lock.Conda || s.Eco == lock.Helm) && s.Channel != "" {
 		f.PkgChannel = map[string]string{lock.Sanitize(s.Name): s.Channel}
 	}
 	return f

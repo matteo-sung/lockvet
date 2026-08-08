@@ -86,18 +86,74 @@ func parseTerraformLock(p string, data []byte) (*File, error) {
 //
 // Helm v3 writes Chart.lock; Helm v2 wrote the same shape as
 // requirements.lock. Every entry is a direct dependency of the chart.
-// Helm charts have no OSV.dev ecosystem.
+// Helm charts have no OSV.dev ecosystem; the chart repository's own
+// index.yaml is the metadata layer (internal/helmreg), keyed on the
+// repository URL each entry records — kept in PkgChannel, like conda
+// channels.
 
 func parseChartLock(p string, data []byte) (*File, error) {
-	f := newFile(p, "Chart.lock", Helm)
+	f, err := parseChartDeps(p, "Chart.lock", data, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(f.Packages) == 0 && !strings.Contains(string(data), "dependencies:") {
+		return nil, errNotHelm
+	}
+	return f, nil
+}
+
+// parseChartYAML reads the dependencies: block of a Chart.yaml manifest
+// (or a Helm v2 requirements.yaml). Most chart repositories commit only
+// the manifest, and Helm requires exact versions there for reproducible
+// vendoring anyway — Renovate "update helm chart" PRs bump Chart.yaml.
+// Only exact semver pins are taken; range constraints (>=, ~, 1.x, *)
+// are not pins and are skipped entirely.
+func parseChartYAML(p string, data []byte) (*File, error) {
+	f, err := parseChartDeps(p, "Chart.yaml", data, true)
+	if err != nil {
+		return nil, err
+	}
+	// A Chart.yaml without dependencies is a leaf chart: a valid, empty
+	// lockfile view (audit walks meet these constantly).
+	return f, nil
+}
+
+// parseHelmRequirementsYAML parses a Helm v2 requirements.yaml, whose
+// basename Ansible Galaxy also uses — files without a dependencies:
+// block are rejected so Ansible role files never register as charts.
+func parseHelmRequirementsYAML(p string, data []byte) (*File, error) {
+	if !strings.Contains(string(data), "dependencies:") {
+		return nil, errNotHelm
+	}
+	return parseChartYAML(p, data)
+}
+
+// parseChartDeps is the shared reader for Chart.lock / requirements.lock
+// (every version exact) and Chart.yaml / requirements.yaml manifests
+// (exactOnly: skip range constraints).
+func parseChartDeps(p, kind string, data []byte, exactOnly bool) (*File, error) {
+	f := newFile(p, kind, Helm)
 	inDeps := false
-	name, version := "", ""
+	name, version, repo := "", "", ""
 	flush := func() {
-		if name != "" && version != "" {
+		if name != "" && version != "" && (!exactOnly || exactSemver(version)) {
 			f.add(name, version)
 			f.addRoot(name)
+			switch {
+			case strings.HasPrefix(repo, "https://"), strings.HasPrefix(repo, "http://"):
+				if f.PkgChannel == nil {
+					f.PkgChannel = map[string]string{}
+				}
+				f.PkgChannel[Sanitize(name)] = strings.TrimRight(repo, "/")
+			case strings.HasPrefix(repo, "file://"), repo == "":
+				// Local subchart or same-directory chart: not from any
+				// registry lockvet can ask about.
+				f.markNonRegistry(Sanitize(name))
+			}
+			// oci:// and @alias references: a real registry, but one
+			// with no index.yaml to consult — no channel, no claims.
 		}
-		name, version = "", ""
+		name, version, repo = "", "", ""
 	}
 	for _, raw := range strings.Split(string(data), "\n") {
 		line := strings.TrimRight(raw, "\r")
@@ -132,13 +188,37 @@ func parseChartLock(p string, data []byte) (*File, error) {
 			name = val
 		case "version":
 			version = val
+		case "repository":
+			repo = val
 		}
 	}
 	flush()
-	if len(f.Packages) == 0 && !strings.Contains(string(data), "dependencies:") {
-		return nil, errNotHelm
-	}
 	return f, nil
+}
+
+// exactSemver reports whether a Chart.yaml version constraint is an
+// exact semver pin (optionally v-prefixed) rather than a range.
+func exactSemver(v string) bool {
+	v = strings.TrimPrefix(v, "v")
+	if v == "" {
+		return false
+	}
+	dots := 0
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		switch {
+		case c >= '0' && c <= '9':
+		case c == '.':
+			dots++
+		case c == '-' || c == '+':
+			// prerelease/build suffix: exact as long as the numeric
+			// core before it was well-formed.
+			return dots == 2 && i > 0
+		default:
+			return false
+		}
+	}
+	return dots == 2
 }
 
 var errNotHelm = errors.New("not a Helm lockfile")

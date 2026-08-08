@@ -445,12 +445,13 @@ Data sources:
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
 NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
 the Terraform and OpenTofu registries, ConanCenter, CRAN (via METACRAN),
-Hackage, anaconda.org, the Bazel Central Registry, the Go module proxy,
+Hackage, anaconda.org, the Bazel Central Registry, Helm chart
+repositories' own index.yaml, the Go module proxy,
 and the Maven repositories
 (Central and Google) themselves (version listings, install scripts,
 provenance, Go retractions, Maven relocations, and — for Composer, Hex,
-Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell and conda — ages and
-deprecations, which deps.dev does not carry). Container base-image pins
+Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell, conda and Helm —
+ages and deprecations, which deps.dev does not carry). Container base-image pins
 (Dockerfile/Compose) are verified against the image registries
 themselves — Docker Hub, ghcr.io, quay.io, mcr.microsoft.com, gcr.io,
 registry.k8s.io, public.ecr.aws and registry.gitlab.com; other hosts

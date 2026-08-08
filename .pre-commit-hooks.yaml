@@ -41,7 +41,7 @@
       pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|
       Podfile\.lock|deno\.lock|flake\.lock|renv\.lock|
       [^/]*conda-lock\.ya?ml|[^/]*pixi\.lock|[^/]*\.terraform\.lock\.hcl|
-      Chart\.lock|requirements\.lock|[Mm]anifest\.toml|Manifest-v[^/]*\.toml|
+      Chart\.lock|Chart\.ya?ml|requirements\.ya?ml|requirements\.lock|[Mm]anifest\.toml|Manifest-v[^/]*\.toml|
       stack\.yaml\.lock|cabal\.project\.freeze|cabal\.config|conan\.lock|
       MODULE\.bazel|MODULE\.bazel\.lock|build\.zig\.zon|
       Dockerfile|Containerfile|Dockerfile\.[^/]+|[^/]+\.[Dd]ockerfile|

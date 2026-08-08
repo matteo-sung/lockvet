@@ -33,6 +33,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hcache"
+	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/hkgreg"
 	"github.com/matteo-sung/lockvet/internal/ignore"
@@ -737,6 +738,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := helmreg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Helm chart repository check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if ok, err := conanreg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: ConanCenter registry check skipped: %v\n", err)
 		} else if ok {
@@ -1243,6 +1249,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := tfreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Terraform registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := helmreg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Helm chart repository check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

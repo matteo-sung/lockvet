@@ -59,6 +59,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
+	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/hkgreg"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
@@ -450,6 +451,13 @@ func run(opts js.Value) (js.Value, error) {
 		// OpenTofu mirror (no unlisted/deprecation claims from a mirror).
 		if ok, err := tfreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("Terraform registry check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// Helm chart repositories: whether a given repo answers from the
+		// browser depends on its CORS headers — failures make no claims.
+		if ok, err := helmreg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Helm chart repository check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

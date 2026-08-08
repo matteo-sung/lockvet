@@ -128,9 +128,10 @@ type Change struct {
 	// a typosquatting attack. Set by the squat layer; empty means clean.
 	TyposquatOf string `json:"typosquat_of,omitempty"`
 
-	// Channel: the conda channel the package resolves from, when the
-	// lockfile's artifact URLs record one (conda.anaconda.org/<ch>/…).
-	// The condareg layer keys its lookups on it; empty elsewhere.
+	// Channel: the registry channel the package resolves from, when
+	// the lockfile records one — the conda channel for conda formats
+	// (conda.anaconda.org/<ch>/…), the chart repository URL for Helm.
+	// The condareg/helmreg layers key their lookups on it.
 	Channel string `json:"-"`
 
 	// NewPins: what the new lockfile itself pins for each incoming

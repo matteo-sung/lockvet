@@ -4,6 +4,37 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.15 — 2026-08-08
+
+- **Helm chart repositories: registry signals for `Chart.lock` — and
+  `Chart.yaml` manifests now parse.** Helm has no OSV ecosystem and no
+  deps.dev coverage, so chart bumps were signal-free; now lockvet asks
+  the chart repository's own `index.yaml` — the exact document
+  `helm dependency update` resolves against: release ages and the ⏱
+  cooldown flag, deprecated charts in the deprecation lane (a bump onto
+  a `deprecated: true` release flags directly; a chart whose *latest*
+  release is deprecated flags any bump, worded apart — catches things
+  like the retired `stable/…` charts and grafana-agent-operator),
+  upstream source links from each release's `sources` (verified compare
+  links and `-changelogs` work, including monorepo `name-1.2.3` tag
+  conventions), and a **prune-guarded** registry-verified unlisted
+  check: chart repositories routinely prune old releases from their
+  index, so only a missing version that sorts at or above the oldest
+  release the index still lists is flagged — and absence is re-proven
+  with an uncached fetch before it is claimed. The repository URL comes
+  from the lockfile itself, so any HTTP(S) chart repo works; `oci://`
+  references have no index and are honestly skipped, `file://`
+  subcharts are exempt. New: `Chart.yaml` (and Helm v2
+  `requirements.yaml`) parse as manifests — most repos commit only the
+  manifest and Renovate bumps it in place; exact version pins are read,
+  range constraints (`^`, `~`, `1.x`) are not pins and are skipped.
+  `lockvet pkg helm:<repo-url>/<chart>[@version]` vets a chart before
+  you add it, resolving "latest" against that repository's index
+  (deprecated releases skipped). Works in every mode; in the browser
+  playground per-repo reachability depends on the chart repo's CORS
+  headers. Replayed 100 chart-touching commits from argo-helm and
+  grafana/helm-charts history: zero false flags, one real catch.
+
 ## v0.5.14 — 2026-08-08
 
 - **rebar.lock: format #40.** Erlang's rebar3 lockfile gets the full Hex

@@ -89,6 +89,97 @@ func TestParseChartLock(t *testing.T) {
 	if !f.RootsKnown || len(f.Roots) != 2 {
 		t.Errorf("roots = %v (known=%v), want both entries direct", f.Roots, f.RootsKnown)
 	}
+	if got := f.PkgChannel["postgresql"]; got != "https://charts.bitnami.com/bitnami" {
+		t.Errorf("PkgChannel[postgresql] = %q", got)
+	}
+	if _, ok := f.PkgChannel["common"]; ok {
+		t.Error("oci:// repository must not set a channel")
+	}
+	if f.NonRegistry["common"] {
+		t.Error("oci:// repository is a real registry, not NonRegistry")
+	}
+}
+
+func TestParseChartYAML(t *testing.T) {
+	in := `apiVersion: v2
+name: mychart
+version: 1.2.3
+dependencies:
+  - name: postgresql
+    version: 12.1.9
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: ranged
+    version: ">=1.0.0"
+    repository: https://charts.example.com
+  - name: wildcard
+    version: 1.x.x
+    repository: https://charts.example.com
+  - name: local-sub
+    version: 0.1.0
+    repository: file://../local-sub
+  - name: aliased
+    version: 2.0.0
+    repository: "@stable"
+`
+	f, err := parseChartYAML("Chart.yaml", []byte(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"postgresql": "12.1.9", "local-sub": "0.1.0", "aliased": "2.0.0"}
+	if len(f.Packages) != len(want) {
+		t.Fatalf("got %d packages: %v (ranges must be skipped)", len(f.Packages), f.Packages)
+	}
+	for name, v := range want {
+		if got := f.Packages[name]; len(got) != 1 || got[0] != v {
+			t.Errorf("%s = %v, want [%s]", name, got, v)
+		}
+	}
+	if got := f.PkgChannel["postgresql"]; got != "https://charts.bitnami.com/bitnami" {
+		t.Errorf("PkgChannel[postgresql] = %q", got)
+	}
+	if !f.NonRegistry["local-sub"] {
+		t.Error("file:// subchart must be NonRegistry")
+	}
+	if f.NonRegistry["aliased"] {
+		t.Error("@alias repository: no claims either way, not NonRegistry")
+	}
+	// Leaf chart: valid, empty.
+	leaf, err := parseChartYAML("Chart.yaml", []byte("apiVersion: v2\nname: leaf\nversion: 0.1.0\n"))
+	if err != nil || len(leaf.Packages) != 0 {
+		t.Fatalf("leaf chart: %v, %v", leaf.Packages, err)
+	}
+}
+
+func TestParseHelmRequirementsYAML(t *testing.T) {
+	// Ansible Galaxy requirements.yml must be rejected.
+	ansible := "roles:\n  - name: geerlingguy.java\n    version: 2.3.0\ncollections:\n  - name: community.general\n"
+	if _, err := parseHelmRequirementsYAML("requirements.yml", []byte(ansible)); err == nil {
+		t.Fatal("ansible requirements.yml must not parse as Helm")
+	}
+	helm := "dependencies:\n- name: redis\n  version: 10.5.7\n  repository: https://kubernetes-charts.storage.googleapis.com\n"
+	f, err := parseHelmRequirementsYAML("requirements.yaml", []byte(helm))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["redis"]; len(got) != 1 || got[0] != "10.5.7" {
+		t.Errorf("redis = %v", got)
+	}
+}
+
+func TestExactSemver(t *testing.T) {
+	yes := []string{"1.2.3", "v1.2.3", "0.1.0", "1.2.3-beta.1", "1.2.3+meta"}
+	no := []string{"", "1.2", "1.x.x", "1.2.x", "*", ">=1.0.0", "~1.2.3", "^1.2.3", "1.2.3 - 2.0.0", "latest"}
+	for _, v := range yes {
+		if !exactSemver(v) {
+			t.Errorf("exactSemver(%q) = false, want true", v)
+		}
+	}
+	for _, v := range no {
+		if exactSemver(v) {
+			t.Errorf("exactSemver(%q) = true, want false", v)
+		}
+	}
 }
 
 func TestParseChartLockIndented(t *testing.T) {

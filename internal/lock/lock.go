@@ -159,10 +159,11 @@ type File struct {
 	// (like the unlisted-version flag) skip them.
 	NonRegistry map[string]bool
 
-	// PkgChannel records the conda channel a package resolves from
-	// (conda.anaconda.org/<channel>/… artifact URLs). Only the conda
-	// formats fill it; the condareg layer needs the channel to ask
-	// anaconda.org anything. nil elsewhere.
+	// PkgChannel records the registry "channel" a package resolves
+	// from, when the lockfile names one: the conda channel
+	// (conda.anaconda.org/<channel>/… artifact URLs) for the conda
+	// formats, or the chart repository URL for Helm charts. The
+	// condareg/helmreg layers key their lookups on it. nil elsewhere.
 	PkgChannel map[string]string
 
 	// PkgRepo records the source repository URL the lockfile itself
@@ -463,6 +464,15 @@ func ByBasename(p string) *Parser {
 		return &Parser{".terraform.lock.hcl", Terraform, parseTerraformLock}
 	case "Chart.lock":
 		return &Parser{"Chart.lock", Helm, parseChartLock}
+	case "Chart.yaml", "Chart.yml":
+		// The chart manifest: most repos commit only this, and Renovate
+		// bumps its dependencies block. Exact pins only.
+		return &Parser{"Chart.yaml", Helm, parseChartYAML}
+	case "requirements.yaml", "requirements.yml":
+		// Helm v2 kept chart dependencies here, same shape — but the
+		// basename also belongs to Ansible Galaxy role files, so this
+		// one must actually contain a dependencies: block.
+		return &Parser{"Chart.yaml", Helm, parseHelmRequirementsYAML}
 	case "requirements.lock":
 		// Helm v2 chart lock, or pip-frozen requirements — sniffed.
 		return &Parser{"requirements.lock", Helm, parseRequirementsLock}
