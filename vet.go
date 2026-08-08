@@ -418,7 +418,7 @@ func vetRemote(arg string, o vetOptions) (*vetOutcome, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := src.fetch(func(p string) bool { return lock.ByBasename(p) != nil })
+	res, err := src.fetch(lock.PathFilter(lock.SniffBudget))
 	if err != nil {
 		return nil, err
 	}
@@ -427,6 +427,9 @@ func vetRemote(arg string, o vetOptions) (*vetOutcome, error) {
 	warnings = append(warnings, res.Warnings...)
 	for _, cf := range res.Files {
 		parser := lock.ByBasename(cf.Path)
+		if parser == nil {
+			parser = lock.SniffParser()
+		}
 		oldF, w1 := parseOrWarn(parser, cf.Path, cf.Old)
 		newF, w2 := parseOrWarn(parser, cf.Path, cf.New)
 		warnings = append(warnings, w1...)
@@ -482,7 +485,10 @@ func vetGit(dir, base, target string, o vetOptions) (*vetOutcome, error) {
 	for _, p := range changed {
 		parser := lock.ByBasename(p)
 		if parser == nil {
-			continue
+			if !lock.SniffableYAML(p) {
+				continue
+			}
+			parser = lock.SniffParser()
 		}
 		oldData, err := repo.Show(base, p)
 		if err != nil {

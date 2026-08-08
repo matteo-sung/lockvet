@@ -241,7 +241,7 @@ func run(opts js.Value) (js.Value, error) {
 		if req.token != "" && tokenEnv != "" {
 			os.Setenv(tokenEnv, req.token)
 		}
-		res, err := fetch(func(p string) bool { return lock.ByBasename(p) != nil })
+		res, err := fetch(lock.PathFilter(lock.SniffBudget))
 		if err != nil {
 			return js.Undefined(), err
 		}
@@ -249,6 +249,9 @@ func run(opts js.Value) (js.Value, error) {
 		base, target, title = res.BaseLabel, res.HeadLabel, res.Title
 		for _, cf := range res.Files {
 			parser := lock.ByBasename(cf.Path)
+			if parser == nil {
+				parser = lock.SniffParser()
+			}
 			oldF := parseOrNil(parser, cf.Path, cf.Old)
 			newF := parseOrNil(parser, cf.Path, cf.New)
 			if oldF == nil && newF == nil {

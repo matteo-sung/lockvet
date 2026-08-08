@@ -4,6 +4,38 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.19 — 2026-08-08
+
+- **Changed YAML is content-sniffed in diff modes.** GitOps repos keep
+  workload manifests under arbitrary layouts (`default/nzbget/nzbget.yaml`)
+  that no directory or basename convention can anticipate. In diff modes —
+  local git, `pr`/`mr`/`compare`, `queue`, the playground's URL mode —
+  every changed `*.yaml`/`*.yml` that nothing else claims is now sniffed
+  as a Kubernetes manifest, behind the same strict top-level `apiVersion:`
+  + `kind:` gate (non-Kubernetes YAML stays silent; Helm `templates/`
+  stays excluded). Remote fetches cap sniff candidates at 20 files per
+  diff so a big refactor PR can't balloon the download count. `lockvet
+  audit` directory walks keep convention-based discovery.
+- **Helm values `image:` mappings are pins.** Inside a `HelmRelease`'s
+  `values:`, the standard chart image shape — `image:` with `repository:`
+  and `tag:` children, plus Bitnami-style `registry:` and `digest:` — is
+  read as an image pin and gets the container-registry verification.
+  That's the exact field Flux image automation and Renovate bump in
+  home-ops repos: replaying billimek/k8s-gitops turns entire eras of
+  `Auto-release …` and `feat(container): update image …` commits from
+  "no lockfile changes" into precise image-bump rows, both the 2020 Flux
+  v1 era and current Renovate commits. Templated values (`{{ … }}`,
+  `$(VAR)`, `${VAR}`) and tag-less mappings are skipped, and the shape is
+  only read inside `HelmRelease` documents under a `values:` path — an
+  arbitrary CR can't feed it.
+- **YAML anchors on pin values parse.** The current app-template
+  convention writes `tag: &hass-image 2026.8.1@sha256:…` — a leading
+  `&name` is always an anchor (plain scalars can't start with `&`), so
+  the anchor is stripped and the value behind it is read, embedded
+  digest included; the digest becomes an integrity pin and gets registry
+  verification. Alias values (`*name`) can't be resolved by a line
+  scanner and honestly stay silent.
+
 ## v0.5.18 — 2026-08-08
 
 - **Flux HelmRelease and OCIRepository CRs are pins.** A `HelmRelease`

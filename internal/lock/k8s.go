@@ -149,6 +149,34 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 	var repoURL, repoType string
 	var ociURL, ociTag, ociDigest string
 	var rel helmReleasePin
+	// A Helm-values image mapping inside a HelmRelease document:
+	// `image:` with repository:/tag: (Bitnami-style registry:, digest:)
+	// children — the standard chart convention, and the exact shape Flux
+	// v1's image automation bumped in its Auto-release commits. Only
+	// read under a values: path so arbitrary CRs can't feed it.
+	var img struct {
+		active                            bool
+		idx                               int // index in kpath of the image: entry
+		registry, repository, tag, digest string
+	}
+	flushImg := func() {
+		if img.active && img.repository != "" && img.tag != "" {
+			ref := img.repository
+			if img.registry != "" {
+				ref = strings.TrimSuffix(img.registry, "/") + "/" + ref
+			}
+			ref += ":" + img.tag
+			if img.digest != "" {
+				ref += "@" + img.digest
+			}
+			if !strings.Contains(ref, "{{") && !strings.Contains(ref, "$(") &&
+				!strings.Contains(ref, "${") {
+				addImageRef(f, ref, nil)
+			}
+		}
+		img.active = false
+		img.registry, img.repository, img.tag, img.digest = "", "", "", ""
+	}
 	// Per-file accumulators.
 	repos := map[string]*helmRepoRef{}
 	var releases []helmReleasePin
@@ -227,6 +255,7 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 		docKind, docName, repoURL, repoType = "", "", "", ""
 		ociURL, ociTag, ociDigest = "", "", ""
 		rel = helmReleasePin{}
+		flushImg()
 		kpath = kpath[:0]
 		closeTo(0)
 	}
@@ -253,6 +282,9 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 		// List items never push; they only close deeper paths.
 		isItem := trimmed == "-" || strings.HasPrefix(trimmed, "- ")
 		for len(kpath) > 0 && kpath[len(kpath)-1].indent >= indent {
+			if img.active && img.idx == len(kpath)-1 {
+				flushImg()
+			}
 			kpath = kpath[:len(kpath)-1]
 		}
 		if !isItem {
@@ -262,11 +294,52 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 				if i := strings.Index(v, " #"); i >= 0 {
 					v = strings.TrimSpace(v[:i])
 				}
+				// YAML anchors: plain scalars can't start with & — a
+				// leading &name is always an anchor, the value follows
+				// (`tag: &hass-image 2026.8.1@sha256:…` is the home-ops
+				// Renovate shape). Aliases (*name) can't be resolved by
+				// a line scanner; treat them as no value.
+				if strings.HasPrefix(v, "&") {
+					if _, rest, ok := strings.Cut(v, " "); ok {
+						v = strings.TrimSpace(rest)
+					} else {
+						v = ""
+					}
+				}
+				if strings.HasPrefix(v, "*") {
+					v = ""
+				}
 				if v == "" || strings.HasPrefix(v, "#") {
 					kpath = append(kpath, pathEnt{indent, k})
+					if k == "image" && docKind == "HelmRelease" {
+						underValues := false
+						for _, e := range kpath[:len(kpath)-1] {
+							if e.key == "values" {
+								underValues = true
+								break
+							}
+						}
+						if underValues {
+							flushImg()
+							img.active = true
+							img.idx = len(kpath) - 1
+						}
+					}
 				} else {
 					v = strings.Trim(v, `"'`)
 					switch {
+					case img.active && len(kpath) == img.idx+1:
+						// Direct child of the tracked values image: map.
+						switch k {
+						case "registry":
+							img.registry = v
+						case "repository":
+							img.repository = v
+						case "tag":
+							img.tag = v
+						case "digest":
+							img.digest = v
+						}
 					case indent == 0 && k == "kind":
 						docKind = v
 					case pathIs("metadata") && k == "name":
@@ -441,6 +514,58 @@ func k8sManifestLenient(p string, data []byte) (*File, error) {
 		return newFile(p, "kubernetes-manifest", Docker), nil
 	}
 	return f, err
+}
+
+// SniffableYAML reports whether a changed file that no basename or path
+// convention claims is still worth a content sniff as a Kubernetes
+// manifest. GitOps repos keep workload manifests under arbitrary layouts
+// (default/nzbget/nzbget.yaml); the strict top-level apiVersion: + kind:
+// gate inside the parser makes over-matching free, so in diff modes —
+// where the changed-file list is small — every other YAML file
+// qualifies. Helm chart templates stay excluded: their image references
+// are {{ interpolated }}. Directory walks (audit) keep convention-based
+// discovery instead: sniffing every YAML in a large tree would read far
+// more than it finds.
+func SniffableYAML(p string) bool {
+	q := strings.ToLower(strings.ReplaceAll(p, "\\", "/"))
+	base := path.Base(q)
+	if !strings.HasSuffix(base, ".yml") && !strings.HasSuffix(base, ".yaml") {
+		return false
+	}
+	for _, seg := range strings.Split(path.Dir(q), "/") {
+		if seg == "templates" {
+			return false
+		}
+	}
+	return ByBasename(p) == nil
+}
+
+// SniffParser parses files admitted by SniffableYAML: Kubernetes YAML
+// gets the manifest treatment, anything else parses to an empty file.
+func SniffParser() *Parser {
+	return &Parser{"kubernetes-manifest", Docker, k8sManifestLenient}
+}
+
+// SniffBudget is the default cap PathFilter puts on content-sniff
+// candidates per remote fetch.
+const SniffBudget = 20
+
+// PathFilter returns a fresh predicate for remote diff fetches: every
+// known lockfile path always passes, and up to sniffBudget other YAML
+// files (SniffableYAML) pass for content sniffing — the cap keeps a big
+// refactor PR from ballooning the number of file downloads. The closure
+// is stateful; make one per fetch and do not share across goroutines.
+func PathFilter(sniffBudget int) func(string) bool {
+	return func(p string) bool {
+		if ByBasename(p) != nil {
+			return true
+		}
+		if sniffBudget > 0 && SniffableYAML(p) {
+			sniffBudget--
+			return true
+		}
+		return false
+	}
 }
 
 // parseKustomization reads the two pinning blocks of a

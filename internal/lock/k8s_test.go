@@ -2,6 +2,7 @@ package lock
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -527,5 +528,196 @@ spec:
 	}
 	if !reflect.DeepEqual(f.Packages, want) {
 		t.Fatalf("packages = %v, want %v", f.Packages, want)
+	}
+}
+
+func TestSniffableYAML(t *testing.T) {
+	yes := []string{
+		"default/nzbget/nzbget.yaml", // billimek old layout: no dir/name convention
+		"nzbget.yml",
+		"services/media/sonarr.yaml",
+		`services\media\sonarr.yaml`, // backslash separators (file mode on Windows)
+	}
+	for _, p := range yes {
+		if !SniffableYAML(p) {
+			t.Errorf("SniffableYAML(%q) = false, want true", p)
+		}
+	}
+	no := []string{
+		"k8s/deployment.yaml",          // already claimed by convention
+		"package-lock.json",            // not YAML
+		"pnpm-lock.yaml",               // claimed by basename
+		".github/workflows/ci.yml",     // claimed as a workflow
+		"chart/templates/deploy.yaml",  // helm template: interpolated refs
+		"mychart/templates/svc.yml",    // helm template
+		"README.md",                    // not YAML
+		"docker-compose.override.yaml", // claimed by prefix rule
+		".pre-commit-config.yaml",      // claimed by basename
+	}
+	for _, p := range no {
+		if SniffableYAML(p) {
+			t.Errorf("SniffableYAML(%q) = true, want false", p)
+		}
+	}
+}
+
+func TestPathFilterBudget(t *testing.T) {
+	f := PathFilter(2)
+	// Known lockfiles never consume the sniff budget.
+	for _, p := range []string{"go.mod", "k8s/deployment.yaml", "yarn.lock"} {
+		if !f(p) {
+			t.Errorf("filter(%q) = false, want true", p)
+		}
+	}
+	if !f("a/a.yaml") || !f("b/b.yaml") {
+		t.Fatal("first two sniff candidates should pass")
+	}
+	if f("c/c.yaml") {
+		t.Fatal("third sniff candidate should be over budget")
+	}
+	// Known lockfiles still pass after the budget is spent.
+	if !f("Cargo.lock") {
+		t.Error("filter(Cargo.lock) = false after budget spent, want true")
+	}
+	if SniffBudget < 10 {
+		t.Errorf("SniffBudget = %d, suspiciously small", SniffBudget)
+	}
+}
+
+func TestSniffParserLenient(t *testing.T) {
+	p := SniffParser()
+	f, err := p.Parse("app/app.yaml", []byte("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n      - name: app\n        image: nginx:1.25.3\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["nginx"]; len(got) != 1 || got[0] != "1.25.3" {
+		t.Fatalf("packages = %v, want nginx 1.25.3", f.Packages)
+	}
+	// Non-Kubernetes YAML parses to an empty file, never an error.
+	f, err = p.Parse("mkdocs.yml", []byte("site_name: docs\nnav:\n  - Home: index.md\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Packages) != 0 {
+		t.Fatalf("packages = %v, want empty", f.Packages)
+	}
+}
+
+func TestParseK8sManifestHelmValuesImage(t *testing.T) {
+	data := []byte(`---
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: home-assistant
+spec:
+  chart:
+    repository: https://charts.example.com/
+    name: home-assistant
+    version: 0.13.3
+  values:
+    image:
+      repository: homeassistant/home-assistant
+      tag: 0.110.4
+    sidecar:
+      image:
+        registry: docker.io
+        repository: bitnami/nginx
+        tag: "1.25.3"
+    templated:
+      image:
+        repository: '{{ .Values.repo }}'
+        tag: 1.0.0
+    tagless:
+      image:
+        repository: ghcr.io/example/app
+    ports:
+      - port: 8123
+`)
+	f, err := parseK8sManifest("default/home-assistant/home-assistant.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for pkg, vers := range map[string]string{
+		"homeassistant/home-assistant": "0.110.4",
+		"docker.io/bitnami/nginx":      "1.25.3",
+		"home-assistant":               "0.13.3", // the chart pin still reads
+	} {
+		got := f.Packages[Sanitize(pkg)]
+		if len(got) != 1 || got[0] != vers {
+			t.Errorf("package %q = %v, want [%s]", pkg, got, vers)
+		}
+	}
+	for _, absent := range []string{"{{ .Values.repo }}", "ghcr.io/example/app"} {
+		if _, ok := f.Packages[Sanitize(absent)]; ok {
+			t.Errorf("package %q should not be read (templated / no tag)", absent)
+		}
+	}
+}
+
+func TestParseK8sManifestValuesImageOnlyHelmRelease(t *testing.T) {
+	// The repository/tag mapping convention is chart-specific: outside a
+	// HelmRelease values: block it must not be read.
+	data := []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data: {}
+---
+apiVersion: example.io/v1
+kind: SomeOperator
+spec:
+  values:
+    image:
+      repository: example/app
+      tag: 1.0.0
+`)
+	f, err := parseK8sManifest("k8s/config.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Packages) != 0 {
+		t.Fatalf("packages = %v, want empty", f.Packages)
+	}
+}
+
+func TestParseK8sManifestValuesImageAnchoredTag(t *testing.T) {
+	// The current home-ops Renovate shape: app-template controllers with
+	// a YAML anchor and an embedded digest on the tag value. Aliases
+	// (*name) can't be resolved by a line scanner and must stay silent.
+	data := []byte(`---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: home-assistant
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  values:
+    controllers:
+      home-assistant:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/home-assistant
+              tag: &hass-image 2026.8.1@sha256:e1f54eb0306d7ded8b3cdee70c21178413cd175aa3e526452af0e086a39ecc51
+          code:
+            image:
+              repository: ghcr.io/coder/code-server
+              tag: *hass-image
+`)
+	f, err := parseK8sManifest("kubernetes/default/home-assistant/home-assistant.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := Sanitize("ghcr.io/home-operations/home-assistant")
+	if got := f.Packages[name]; len(got) != 1 || got[0] != "2026.8.1" {
+		t.Errorf("anchored tag: packages[%s] = %v, want [2026.8.1]", name, got)
+	}
+	if pin, ok := f.Pins[name]["2026.8.1"]; !ok || !strings.Contains(pin.Integrity, "sha256:e1f54eb") {
+		t.Errorf("anchored tag digest pin = %+v, want sha256:e1f54eb…", pin)
+	}
+	if _, ok := f.Packages[Sanitize("ghcr.io/coder/code-server")]; ok {
+		t.Error("alias tag (*name) must not produce a package")
 	}
 }

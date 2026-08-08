@@ -523,7 +523,7 @@ func main() {
 		newContents = map[string][]byte{}
 	)
 	if remoteFetch != nil {
-		res, err := remoteFetch(func(p string) bool { return lock.ByBasename(p) != nil })
+		res, err := remoteFetch(lock.PathFilter(lock.SniffBudget))
 		check(err)
 		for _, w := range res.Warnings {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: %s\n", w)
@@ -531,6 +531,10 @@ func main() {
 		base, target = res.BaseLabel, res.HeadLabel
 		for _, cf := range res.Files {
 			parser := lock.ByBasename(cf.Path)
+			if parser == nil {
+				// Admitted by the sniff side of the path filter.
+				parser = lock.SniffParser()
+			}
 			oldF := parseOrNil(parser, cf.Path, cf.Old)
 			newF := parseOrNil(parser, cf.Path, cf.New)
 			if oldF == nil && newF == nil {
@@ -619,7 +623,13 @@ func main() {
 		for _, p := range changed {
 			parser := lock.ByBasename(p)
 			if parser == nil {
-				continue
+				if !lock.SniffableYAML(p) {
+					continue
+				}
+				// Unclaimed YAML in a diff: content-sniff it as a
+				// Kubernetes manifest (strict apiVersion+kind gate;
+				// anything else parses to an empty file).
+				parser = lock.SniffParser()
 			}
 			oldData, err := repo.Show(base, p)
 			check(err)
@@ -1154,13 +1164,16 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			res, err := it.fetch(func(p string) bool { return lock.ByBasename(p) != nil })
+			res, err := it.fetch(lock.PathFilter(lock.SniffBudget))
 			if err != nil {
 				slots[i].err = err
 				return
 			}
 			for _, cf := range res.Files {
 				parser := lock.ByBasename(cf.Path)
+				if parser == nil {
+					parser = lock.SniffParser()
+				}
 				oldF := parseOrNil(parser, cf.Path, cf.Old)
 				newF := parseOrNil(parser, cf.Path, cf.New)
 				if oldF == nil && newF == nil {
