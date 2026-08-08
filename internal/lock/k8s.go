@@ -52,13 +52,18 @@ func isK8sManifestPath(p string) bool {
 		return true
 	}
 	switch strings.TrimSuffix(strings.TrimSuffix(base, ".yaml"), ".yml") {
-	case "deployment", "statefulset", "daemonset", "replicaset", "cronjob", "pod":
+	case "deployment", "statefulset", "daemonset", "replicaset", "cronjob", "pod",
+		"helmrelease", "helm-release", "release", "ocirepository", "helmrepository":
+		// The last five are the Flux CR file conventions
+		// (apps/base/<name>/release.yaml in the flux2 examples,
+		// app/ocirepository.yaml in home-ops layouts).
 		return true
 	}
 	for _, seg := range segs {
 		switch seg {
 		case "k8s", "kubernetes", "manifests", "deploy", "overlays", "base",
-			"clusters", "gitops":
+			"clusters", "gitops", "apps", "infrastructure", "infra",
+			"flux", "flux-system", "chart", "charts":
 			// The k8s/kustomize/GitOps directory conventions. Over-matching
 			// is nearly free: the parser requires top-level apiVersion: and
 			// kind:, and non-Kubernetes YAML parses to an empty file.
@@ -75,6 +80,22 @@ var errNotK8s = errors.New("no Kubernetes documents found (need top-level apiVer
 // nesting depth (Pod, Deployment template, CronJob jobTemplate, …).
 var containerListKey = regexp.MustCompile(`^(?:"?(containers|initContainers|ephemeralContainers)"?)\s*:\s*(?:#.*)?$`)
 
+// helmRepoRef is a HelmRepository document's registry pointer: the
+// chart repository URL and type ("oci" for OCI registries, which have
+// no index.yaml to verify against).
+type helmRepoRef struct {
+	url, typ string
+	conflict bool // two same-name HelmRepository docs with different URLs
+}
+
+// helmReleasePin is one HelmRelease document's chart pin, resolved
+// against same-file HelmRepository docs after the whole file is read.
+type helmReleasePin struct {
+	chart, version   string
+	srcKind, srcName string
+	repoV1           string // Flux v1 spec.chart.repository (direct URL)
+}
+
 // parseK8sManifest reads container image pins from a (possibly
 // multi-document) Kubernetes manifest. Strict: at least one document
 // must declare top-level apiVersion: and kind:, otherwise errNotK8s.
@@ -83,6 +104,12 @@ var containerListKey = regexp.MustCompile(`^(?:"?(containers|initContainers|ephe
 // kustomization-transformer entries (name / newName / newTag / digest)
 // are read wherever they appear — Flux `Kustomization` CRs carry exactly
 // that shape under spec.images, and Renovate bumps their newTag values.
+// Flux `HelmRelease` CRs are read too: an exact spec.chart.spec.version
+// pin becomes a Helm-ecosystem package, and when the sourceRef's
+// HelmRepository lives in the same file its URL rides along so the
+// chart-repository layer (internal/helmreg) can verify the bump. A
+// sourceRef defined elsewhere, or an OCI/Git source, still yields the
+// version row — just no registry claims (nothing to honestly check).
 func parseK8sManifest(p string, data []byte) (*File, error) {
 	f := newFile(p, "kubernetes-manifest", Docker)
 	sawK8sDoc := false
@@ -96,6 +123,35 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 	type openBlock struct{ indent, kind int }
 	var blocks []openBlock
 	var name, newName, newTag, digest string
+	// Key-path tracker for the Flux CR fields (mapping keys only; list
+	// items never push). Paths we read are fixed and shallow, so a
+	// line-based stack is enough — block scalars can't collide because
+	// their content always sits under the scalar key's parent path.
+	type pathEnt struct {
+		indent int
+		key    string
+	}
+	var kpath []pathEnt
+	pathIs := func(want string) bool {
+		parts := strings.Split(want, ".")
+		if len(kpath) != len(parts) {
+			return false
+		}
+		for i, p := range parts {
+			if kpath[i].key != p {
+				return false
+			}
+		}
+		return true
+	}
+	// Per-document Flux CR state.
+	var docKind, docName string
+	var repoURL, repoType string
+	var ociURL, ociTag, ociDigest string
+	var rel helmReleasePin
+	// Per-file accumulators.
+	repos := map[string]*helmRepoRef{}
+	var releases []helmReleasePin
 	flushImage := func() {
 		eff := newName
 		if eff == "" {
@@ -125,7 +181,53 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 		if sawAPIVersion && sawKind {
 			sawK8sDoc = true
 		}
+		switch docKind {
+		case "HelmRepository":
+			if docName != "" && repoURL != "" {
+				typ := repoType
+				if strings.HasPrefix(repoURL, "oci://") {
+					typ = "oci"
+				}
+				if prev, ok := repos[docName]; ok {
+					if prev.url != repoURL {
+						prev.conflict = true
+					}
+				} else {
+					repos[docName] = &helmRepoRef{url: repoURL, typ: typ}
+				}
+			}
+		case "HelmRelease":
+			// Only exact semver pins count (ranges track the repo's
+			// latest — nothing is pinned). Charts with a path shape
+			// (./charts/x from a GitRepository source) are not registry
+			// packages.
+			if rel.chart != "" && exactSemver(rel.version) &&
+				!strings.Contains(rel.chart, "/") {
+				releases = append(releases, rel)
+			}
+		case "OCIRepository":
+			// Flux's modern chart/artifact source: spec.url is an OCI
+			// reference and spec.ref.tag / spec.ref.digest pin it —
+			// exactly an image pin, so it gets the Dockerfile registry
+			// treatment (digest-vs-tag, unknown tags, ages). Renovate
+			// bumps ref.tag in HelmRelease-chartRef setups.
+			if repo, ok := strings.CutPrefix(ociURL, "oci://"); ok &&
+				repo != "" && (ociTag != "" || ociDigest != "") {
+				ref := repo
+				if ociTag != "" {
+					ref += ":" + ociTag
+				}
+				if ociDigest != "" {
+					ref += "@" + ociDigest
+				}
+				addImageRef(f, ref, nil)
+			}
+		}
 		sawAPIVersion, sawKind = false, false
+		docKind, docName, repoURL, repoType = "", "", "", ""
+		ociURL, ociTag, ociDigest = "", "", ""
+		rel = helmReleasePin{}
+		kpath = kpath[:0]
 		closeTo(0)
 	}
 	for _, raw := range strings.Split(string(data), "\n") {
@@ -145,6 +247,70 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 				sawAPIVersion = true
 			case strings.HasPrefix(trimmed, "kind:"):
 				sawKind = true
+			}
+		}
+		// Maintain the mapping key path and capture Flux CR fields.
+		// List items never push; they only close deeper paths.
+		isItem := trimmed == "-" || strings.HasPrefix(trimmed, "- ")
+		for len(kpath) > 0 && kpath[len(kpath)-1].indent >= indent {
+			kpath = kpath[:len(kpath)-1]
+		}
+		if !isItem {
+			if key, val, ok := strings.Cut(trimmed, ":"); ok && !strings.Contains(strings.TrimSpace(key), " ") {
+				k := strings.Trim(strings.TrimSpace(key), `"'`)
+				v := strings.TrimSpace(val)
+				if i := strings.Index(v, " #"); i >= 0 {
+					v = strings.TrimSpace(v[:i])
+				}
+				if v == "" || strings.HasPrefix(v, "#") {
+					kpath = append(kpath, pathEnt{indent, k})
+				} else {
+					v = strings.Trim(v, `"'`)
+					switch {
+					case indent == 0 && k == "kind":
+						docKind = v
+					case pathIs("metadata") && k == "name":
+						docName = v
+					case docKind == "HelmRepository" && pathIs("spec") && k == "url":
+						repoURL = v
+					case docKind == "HelmRepository" && pathIs("spec") && k == "type":
+						repoType = strings.ToLower(v)
+					case docKind == "OCIRepository" && pathIs("spec") && k == "url":
+						ociURL = v
+					case docKind == "OCIRepository" && pathIs("spec.ref"):
+						switch k {
+						case "tag":
+							ociTag = v
+						case "digest":
+							ociDigest = v
+							// ref.semver is a range — nothing is pinned.
+						}
+					case docKind == "HelmRelease" && pathIs("spec.chart.spec"):
+						switch k {
+						case "chart":
+							rel.chart = v
+						case "version":
+							rel.version = v
+						}
+					case docKind == "HelmRelease" && pathIs("spec.chart.spec.sourceRef"):
+						switch k {
+						case "kind":
+							rel.srcKind = v
+						case "name":
+							rel.srcName = v
+						}
+					case docKind == "HelmRelease" && pathIs("spec.chart"):
+						// Flux v1 (helm.fluxcd.io/v1) flat chart shape.
+						switch k {
+						case "name":
+							rel.chart = v
+						case "version":
+							rel.version = v
+						case "repository":
+							rel.repoV1 = v
+						}
+					}
+				}
 			}
 		}
 		// Close any blocks this line steps out of. A line at the block's
@@ -209,6 +375,30 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 	resetDoc()
 	if !sawK8sDoc {
 		return nil, errNotK8s
+	}
+	// Resolve HelmRelease pins against same-file HelmRepository docs.
+	for _, r := range releases {
+		f.add(r.chart, r.version)
+		n := Sanitize(r.chart)
+		if f.PkgEco == nil {
+			f.PkgEco = map[string]Ecosystem{}
+		}
+		f.PkgEco[n] = Helm
+		url := r.repoV1
+		if url == "" && r.srcKind == "HelmRepository" && r.srcName != "" {
+			if repo, ok := repos[r.srcName]; ok && !repo.conflict && repo.typ != "oci" {
+				url = repo.url
+			}
+		}
+		if strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") {
+			if f.PkgChannel == nil {
+				f.PkgChannel = map[string]string{}
+			}
+			f.PkgChannel[n] = strings.TrimRight(url, "/")
+		}
+		// No resolvable HTTP repository (sourceRef in another file,
+		// OCI registry, Git source): the version row still renders,
+		// but no index.yaml exists to check — no registry claims.
 	}
 	rootsFromPackages(f)
 	return f, nil

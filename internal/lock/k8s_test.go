@@ -13,6 +13,9 @@ func TestIsK8sManifestPath(t *testing.T) {
 		`infra\k8s\api.yaml`, "daemonset.yaml", "pod.yaml", "replicaset.yaml",
 		"oci/dis-apim/base/flux-kustomize.yaml", "clusters/prod/app.yaml",
 		"overlays/dev/patch.yaml", "gitops/web.yml", "deploy/web.yaml",
+		"apps/base/podinfo/release.yaml", "helmrelease.yaml",
+		"observability/grafana/app/ocirepository.yaml",
+		"infrastructure/controllers/weave.yaml", "flux-system/sync.yaml",
 	}
 	no := []string{
 		"app.yaml", "config/settings.yml", "k8s/README.md",
@@ -269,6 +272,259 @@ spec:
 		t.Fatal(err)
 	}
 	want := map[string][]string{"acr.example.io/ghcr.io/acme/operator": {"v1.0.0"}}
+	if !reflect.DeepEqual(f.Packages, want) {
+		t.Fatalf("packages = %v, want %v", f.Packages, want)
+	}
+}
+
+func TestParseK8sManifestHelmRelease(t *testing.T) {
+	// Same-file HelmRepository: the chart pin gets the repo URL as its
+	// channel so helmreg can verify the bump.
+	data := []byte(`apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: podinfo
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://stefanprodan.github.io/podinfo/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: podinfo
+spec:
+  interval: 50m
+  chart:
+    spec:
+      chart: podinfo
+      version: "6.5.0" # pinned
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: flux-system
+  values:
+    replicaCount: 2
+`)
+	f, err := parseK8sManifest("apps/base/podinfo/release.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["podinfo"]; !reflect.DeepEqual(got, []string{"6.5.0"}) {
+		t.Fatalf("podinfo versions = %v", got)
+	}
+	if f.PkgEco["podinfo"] != Helm {
+		t.Fatalf("podinfo eco = %v, want Helm", f.PkgEco["podinfo"])
+	}
+	if got := f.PkgChannel["podinfo"]; got != "https://stefanprodan.github.io/podinfo" {
+		t.Fatalf("podinfo channel = %q", got)
+	}
+}
+
+func TestParseK8sManifestHelmReleaseUnresolved(t *testing.T) {
+	// sourceRef defined in another file: version row, no channel.
+	rel := []byte(`apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: web
+spec:
+  chart:
+    spec:
+      chart: nginx
+      version: 15.1.2
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+`)
+	f, err := parseK8sManifest("clusters/prod/helmrelease.yaml", rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["nginx"]; !reflect.DeepEqual(got, []string{"15.1.2"}) {
+		t.Fatalf("nginx versions = %v", got)
+	}
+	if got := f.PkgChannel["nginx"]; got != "" {
+		t.Fatalf("channel = %q, want none", got)
+	}
+	if f.PkgEco["nginx"] != Helm {
+		t.Fatalf("eco = %v", f.PkgEco["nginx"])
+	}
+}
+
+func TestParseK8sManifestHelmReleaseOCIAndRanges(t *testing.T) {
+	data := []byte(`apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: oci-repo
+spec:
+  type: oci
+  url: oci://registry-1.docker.io/bitnamicharts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: redis
+spec:
+  chart:
+    spec:
+      chart: redis
+      version: 18.4.0
+      sourceRef:
+        kind: HelmRepository
+        name: oci-repo
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ranged
+spec:
+  chart:
+    spec:
+      chart: tracked
+      version: ">=6.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: oci-repo
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: from-git
+spec:
+  chart:
+    spec:
+      chart: ./charts/app
+      version: 1.0.0
+      sourceRef:
+        kind: GitRepository
+        name: repo
+`)
+	f, err := parseK8sManifest("k8s/releases.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// OCI source: pin recorded, no index.yaml channel to check.
+	if got := f.Packages["redis"]; !reflect.DeepEqual(got, []string{"18.4.0"}) {
+		t.Fatalf("redis versions = %v", got)
+	}
+	if got := f.PkgChannel["redis"]; got != "" {
+		t.Fatalf("redis channel = %q, want none", got)
+	}
+	// Range: nothing pinned, no row.
+	if _, ok := f.Packages["tracked"]; ok {
+		t.Fatal("range version must not be recorded")
+	}
+	// Git path chart: not a registry package.
+	if len(f.Packages) != 1 {
+		t.Fatalf("packages = %v, want only redis", f.Packages)
+	}
+}
+
+func TestParseK8sManifestHelmReleaseV1(t *testing.T) {
+	// Flux v1 flat chart shape carries the repo URL directly.
+	data := []byte(`apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: grafana
+spec:
+  chart:
+    repository: https://grafana.github.io/helm-charts
+    name: grafana
+    version: 6.50.7
+`)
+	f, err := parseK8sManifest("releases/helm-release.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["grafana"]; !reflect.DeepEqual(got, []string{"6.50.7"}) {
+		t.Fatalf("grafana versions = %v", got)
+	}
+	if got := f.PkgChannel["grafana"]; got != "https://grafana.github.io/helm-charts" {
+		t.Fatalf("channel = %q", got)
+	}
+}
+
+func TestParseK8sManifestHelmRepoConflict(t *testing.T) {
+	// Two same-name HelmRepository docs with different URLs: ambiguous,
+	// no channel claim.
+	data := []byte(`apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: charts
+spec:
+  url: https://a.example.com/charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: charts
+spec:
+  url: https://b.example.com/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: app
+spec:
+  chart:
+    spec:
+      chart: app
+      version: 1.2.3
+      sourceRef:
+        kind: HelmRepository
+        name: charts
+`)
+	f, err := parseK8sManifest("k8s/app.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.PkgChannel["app"]; got != "" {
+		t.Fatalf("channel = %q, want none on conflict", got)
+	}
+	if got := f.Packages["app"]; !reflect.DeepEqual(got, []string{"1.2.3"}) {
+		t.Fatalf("app versions = %v", got)
+	}
+}
+
+func TestParseK8sManifestOCIRepository(t *testing.T) {
+	data := []byte(`apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: flux-operator
+spec:
+  interval: 30m
+  ref:
+    tag: 0.58.0
+  url: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: ranged
+spec:
+  ref:
+    semver: ">=1.0.0"
+  url: oci://ghcr.io/acme/charts/tracked
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator
+  values:
+    web:
+      enabled: true
+`)
+	f, err := parseK8sManifest("kubernetes/flux-operator.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{
+		"ghcr.io/controlplaneio-fluxcd/charts/flux-operator": {"0.58.0"},
+	}
 	if !reflect.DeepEqual(f.Packages, want) {
 		t.Fatalf("packages = %v, want %v", f.Packages, want)
 	}

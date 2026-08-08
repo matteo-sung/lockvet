@@ -1,6 +1,8 @@
 package ocireg
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -327,5 +329,47 @@ func TestTokenRotationWithCache(t *testing.T) {
 				t.Fatalf("token leaked into cache file %s", f.Name())
 			}
 		}
+	}
+}
+
+func TestMissingDigestHeaderFallsBackToBodyHash(t *testing.T) {
+	// Some responses arrive without Docker-Content-Digest (and cached
+	// copies used to lose it): the manifest digest is by definition the
+	// sha256 of the served bytes, so verification must still succeed
+	// instead of claiming a tag mismatch with an empty "now serves".
+	body := `{"schemaVersion":2}`
+	sum := sha256.Sum256([]byte(body))
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"token":"testtok"}`)
+	})
+	authed := func(w http.ResponseWriter, r *http.Request) bool {
+		if r.Header.Get("Authorization") != "Bearer testtok" {
+			w.Header().Set("Www-Authenticate", `Bearer realm="http://ignored/token",service="test"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
+		return true
+	}
+	mux.HandleFunc("/v2/acme/tool/tags/list", func(w http.ResponseWriter, r *http.Request) {
+		if authed(w, r) {
+			fmt.Fprint(w, `{"name":"acme/tool","tags":["v1.0.0"]}`)
+		}
+	})
+	mux.HandleFunc("/v2/acme/tool/manifests/v1.0.0", func(w http.ResponseWriter, r *http.Request) {
+		if authed(w, r) {
+			fmt.Fprint(w, body) // note: no Docker-Content-Digest header
+		}
+	})
+	withServer(t, httptest.NewServer(mux))
+	diffs := change("ghcr.io/acme/tool", []string{"v1.0.0"}, map[string]string{"v1.0.0": digest})
+	ok, err := Annotate(diffs, 0)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	c := diffs[0].Changes[0]
+	if !c.DigestVerified || c.TagMismatch || c.Unlisted {
+		t.Fatalf("got %+v", c)
 	}
 }

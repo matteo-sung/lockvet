@@ -4,6 +4,45 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.18 — 2026-08-08
+
+- **Flux HelmRelease and OCIRepository CRs are pins.** A `HelmRelease`
+  whose `spec.chart.spec.version` is an exact pin becomes a Helm package:
+  when the `sourceRef`'s `HelmRepository` is defined in the same file, its
+  URL rides along and the bump is verified against that chart repository's
+  own `index.yaml` — release ages, deprecated charts, unlisted versions,
+  and `-changelogs` release notes. A sourceRef defined in another file, or
+  an OCI/Git source, still yields the version row and jump classification —
+  just no registry claims, because there is no `index.yaml` to honestly
+  check. The legacy Flux v1 flat shape (`spec.chart.repository` +
+  `name` + `version`) carries its URL directly and gets the full
+  treatment. Version ranges pin nothing and are skipped, and charts with
+  a path shape (`./charts/app` from a `GitRepository`) are exempt.
+- **`OCIRepository` `ref.tag` / `ref.digest` pins get the image
+  treatment.** Modern chartRef setups put the chart version in an
+  `OCIRepository`'s `spec.ref.tag` — exactly the field Renovate bumps in
+  home-ops-style repos. That is an OCI artifact pin, so it now gets the
+  Dockerfile registry verification: ✔ digest verified / ‼ tag mismatch /
+  ▲ unknown tag against the allowlisted registries. `ref.semver` ranges
+  are skipped.
+- **Discovery covers the Flux layouts.** New conventional directories
+  (`apps/`, `infrastructure/`, `infra/`, `flux/`, `flux-system/`,
+  `chart/`, `charts/`) and basenames (`helmrelease.yaml`,
+  `helm-release.yaml`, `release.yaml`, `ocirepository.yaml`,
+  `helmrepository.yaml`) — same strict `apiVersion:` + `kind:` gate, so
+  matched non-Kubernetes YAML stays silently ignored.
+- **`k8s.gcr.io` pins verified.** The frozen legacy Kubernetes registry
+  redirects every request to registry.k8s.io with identical paths, so
+  pins against the old host are now checked against the live one instead
+  of being skipped as an unknown host.
+- **Fixed: cached registry responses could produce a false `‼ tag
+  mismatch`.** The on-disk response cache dropped the
+  `Docker-Content-Digest` header, so a warm-cache run could claim a
+  digest-pinned image no longer matches its tag (with an empty "tag now
+  serves"). The header is now cached, and manifest digests additionally
+  fall back to the sha256 of the served bytes — the content-addressed
+  definition — so the claim is right even against old cache entries.
+
 ## v0.5.17 — 2026-08-08
 
 - **Kubernetes manifests and kustomizations: formats #42 and #43.** What

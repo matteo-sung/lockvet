@@ -301,7 +301,8 @@ func store(path string, resp *http.Response, body []byte) {
 // credential-flavoured ones from the stored copy.
 func sanitizeHeader(h http.Header) http.Header {
 	out := http.Header{}
-	for _, k := range []string{"Content-Type", "Last-Modified", "Etag", "Date", "Content-Language"} {
+	for _, k := range []string{"Content-Type", "Last-Modified", "Etag", "Date",
+		"Content-Language", "Docker-Content-Digest"} {
 		if v := h.Values(k); len(v) > 0 {
 			out[http.CanonicalHeaderKey(k)] = v
 		}

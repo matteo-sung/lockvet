@@ -452,10 +452,13 @@ and the Maven repositories
 provenance, Go retractions, Maven relocations, and — for Composer, Hex,
 Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell, conda, Helm and Ansible —
 ages and deprecations, which deps.dev does not carry). Container image pins
-(Dockerfile/Compose, Kubernetes manifests, kustomization.yaml) are verified against the image registries
+(Dockerfile/Compose, Kubernetes manifests, kustomization.yaml, Flux
+OCIRepository ref pins) are verified against the image registries
 themselves — Docker Hub, ghcr.io, quay.io, mcr.microsoft.com, gcr.io,
-registry.k8s.io, public.ecr.aws and registry.gitlab.com; other hosts
-are never queried. GitHub Actions, SwiftPM
+registry.k8s.io (legacy k8s.gcr.io pins included), public.ecr.aws and
+registry.gitlab.com; other hosts are never queried. Flux HelmRelease
+chart pins with a same-file HelmRepository are verified against that
+chart repository's own index.yaml. GitHub Actions, SwiftPM
 and Zig (build.zig.zon) pins are verified against the upstream
 repositories' real tag lists over anonymous git smart-HTTP (moved-tag
 and not-a-release detection).

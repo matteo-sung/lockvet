@@ -32,6 +32,8 @@
 package ocireg
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,12 +93,16 @@ const acceptManifests = "application/vnd.oci.image.index.v1+json, " +
 // docker.io routes to registry-1.docker.io for the distribution API and
 // additionally to the Hub API for tag timestamps.
 var publicHosts = map[string]string{
-	"docker.io":           "https://registry-1.docker.io",
-	"ghcr.io":             "https://ghcr.io",
-	"quay.io":             "https://quay.io",
-	"mcr.microsoft.com":   "https://mcr.microsoft.com",
-	"gcr.io":              "https://gcr.io",
-	"registry.k8s.io":     "https://registry.k8s.io",
+	"docker.io":         "https://registry-1.docker.io",
+	"ghcr.io":           "https://ghcr.io",
+	"quay.io":           "https://quay.io",
+	"mcr.microsoft.com": "https://mcr.microsoft.com",
+	"gcr.io":            "https://gcr.io",
+	"registry.k8s.io":   "https://registry.k8s.io",
+	// k8s.gcr.io is the frozen legacy Kubernetes registry: every request
+	// 302-redirects to registry.k8s.io with identical repository paths,
+	// so pins against the old host verify against the live one.
+	"k8s.gcr.io":          "https://registry.k8s.io",
 	"public.ecr.aws":      "https://public.ecr.aws",
 	"registry.gitlab.com": "https://registry.gitlab.com",
 }
@@ -351,7 +357,15 @@ func (r *repo) getManifest(ref string) (int, []byte, string, error) {
 	if err != nil {
 		return 0, nil, "", err
 	}
-	return status, body, hdr.Get("Docker-Content-Digest"), nil
+	digest := hdr.Get("Docker-Content-Digest")
+	if digest == "" && status == http.StatusOK && len(body) > 0 {
+		// Content-addressed fallback: a manifest's digest is by
+		// definition the sha256 of the exact bytes served. Covers
+		// registries (or cached responses) that omit the header.
+		sum := sha256.Sum256(body)
+		digest = "sha256:" + hex.EncodeToString(sum[:])
+	}
+	return status, body, digest, nil
 }
 
 func (r *repo) get(u, accept string, auth bool) (int, []byte, error) {
