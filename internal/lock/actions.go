@@ -110,18 +110,25 @@ func validRepoPart(s string) bool {
 
 // FallbackParser guesses a parser for a file whose name is not a known
 // lockfile basename (explicit two-file diffs, playground drops): YAML
-// files are tried as CI workflows — strict: at least one `uses:` pin, so
-// a mis-named real lockfile still gets a helpful error — and everything
-// else goes to SBOM content sniffing.
+// files are tried as CI workflows — strict: at least one `uses:` pin —
+// then as Kubernetes manifests (top-level apiVersion: and kind:
+// required), so a mis-named real lockfile still gets a helpful error —
+// and everything else goes to SBOM content sniffing.
 func FallbackParser(name string) *Parser {
 	b := strings.ToLower(path.Base(strings.ReplaceAll(name, "\\", "/")))
 	if strings.HasSuffix(b, ".yml") || strings.HasSuffix(b, ".yaml") {
 		return &Parser{"github-workflow", GitHubActions, func(p string, data []byte) (*File, error) {
 			f, err := parseWorkflowUses(p, data)
-			if err == nil && len(f.Packages) == 0 {
-				return nil, errFallbackNoUses
+			if err == nil && len(f.Packages) > 0 {
+				return f, nil
 			}
-			return f, err
+			if kf, kerr := parseK8sManifest(p, data); kerr == nil {
+				return kf, nil
+			}
+			if err == nil {
+				err = errFallbackNoUses
+			}
+			return nil, err
 		}}
 	}
 	return SBOMParser()
@@ -132,5 +139,5 @@ var errFallbackNoUses = errNoUses{}
 type errNoUses struct{}
 
 func (errNoUses) Error() string {
-	return "no `uses:` action pins found (tried it as a CI workflow)"
+	return "no `uses:` action pins found (tried it as a CI workflow and as a Kubernetes manifest)"
 }

@@ -413,6 +413,9 @@ func ByBasename(p string) *Parser {
 	if isWorkflowPath(p) {
 		return &Parser{"github-workflow", GitHubActions, parseWorkflowUses}
 	}
+	// Kubernetes manifests are matched by directory or naming convention,
+	// so remember the full path before it is reduced to a basename.
+	fullPath := p
 	if i := strings.LastIndexByte(p, '\\'); i >= 0 {
 		p = p[i+1:]
 	}
@@ -511,6 +514,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"Dockerfile", Docker, parseDockerfile}
 	case "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml":
 		return &Parser{"docker-compose.yml", Docker, parseComposeFile}
+	case "kustomization.yaml", "kustomization.yml", "Kustomization":
+		return &Parser{"kustomization.yaml", Docker, parseKustomization}
 	}
 	base := path.Base(p)
 	// Variant-named Dockerfiles are everywhere: Dockerfile.alpine,
@@ -553,6 +558,14 @@ func ByBasename(p string) *Parser {
 	if isSBOMName(base) {
 		return &Parser{"sbom", SBOMEco, parseSBOM}
 	}
+	// Kubernetes manifests: matched by directory (k8s/, kubernetes/,
+	// manifests/) or naming convention (*.k8s.yaml, deployment.yaml, …)
+	// AFTER every reserved basename above, so a pnpm-lock.yaml under k8s/
+	// still parses as pnpm. Lenient: non-Kubernetes YAML that happens to
+	// match parses to an empty file, never a warning.
+	if isK8sManifestPath(fullPath) {
+		return &Parser{"kubernetes-manifest", Docker, k8sManifestLenient}
+	}
 	return nil
 }
 
@@ -585,6 +598,7 @@ func KnownBasenames() []string {
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
 		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
+		"kustomization.yaml",
 		".pre-commit-config.yaml",
 		"bom.json", "sbom.json",
 	}

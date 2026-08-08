@@ -61,6 +61,10 @@ var auditSkipDirs = map[string]bool{
 	".git": true, "node_modules": true, "vendor": true, "bower_components": true,
 	".terraform": true, ".venv": true, "venv": true, ".tox": true,
 	"__pycache__": true, ".bundle": true,
+	// Go's reserved fixture directory: lockfiles and manifests under it
+	// are test inputs (often with deliberately fabricated pins), not
+	// anything the project resolves or deploys.
+	"testdata": true,
 }
 
 // discoverLockfiles walks roots (files or directories) and returns every

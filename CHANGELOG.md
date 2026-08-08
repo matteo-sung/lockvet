@@ -4,6 +4,36 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.17 — 2026-08-08
+
+- **Kubernetes manifests and kustomizations: formats #42 and #43.** What
+  your cluster pulls is a pin like any other. Every `image:` under a
+  `containers:` / `initContainers:` / `ephemeralContainers:` list in a
+  Kubernetes manifest (Deployments, StatefulSets, CronJobs — any nesting)
+  now gets the same registry verification as Dockerfile images: digest
+  pins checked against what the tag serves today, `▲ not in the registry`
+  for tags the registry doesn't serve, Docker Hub release ages, `↻` for
+  routine same-tag digest bumps. Discovery is convention-based and
+  strict: `*.yaml` under `k8s/`, `kubernetes/` or `manifests/`
+  directories, `*.k8s.yaml` suffixes, and conventional workload basenames
+  (`deployment.yaml`, `statefulset.yaml`, …) — a document must declare
+  top-level `apiVersion:` and `kind:` to count, non-Kubernetes YAML that
+  happens to match is silently ignored, Helm `templates/` directories are
+  excluded, and templated image values (`{{ … }}`, `$(VAR)`, `${VAR}`)
+  are skipped rather than guessed at.
+- **`kustomization.yaml` is a lockfile too.** `images:` transformer
+  entries (`newTag:` / `digest:` — exactly the values Renovate and Flux
+  image automation bump) are verified like any other image pin, and
+  `helmCharts:` entries are checked against the chart repository's own
+  `index.yaml` like `Chart.yaml` dependencies (release ages, deprecated
+  charts, the unlisted check). `oci://` and `file://` chart repos are
+  exempt, range constraints are skipped.
+- **`lockvet audit` skips `testdata/` directories.** Go's reserved
+  fixture directory holds deliberately fabricated pins (argo-cd's
+  kustomize fixtures pin images that don't exist); audit walks no longer
+  descend into it. Naming a `testdata` directory explicitly still audits
+  it.
+
 ## v0.5.16 — 2026-08-08
 
 - **Ansible Galaxy: `requirements.yml` is format #41 and registry #20.**
