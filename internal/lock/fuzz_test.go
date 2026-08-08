@@ -57,6 +57,7 @@ func FuzzAllParsers(f *testing.F) {
 		"apiVersion: v2\nname: c\nversion: 0.1.0\ndependencies:\n- name: pg\n  version: 12.1.9\n  repository: https://charts.example.com/x\n- name: r\n  version: \">=1.0\"\n  repository: \"@stable\"\n- name: l\n  version: 0.1.0\n  repository: file://../l\n",
 		"apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n      - name: w\n        image: nginx:1.25@sha256:ab\n      initContainers:\n        - image: \"b:1\" # x\n---\nkind: Service\n",
 		"images:\n- name: nginx\n  newTag: \"1.25\"\n- name: a\n  newName: g/b\n  digest: sha256:ab\nhelmCharts:\n- name: h\n  repo: https://c.example\n  version: 1.0.0\n",
+		"apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  source:\n    chart: c\n    repoURL: https://c.example/x\n    targetRevision: 1.2.3\n---\nkind: ApplicationSet\nspec:\n  template:\n    spec:\n      sources:\n      - chart: d\n        repoURL: https://c.example/y\n        targetRevision: \"2.0.0\"\n      - repoURL: https://g.example/z.git\n        targetRevision: main\n",
 		"apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata:\n  name: r\nspec:\n  url: https://c.example/x\n---\nkind: HelmRelease\nspec:\n  chart:\n    spec:\n      chart: c\n      version: \"1.2.3\" # x\n      sourceRef:\n        kind: HelmRepository\n        name: r\n---\nkind: OCIRepository\nspec:\n  ref:\n    tag: 0.1.0\n    digest: sha256:ab\n  url: oci://g.io/a/b\n",
 	}
 	for _, s := range seeds {

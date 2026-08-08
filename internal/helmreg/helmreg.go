@@ -207,11 +207,26 @@ func annotateChange(c *diffx.Change, repo string, entries []entry, freshDays int
 		return nil
 	}
 
+	// Regenerated indexes: some repositories rebuild index.yaml from
+	// scratch, stamping historical entries with the generation time —
+	// app.getambassador.io does it on every request (every chart looks
+	// published today), kyverno's did it once in 2026 (three years of
+	// releases share one instant, later releases have real times). No
+	// chart publishes three versions of itself within an hour, so any
+	// ≥3-version cluster of created times inside a one-hour window is a
+	// generation artifact: versions in the cluster get no age claims,
+	// versions outside it keep their believable timestamps. (If such a
+	// cluster somehow were real, all its versions would be equally new
+	// and the suppressed freshness flag near-redundant — silence stays
+	// honest.)
+	suspect := suspectCreatedTimes(entries)
+
 	// Release age: keep the most recently published incoming version,
 	// exactly like the deps.dev layer does elsewhere.
 	latest := c.PublishedAt
 	for _, v := range c.New {
-		if e := byVersion(entries, v); e != nil && e.created != "" && e.created > latest {
+		if e := byVersion(entries, v); e != nil && e.created != "" &&
+			!suspect[e.created] && e.created > latest {
 			latest = e.created
 		}
 	}
@@ -506,4 +521,41 @@ func itemField(e *entry, kv string, listKey *string) {
 	case "home":
 		e.home = val
 	}
+}
+
+// suspectCreatedTimes finds generation-artifact created timestamps in a
+// chart's entry list: any ≥3 versions whose created times fall inside a
+// rolling one-hour window were stamped by an index rebuild, not
+// published then. Returns the raw created strings to ignore.
+func suspectCreatedTimes(entries []entry) map[string]bool {
+	type ct struct {
+		t   time.Time
+		raw string
+	}
+	var ts []ct
+	for i := range entries {
+		if t, err := time.Parse(time.RFC3339, entries[i].created); err == nil {
+			ts = append(ts, ct{t, entries[i].created})
+		}
+	}
+	if len(ts) < 3 {
+		return nil
+	}
+	sort.Slice(ts, func(i, j int) bool { return ts[i].t.Before(ts[j].t) })
+	suspect := map[string]bool{}
+	lo := 0
+	for hi := range ts {
+		for ts[hi].t.Sub(ts[lo].t) > time.Hour {
+			lo++
+		}
+		if hi-lo+1 >= 3 {
+			for k := lo; k <= hi; k++ {
+				suspect[ts[k].raw] = true
+			}
+		}
+	}
+	if len(suspect) == 0 {
+		return nil
+	}
+	return suspect
 }

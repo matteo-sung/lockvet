@@ -238,3 +238,102 @@ func TestForgeRepo(t *testing.T) {
 		}
 	}
 }
+
+func TestRegeneratedIndexClaimsNoAges(t *testing.T) {
+	// Some repositories rebuild index.yaml from scratch and stamp every
+	// entry with the generation time (app.getambassador.io): two
+	// different versions sharing one exact created timestamp proves the
+	// timestamps are generation artifacts — no age claims.
+	idx := `apiVersion: v1
+entries:
+  gateway:
+  - apiVersion: v2
+    created: "2026-08-08T20:04:31.46711177Z"
+    name: gateway
+    version: 8.4.0
+  - apiVersion: v2
+    created: "2026-08-08T20:04:31.487201332Z"
+    name: gateway
+    version: 8.3.0
+  - apiVersion: v2
+    created: "2026-08-08T20:04:31.502994810Z"
+    name: gateway
+    version: 8.2.0
+generated: "2026-08-08T20:04:32Z"
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(idx))
+	}))
+	defer srv.Close()
+	pinClock(t, "2026-08-08T22:00:00Z")
+
+	diffs := oneChange(srv.URL, diffx.Change{
+		Name: "gateway", Old: []string{"8.3.0"}, New: []string{"8.4.0"},
+	})
+	ok, err := Annotate(diffs, 14)
+	if err != nil || !ok {
+		t.Fatalf("Annotate = %v, %v", ok, err)
+	}
+	c := diffs[0].Changes[0]
+	if c.PublishedAt != "" || c.AgeDays != 0 || c.Fresh {
+		t.Errorf("age claimed from regenerated index: published=%q age=%d fresh=%v",
+			c.PublishedAt, c.AgeDays, c.Fresh)
+	}
+	if c.Unlisted {
+		t.Errorf("unlisted flagged unexpectedly")
+	}
+}
+
+func TestOneTimeRegeneratedIndexKeepsRealAges(t *testing.T) {
+	// kyverno shape: a one-time index rebuild stamped years of history
+	// with one instant, but releases cut after it carry real publish
+	// times. Cluster versions claim no age; later versions keep theirs.
+	idx := `apiVersion: v1
+entries:
+  policy:
+  - apiVersion: v2
+    created: "2026-08-03T12:00:00.100Z"
+    name: policy
+    version: 3.5.0
+  - apiVersion: v2
+    created: "2026-06-21T16:33:27.415077384Z"
+    name: policy
+    version: 3.0.5
+  - apiVersion: v2
+    created: "2026-06-21T16:33:27.284295016Z"
+    name: policy
+    version: 2.6.5
+  - apiVersion: v2
+    created: "2026-06-21T16:33:27.183387012Z"
+    name: policy
+    version: 2.0.0
+generated: "2026-08-08T00:00:00Z"
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(idx))
+	}))
+	defer srv.Close()
+	pinClock(t, "2026-08-08T12:00:00Z")
+
+	// Bump onto a cluster version: no age claim.
+	diffs := oneChange(srv.URL, diffx.Change{
+		Name: "policy", Old: []string{"2.6.5"}, New: []string{"3.0.5"},
+	})
+	if ok, err := Annotate(diffs, 14); err != nil || !ok {
+		t.Fatalf("Annotate = %v, %v", ok, err)
+	}
+	if c := diffs[0].Changes[0]; c.PublishedAt != "" || c.Fresh {
+		t.Errorf("cluster version claimed age: published=%q fresh=%v", c.PublishedAt, c.Fresh)
+	}
+
+	// Bump onto a post-rebuild version: the real timestamp stands.
+	diffs = oneChange(srv.URL, diffx.Change{
+		Name: "policy", Old: []string{"3.0.5"}, New: []string{"3.5.0"},
+	})
+	if ok, err := Annotate(diffs, 14); err != nil || !ok {
+		t.Fatalf("Annotate = %v, %v", ok, err)
+	}
+	if c := diffs[0].Changes[0]; c.AgeDays != 4 || !c.Fresh {
+		t.Errorf("real timestamp lost: age=%d fresh=%v published=%q", c.AgeDays, c.Fresh, c.PublishedAt)
+	}
+}

@@ -721,3 +721,179 @@ spec:
 		t.Error("alias tag (*name) must not produce a package")
 	}
 }
+
+func TestParseK8sManifestArgoApplication(t *testing.T) {
+	// Argo CD Application with a Helm chart source: chart +
+	// targetRevision + inline repoURL → a Helm pin with a channel.
+	data := []byte(`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sealed-secrets
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: sealed-secrets
+    repoURL: https://bitnami-labs.github.io/sealed-secrets/
+    targetRevision: 1.16.1
+    helm:
+      releaseName: sealed-secrets
+      values: |
+        chart: decoy
+        targetRevision: 9.9.9
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubeseal
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guestbook
+spec:
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+  destination:
+    server: https://kubernetes.default.svc
+`)
+	f, err := parseK8sManifest("argocd/sealed-secrets.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["sealed-secrets"]; !reflect.DeepEqual(got, []string{"1.16.1"}) {
+		t.Fatalf("sealed-secrets versions = %v (packages %v)", got, f.Packages)
+	}
+	if f.PkgEco["sealed-secrets"] != Helm {
+		t.Fatalf("eco = %v, want Helm", f.PkgEco["sealed-secrets"])
+	}
+	if got := f.PkgChannel["sealed-secrets"]; got != "https://bitnami-labs.github.io/sealed-secrets" {
+		t.Fatalf("channel = %q", got)
+	}
+	if len(f.Packages) != 1 {
+		t.Fatalf("git-source app leaked packages: %v", f.Packages)
+	}
+}
+
+func TestParseK8sManifestArgoMultiSource(t *testing.T) {
+	// Multi-source Application: each chart-bearing item pins; git and
+	// values-only ref sources don't. Nested helm maps and block-scalar
+	// values inside an item must not feed the pin.
+	data := []byte(`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stack
+spec:
+  sources:
+    - chart: prometheus
+      repoURL: https://prometheus-community.github.io/helm-charts
+      targetRevision: 25.8.2
+      helm:
+        valueFiles:
+          - $values/prometheus.yaml
+        values: |
+          chart: decoy
+          targetRevision: 8.8.8
+    - repoURL: https://github.com/org/values.git
+      targetRevision: main
+      ref: values
+    - chart: grafana
+      repoURL: oci://ghcr.io/grafana/helm-charts
+      targetRevision: "7.0.0"
+`)
+	f, err := parseK8sManifest("apps/stack/application.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["prometheus"]; !reflect.DeepEqual(got, []string{"25.8.2"}) {
+		t.Fatalf("prometheus versions = %v (packages %v)", got, f.Packages)
+	}
+	if got := f.PkgChannel["prometheus"]; got != "https://prometheus-community.github.io/helm-charts" {
+		t.Fatalf("prometheus channel = %q", got)
+	}
+	// OCI repoURL: version row, no index.yaml to check → no channel.
+	if got := f.Packages["grafana"]; !reflect.DeepEqual(got, []string{"7.0.0"}) {
+		t.Fatalf("grafana versions = %v", got)
+	}
+	if got := f.PkgChannel["grafana"]; got != "" {
+		t.Fatalf("grafana channel = %q, want none", got)
+	}
+	if len(f.Packages) != 2 {
+		t.Fatalf("unexpected packages: %v", f.Packages)
+	}
+}
+
+func TestParseK8sManifestArgoApplicationSet(t *testing.T) {
+	// ApplicationSet template: literal chart pins count; templated
+	// fields ({{ … }} parameters) are not literal pins — a templated
+	// repoURL drops only the channel, a templated revision drops the
+	// pin entirely.
+	data := []byte(`apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: addons
+spec:
+  generators:
+    - clusters: {}
+  template:
+    metadata:
+      name: '{{name}}-cilium'
+    spec:
+      project: default
+      source:
+        chart: cilium
+        repoURL: https://helm.cilium.io
+        targetRevision: 1.15.6
+      destination:
+        server: '{{server}}'
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: templated
+spec:
+  template:
+    spec:
+      source:
+        chart: '{{chart}}'
+        repoURL: https://example.github.io/charts
+        targetRevision: '{{rev}}'
+`)
+	f, err := parseK8sManifest("argocd/applicationset.yaml", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Packages["cilium"]; !reflect.DeepEqual(got, []string{"1.15.6"}) {
+		t.Fatalf("cilium versions = %v (packages %v)", got, f.Packages)
+	}
+	if got := f.PkgChannel["cilium"]; got != "https://helm.cilium.io" {
+		t.Fatalf("cilium channel = %q", got)
+	}
+	if len(f.Packages) != 1 {
+		t.Fatalf("templated ApplicationSet leaked packages: %v", f.Packages)
+	}
+}
+
+func TestParseK8sManifestArgoRanges(t *testing.T) {
+	// Range and branch-like targetRevisions track the repo — nothing is
+	// pinned, no row.
+	for _, rev := range []string{"*", "1.2.*", ">=1.0.0", "HEAD", "main", "~1.2.0"} {
+		data := []byte(`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: x
+spec:
+  source:
+    chart: podinfo
+    repoURL: https://stefanprodan.github.io/podinfo
+    targetRevision: "` + rev + `"
+`)
+		f, err := parseK8sManifest("argocd/app.yaml", data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(f.Packages) != 0 {
+			t.Fatalf("rev %q: packages = %v, want none", rev, f.Packages)
+		}
+	}
+}

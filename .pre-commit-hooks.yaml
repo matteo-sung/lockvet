@@ -24,8 +24,8 @@
     typosquat lookalikes, integrity/resolution tampering, and the dependency
     chain pulling each transitive change in. 43 lockfile formats plus SBOMs,
     CI workflow pins, container base images (Dockerfile / Compose),
-    Kubernetes manifests and kustomizations, and pre-commit hook rev pins
-    themselves.
+    Kubernetes manifests and kustomizations (Flux and Argo CD CRs
+    included), and pre-commit hook rev pins themselves.
   entry: lockvet
   args: ["-fail-on", "vuln,unlisted,scripts,provenance,typosquat,integrity,registry"]
   language: golang
@@ -53,7 +53,9 @@
       [^/]*\.(cdx|spdx|cyclonedx)\.json|
       action\.ya?ml|\.pre-commit-config\.ya?ml|
       kustomization\.ya?ml|[^/]*\.k8s\.ya?ml|
-      (deployment|statefulset|daemonset|replicaset|cronjob|pod)\.ya?ml
+      (deployment|statefulset|daemonset|replicaset|cronjob|pod)\.ya?ml|
+      (helmrelease|helm-release|release|ocirepository|helmrepository)\.ya?ml|
+      (application|applicationset|appset)\.ya?ml
     )$
     |^(.*/)?\.(github|gitea|forgejo)/workflows/[^/]+\.ya?ml$
-    |^(.*/)?(k8s|kubernetes|manifests|deploy|overlays|base|clusters|gitops)/.*\.ya?ml$
+    |^(.*/)?(k8s|kubernetes|manifests|deploy|overlays|base|clusters|gitops|apps|infrastructure|infra|flux|flux-system|charts?|argocd|argo|argo-cd|applications|applicationsets)/.*\.ya?ml$

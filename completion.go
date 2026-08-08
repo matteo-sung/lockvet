@@ -457,7 +457,8 @@ OCIRepository ref pins) are verified against the image registries
 themselves — Docker Hub, ghcr.io, quay.io, mcr.microsoft.com, gcr.io,
 registry.k8s.io (legacy k8s.gcr.io pins included), public.ecr.aws and
 registry.gitlab.com; other hosts are never queried. Flux HelmRelease
-chart pins with a same-file HelmRepository are verified against that
+chart pins with a same-file HelmRepository — and Argo CD Application
+chart sources with an inline repoURL — are verified against that
 chart repository's own index.yaml. GitHub Actions, SwiftPM
 and Zig (build.zig.zon) pins are verified against the upstream
 repositories' real tag lists over anonymous git smart-HTTP (moved-tag

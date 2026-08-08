@@ -53,17 +53,20 @@ func isK8sManifestPath(p string) bool {
 	}
 	switch strings.TrimSuffix(strings.TrimSuffix(base, ".yaml"), ".yml") {
 	case "deployment", "statefulset", "daemonset", "replicaset", "cronjob", "pod",
-		"helmrelease", "helm-release", "release", "ocirepository", "helmrepository":
-		// The last five are the Flux CR file conventions
+		"helmrelease", "helm-release", "release", "ocirepository", "helmrepository",
+		"application", "applicationset", "appset":
+		// The middle five are the Flux CR file conventions
 		// (apps/base/<name>/release.yaml in the flux2 examples,
-		// app/ocirepository.yaml in home-ops layouts).
+		// app/ocirepository.yaml in home-ops layouts); the last three
+		// are the Argo CD ones.
 		return true
 	}
 	for _, seg := range segs {
 		switch seg {
 		case "k8s", "kubernetes", "manifests", "deploy", "overlays", "base",
 			"clusters", "gitops", "apps", "infrastructure", "infra",
-			"flux", "flux-system", "chart", "charts":
+			"flux", "flux-system", "chart", "charts",
+			"argocd", "argo", "argo-cd", "applications", "applicationsets":
 			// The k8s/kustomize/GitOps directory conventions. Over-matching
 			// is nearly free: the parser requires top-level apiVersion: and
 			// kind:, and non-Kubernetes YAML parses to an empty file.
@@ -104,6 +107,12 @@ type helmReleasePin struct {
 // kustomization-transformer entries (name / newName / newTag / digest)
 // are read wherever they appear — Flux `Kustomization` CRs carry exactly
 // that shape under spec.images, and Renovate bumps their newTag values.
+// Argo CD `Application` CRs (and `ApplicationSet` templates) are read
+// too: a spec.source with chart: pins a Helm chart at targetRevision,
+// and the inline repoURL gives the chart-repository layer its index —
+// multi-source spec.sources lists included. Git-source Applications
+// (path: instead of chart:) pin a repo revision, not a chart; they are
+// left alone.
 // Flux `HelmRelease` CRs are read too: an exact spec.chart.spec.version
 // pin becomes a Helm-ecosystem package, and when the sourceRef's
 // HelmRepository lives in the same file its URL rides along so the
@@ -119,6 +128,7 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 	const (
 		blkContainers = iota
 		blkImages
+		blkArgoSources
 	)
 	type openBlock struct{ indent, kind int }
 	var blocks []openBlock
@@ -149,6 +159,24 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 	var repoURL, repoType string
 	var ociURL, ociTag, ociDigest string
 	var rel helmReleasePin
+	// Argo CD Application (and ApplicationSet template) sources: a
+	// spec.source with chart: pins a Helm chart at targetRevision from
+	// repoURL — the same shape a Flux HelmRelease pins, with the
+	// repository URL carried inline. Multi-source Applications keep a
+	// list under spec.sources; each chart-bearing item counts.
+	type argoSource struct {
+		chart, repoURL, rev string
+		childIndent         int // direct-child key indent inside a list item
+	}
+	var argoSrc argoSource  // the single spec.source mapping
+	var argoItem argoSource // the open spec.sources list item
+	var argoDone []argoSource
+	flushArgoItem := func() {
+		if argoItem.chart != "" {
+			argoDone = append(argoDone, argoItem)
+		}
+		argoItem = argoSource{}
+	}
 	// A Helm-values image mapping inside a HelmRelease document:
 	// `image:` with repository:/tag: (Bitnami-style registry:, digest:)
 	// children — the standard chart convention, and the exact shape Flux
@@ -199,8 +227,11 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 	}
 	closeTo := func(n int) {
 		for len(blocks) > n {
-			if blocks[len(blocks)-1].kind == blkImages {
+			switch blocks[len(blocks)-1].kind {
+			case blkImages:
 				flushImage()
+			case blkArgoSources:
+				flushArgoItem()
 			}
 			blocks = blocks[:len(blocks)-1]
 		}
@@ -233,6 +264,30 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 				!strings.Contains(rel.chart, "/") {
 				releases = append(releases, rel)
 			}
+		case "Application", "ApplicationSet":
+			// Argo CD: close any open spec.sources block so the last
+			// list item is flushed, then turn chart-bearing sources
+			// into Helm pins. Only exact revisions count (ranges and
+			// branch-like revisions track the repo, not a pin), and
+			// templated fields (ApplicationSet {{ … }} parameters)
+			// are not literal pins.
+			closeTo(0)
+			if argoSrc.chart != "" {
+				argoDone = append(argoDone, argoSrc)
+			}
+			for _, s := range argoDone {
+				if s.chart == "" || strings.Contains(s.chart, "/") ||
+					strings.Contains(s.chart, "{{") || !exactSemver(s.rev) {
+					continue
+				}
+				url := s.repoURL
+				if strings.Contains(url, "{{") {
+					url = ""
+				}
+				releases = append(releases, helmReleasePin{
+					chart: s.chart, version: s.rev, repoV1: url,
+				})
+			}
 		case "OCIRepository":
 			// Flux's modern chart/artifact source: spec.url is an OCI
 			// reference and spec.ref.tag / spec.ref.digest pin it —
@@ -255,6 +310,7 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 		docKind, docName, repoURL, repoType = "", "", "", ""
 		ociURL, ociTag, ociDigest = "", "", ""
 		rel = helmReleasePin{}
+		argoSrc, argoItem, argoDone = argoSource{}, argoSource{}, nil
 		flushImg()
 		kpath = kpath[:0]
 		closeTo(0)
@@ -382,6 +438,16 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 						case "repository":
 							rel.repoV1 = v
 						}
+					case (docKind == "Application" && pathIs("spec.source")) ||
+						(docKind == "ApplicationSet" && pathIs("spec.template.spec.source")):
+						switch k {
+						case "chart":
+							argoSrc.chart = v
+						case "repoURL":
+							argoSrc.repoURL = v
+						case "targetRevision":
+							argoSrc.rev = v
+						}
 					}
 				}
 			}
@@ -398,14 +464,22 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 		if len(blocks) > 0 {
 			top := blocks[len(blocks)-1]
 			item := trimmed
+			keyIndent := indent
 			if strings.HasPrefix(item, "- ") {
-				if top.kind == blkImages {
+				switch top.kind {
+				case blkImages:
 					flushImage()
+				case blkArgoSources:
+					flushArgoItem()
 				}
 				item = strings.TrimSpace(item[2:])
+				keyIndent = indent + (len(trimmed) - len(item))
 			} else if item == "-" {
-				if top.kind == blkImages {
+				switch top.kind {
+				case blkImages:
 					flushImage()
+				case blkArgoSources:
+					flushArgoItem()
 				}
 				continue
 			}
@@ -436,6 +510,32 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 				case "digest":
 					digest = val
 				}
+			case blkArgoSources:
+				// Only direct children of the list item count: a
+				// source's nested maps (helm: parameters, block-scalar
+				// values) sit deeper and must not feed the pin.
+				if argoItem.childIndent == 0 {
+					argoItem.childIndent = keyIndent
+				}
+				if keyIndent != argoItem.childIndent {
+					continue
+				}
+				key, val, ok := strings.Cut(item, ":")
+				if !ok {
+					continue
+				}
+				val = strings.Trim(strings.TrimSpace(val), `"'`)
+				if i := strings.Index(val, " #"); i >= 0 {
+					val = strings.TrimSpace(val[:i])
+				}
+				switch strings.Trim(strings.TrimSpace(key), `"'`) {
+				case "chart":
+					argoItem.chart = val
+				case "repoURL":
+					argoItem.repoURL = val
+				case "targetRevision":
+					argoItem.rev = val
+				}
 			}
 			continue
 		}
@@ -443,6 +543,10 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 			blocks = append(blocks, openBlock{indent, blkContainers})
 		} else if imagesListKey.MatchString(trimmed) {
 			blocks = append(blocks, openBlock{indent, blkImages})
+		} else if argoSourcesKey.MatchString(trimmed) &&
+			((docKind == "Application" && pathIs("spec.sources")) ||
+				(docKind == "ApplicationSet" && pathIs("spec.template.spec.sources"))) {
+			blocks = append(blocks, openBlock{indent, blkArgoSources})
 		}
 	}
 	resetDoc()
@@ -480,6 +584,11 @@ func parseK8sManifest(p string, data []byte) (*File, error) {
 // imagesListKey matches a kustomization-style images-transformer list key
 // (Flux Kustomization CR spec.images, kustomize images:).
 var imagesListKey = regexp.MustCompile(`^"?images"?\s*:\s*(?:#.*)?$`)
+
+// argoSourcesKey matches an Argo CD multi-source list key; the caller
+// additionally requires the spec.sources path inside an Application (or
+// spec.template.spec.sources inside an ApplicationSet).
+var argoSourcesKey = regexp.MustCompile(`^"?sources"?\s*:\s*(?:#.*)?$`)
 
 // cutImageValue extracts the value of an `image:` mapping line, minus
 // quotes and trailing comments. Values still carrying template or

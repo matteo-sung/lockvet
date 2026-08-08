@@ -93,8 +93,9 @@ what really happened:
   (`uses:` pins), **container base images** (Dockerfile / Containerfile /
   Compose `image:` pins), **Kubernetes manifests & kustomizations**
   (container image pins, `kustomization.yaml` `newTag:`/`digest:`
-  overrides, `helmCharts:` entries and Flux `HelmRelease` /
-  `OCIRepository` pins), **pre-commit hook pins**
+  overrides, `helmCharts:` entries, Flux `HelmRelease` /
+  `OCIRepository` pins and Argo CD `Application` chart pins),
+  **pre-commit hook pins**
   (`.pre-commit-config.yaml` `rev:`) — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
@@ -165,22 +166,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.19/lockvet_v0.5.19_linux_amd64.deb
-sudo dpkg -i lockvet_v0.5.19_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.20/lockvet_v0.5.20_linux_amd64.deb
+sudo dpkg -i lockvet_v0.5.20_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.19/lockvet_v0.5.19_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.20/lockvet_v0.5.20_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.19/lockvet_v0.5.19_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.5.19_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.20/lockvet_v0.5.20_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.5.20_linux_amd64.apk
 ```
 
 Go:
@@ -200,7 +201,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.19 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.20 lockvet
 ```
 
 ### Shell completions & man page
@@ -225,8 +226,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.19_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.19 --owner matteo-sung
+gh attestation verify lockvet_v0.5.20_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.20 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -468,7 +469,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.19
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.20
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -584,7 +585,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.19/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.20/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -670,7 +671,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.19", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.20", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -725,7 +726,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.19
+      - uses: matteo-sung/lockvet@v0.5.20
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -752,7 +753,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.19
+      - uses: matteo-sung/lockvet@v0.5.20
         with:
           sarif: 'true'
 ```
@@ -772,7 +773,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.19
+  image: ghcr.io/matteo-sung/lockvet:0.5.20
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -797,7 +798,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.19
+          image: ghcr.io/matteo-sung/lockvet:0.5.20
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -815,7 +816,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.19
+    container: ghcr.io/matteo-sung/lockvet:0.5.20
     steps:
       - checkout: none
       - script: >
@@ -839,7 +840,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.19
+    image: ghcr.io/matteo-sung/lockvet:0.5.20
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -858,7 +859,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.19
+    rev: v0.5.20
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1287,15 +1288,32 @@ chart image mapping — `image:` with `repository:` and `tag:` children
 that's the exact shape Flux image automation and Renovate bump in
 home-ops repos, old Flux v1 `Auto-release` commits included.
 
+**Argo CD Application CRs too.** An `Application` whose `spec.source`
+carries `chart:` pins that chart at `targetRevision:`, and the inline
+`repoURL:` is the chart repository itself — so the bump is verified
+against that repository's `index.yaml` the same way (ages, deprecated
+charts, unlisted versions, `-changelogs`). Multi-source `spec.sources`
+lists work per item, and `ApplicationSet` templates
+(`spec.template.spec.source`/`.sources`) get the same reading — with
+`{{ … }}` parameters treated as what they are, not literal pins. Only
+exact revisions count: a `targetRevision` like `1.2.*`, `>=1.0.0`, `*`
+or a branch name tracks the repository and pins nothing, and Git-source
+Applications (`path:` instead of `chart:`) are left alone. OCI
+`repoURL`s yield the version row without registry claims (no
+`index.yaml` to check).
+
 Since plain manifests have no reserved filename, lockvet takes
 `*.yaml`/`*.yml` files under the conventional directories (`k8s/`,
 `kubernetes/`, `manifests/`, `deploy/`, `overlays/`, `base/`,
 `clusters/`, `gitops/`, `apps/`, `infrastructure/`, `infra/`, `flux/`,
-`flux-system/`, `chart/`, `charts/`), files named `*.k8s.yaml`, and the
+`flux-system/`, `chart/`, `charts/`, `argocd/`, `argo/`, `argo-cd/`,
+`applications/`, `applicationsets/`), files named `*.k8s.yaml`, and the
 conventional basenames (`deployment.yaml`, `statefulset.yaml`,
 `daemonset.yaml`, `replicaset.yaml`, `cronjob.yaml`, `pod.yaml`, plus the
 Flux conventions `helmrelease.yaml`, `helm-release.yaml`, `release.yaml`,
-`ocirepository.yaml`, `helmrepository.yaml`) — strictly: a document must
+`ocirepository.yaml`, `helmrepository.yaml` and the Argo CD conventions
+`application.yaml`, `applicationset.yaml`, `appset.yaml`) — strictly: a
+document must
 declare top-level `apiVersion:` and `kind:` to count, matched files that
 aren't Kubernetes YAML are silently ignored, and anything under a Helm
 `templates/` directory is excluded (those image references are template
@@ -1586,7 +1604,7 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | Zig | `build.zig.zon` — Zig has no lockfile beyond it and no registry: every dependency pins a source URL + content hash, and lockvet reads both (rev/tag/hash-derived versions, ‼ same-version hash swaps, ⇄ same-version source re-points, verified tag compare links + release notes from the dependency's own repo) |
 | CI / GitHub Actions | `.github/workflows/*.yml`, `action.yml`/`action.yaml` (composite actions), `.gitea/workflows`, `.forgejo/workflows` — every `uses:` pin; SHA and floating-tag pins resolved against the action repo's real tags, advisories from OSV's GitHub Actions ecosystem evaluated client-side |
 | Containers | `Dockerfile` / `Containerfile` (variant names like `Dockerfile.alpine`, `dev.Dockerfile` too) and Compose files (`docker-compose.yml`, `compose.yaml`, overrides) — every `FROM` base image (multi-stage aware: stage references skipped, `ARG` defaults expanded, `--platform` flags ignored), `COPY --from=` images, the `# syntax=` BuildKit directive Renovate bumps, and every `image:` under Compose `services:` (services built from a local `build:` context skipped). Tags and digest pins are verified against the image registry itself — see [Container base images](#container-base-images) |
-| Kubernetes | manifests (`*.yaml` under conventional directories — `k8s/`, `kubernetes/`, `manifests/`, `deploy/`, `overlays/`, `base/`, `clusters/`, `gitops/`, `apps/`, `infrastructure/`, `flux-system/`, `chart(s)/`, … — plus `*.k8s.yaml` and conventional basenames like `deployment.yaml`, `helmrelease.yaml`, `ocirepository.yaml` — top-level `apiVersion:` + `kind:` required, Helm `templates/` excluded): every `image:` under `containers:` / `initContainers:` / `ephemeralContainers`, verified like Dockerfile images. Flux `HelmRelease` chart version pins (same-file `HelmRepository` URLs verified against the chart repo's `index.yaml`) and `OCIRepository` `ref.tag`/`ref.digest` pins (verified like images). `kustomization.yaml` / `kustomization.yml`: `images:` transformer pins (`newTag:`, `digest:`) plus `helmCharts:` entries checked against the chart repository's own `index.yaml` — see [Kubernetes manifests & kustomizations](#kubernetes-manifests--kustomizations) |
+| Kubernetes | manifests (`*.yaml` under conventional directories — `k8s/`, `kubernetes/`, `manifests/`, `deploy/`, `overlays/`, `base/`, `clusters/`, `gitops/`, `apps/`, `infrastructure/`, `flux-system/`, `chart(s)/`, … — plus `*.k8s.yaml` and conventional basenames like `deployment.yaml`, `helmrelease.yaml`, `ocirepository.yaml` — top-level `apiVersion:` + `kind:` required, Helm `templates/` excluded): every `image:` under `containers:` / `initContainers:` / `ephemeralContainers`, verified like Dockerfile images. Flux `HelmRelease` chart version pins (same-file `HelmRepository` URLs verified against the chart repo's `index.yaml`) and `OCIRepository` `ref.tag`/`ref.digest` pins (verified like images). Argo CD `Application` / `ApplicationSet` chart sources (`chart:` + exact `targetRevision:`, single- and multi-source, verified against the inline `repoURL`'s `index.yaml`; conventional basenames `application.yaml`, `applicationset.yaml`, `appset.yaml` and directories `argocd/`, `argo/`, `applications/` match too). `kustomization.yaml` / `kustomization.yml`: `images:` transformer pins (`newTag:`, `digest:`) plus `helmCharts:` entries checked against the chart repository's own `index.yaml` — see [Kubernetes manifests & kustomizations](#kubernetes-manifests--kustomizations) |
 | pre-commit | `.pre-commit-config.yaml` — every `repos:` entry's `rev:` pin, on any git forge (names keep their host); revs verified against the hook repository's real tags exactly like workflow pins: SHA pins resolved to the release they equal, ▲ when a rev matches no tag, verified compare links + release notes for bumps (`repo: local`/`meta` exempt) |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 
@@ -1619,7 +1637,7 @@ Bazel module versions yanked from the Bazel Central Registry with the
 registry's reason, conda releases marked broken, Helm charts marked `deprecated` in their repository's index, Ansible collections marked deprecated on Galaxy), changelog links and the unlisted check all work for `composer.lock`,
 `mix.lock`, `rebar.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `MODULE.bazel.lock`, `MODULE.bazel`, `pixi.lock`, `conda-lock.yml`, `Chart.lock`, `Chart.yaml` and Ansible `requirements.yml` too (plus license
 changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry, Hackage, the Bazel Central Registry, Helm chart indexes and Ansible Galaxy keep no usable per-release license history,
-so that one check is honestly skipped there). Ansible's checks carry their own honesty rules: classic roles never get absence claims (the v1 role index only updates when the owner re-imports, so a missing version proves lag, not malice), and versions published before Galaxy's 2023 migration all carry the migration date, so historical ages are upper bounds. Helm's unlisted check carries a pruning guard: chart repositories routinely prune old releases from their index, so only a missing version that sorts at or above the oldest release the index still lists is flagged. The Bazel Central Registry
+so that one check is honestly skipped there). Ansible's checks carry their own honesty rules: classic roles never get absence claims (the v1 role index only updates when the owner re-imports, so a missing version proves lag, not malice), and versions published before Galaxy's 2023 migration all carry the migration date, so historical ages are upper bounds. Helm's unlisted check carries a pruning guard: chart repositories routinely prune old releases from their index, so only a missing version that sorts at or above the oldest release the index still lists is flagged. Helm ages carry a regeneration guard too: some repositories rebuild `index.yaml` and stamp historical entries with the generation time (every chart would look published today), so when three or more versions of a chart share a one-hour `created` window those timestamps are treated as artifacts and claim no ages — versions outside the cluster keep their real ones. The Bazel Central Registry
 also records no publish timestamps (they live only in its git history),
 so Bazel modules honestly carry no release ages or ⏱ cooldown flags. CRAN's unlisted check is
 mirror-lag-safe: before claiming anything, absence is double-checked

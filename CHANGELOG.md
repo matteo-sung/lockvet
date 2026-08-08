@@ -4,6 +4,39 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.20 — 2026-08-08
+
+- **Argo CD Application chart pins are lockfile entries.** An
+  `Application` whose `spec.source` carries `chart:` pins that chart at
+  `targetRevision:`, and the inline `repoURL:` is the chart repository
+  itself — so bumps are verified against that repository's own
+  `index.yaml` like Flux HelmReleases: release ages, deprecated charts,
+  the prune-guarded unlisted check, verified changelog links.
+  Multi-source `spec.sources` lists work per item, and `ApplicationSet`
+  templates (`spec.template.spec.source`/`.sources`) get the same
+  reading — `{{ … }}` parameters are recognized as templates, not
+  literal pins. Only exact revisions count (`1.2.*`, `>=1.0.0`, `*` and
+  branch names track the repo and pin nothing); Git-source Applications
+  (`path:` instead of `chart:`) are left alone; OCI `repoURL`s yield the
+  version row without registry claims. Discovery adds the Argo
+  conventions: `application.yaml`, `applicationset.yaml`, `appset.yaml`
+  basenames and `argocd/`, `argo/`, `argo-cd/`, `applications/`,
+  `applicationsets/` directories (strict `apiVersion:` + `kind:` gate as
+  always), and changed-YAML sniffing covers arbitrary layouts in diff
+  modes.
+- **Regenerated chart indexes no longer claim ages.** Some Helm
+  repositories rebuild `index.yaml` and stamp historical entries with
+  the generation time — app.getambassador.io does it on every request
+  (every chart looked published today), kyverno's index did it once
+  (three years of releases share one instant). No chart publishes three
+  versions of itself within an hour, so a ≥3-version cluster of
+  `created` times inside a one-hour window is treated as a generation
+  artifact: versions in the cluster claim no age or ⏱ freshness,
+  versions outside it keep their real timestamps.
+- The pre-commit hook's `files` pattern now matches the Flux and Argo CD
+  file conventions and the GitOps directory conventions the other modes
+  already discovered.
+
 ## v0.5.19 — 2026-08-08
 
 - **Changed YAML is content-sniffed in diff modes.** GitOps repos keep
