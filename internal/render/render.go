@@ -176,6 +176,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				integrityWhy := "same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why"
 				if c.Ecosystem == "Nix" {
 					integrityWhy = "same revision, different narHash — a git revision's content never changes, so the tree this pin expects was replaced; do not trust this without finding out why"
+				} else if c.Ecosystem == "Go" {
+					integrityWhy = "same version, different go.sum hash — a released module version's h1 hash never changes, so the module these builds will accept no longer matches what every earlier build verified; do not trust this without finding out why"
 				} else if c.Ecosystem == "Zig" {
 					integrityWhy = "same version, different hash — the source archive this pin expects was replaced (moved tag, re-cut tarball, hijacked mirror, or hand-edited manifest); do not trust this without finding out why"
 				}

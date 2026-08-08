@@ -4,6 +4,26 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.22 — 2026-08-08
+
+- **`go.sum` is now read — as a pins-only ledger (format #44).** Version
+  churn stays go.mod's story (a bump PR shows no duplicate rows from
+  go.sum), but a **same-version `h1:` hash edit flags ‼ REPINNED**: a
+  released module version's hash never changes legitimately, so this is
+  the poisoned-go.sum shape — the only way a tampered module gets past
+  `go mod verify`, and for `GOPRIVATE` modules the only check there is.
+  Zip and `/go.mod` manifest hashes are compared artifact-scoped (they
+  never cross); an untidied go.sum that grows entries in the same edit
+  that swaps an existing version's hash still gets the repin check on the
+  common versions; SARIF alerts anchor the exact edited line.
+- **Bundler ≥ 2.6 `CHECKSUMS` become integrity pins.** A same-version
+  sha256 swap in `Gemfile.lock` flags ‼ REPINNED; platform gems
+  (`1.16.0-x86_64-linux`) keep their own line and their own hash;
+  entries recorded without a checksum stay honest no-claims.
+- **Appraisal lockfiles route to the Gemfile.lock parser.** Suffix-named
+  `gemfiles/rails_7.0.gemfile.lock` variants (14k+ files on GitHub) are
+  the same format exactly and now get the same treatment.
+
 ## v0.5.21 — 2026-08-08
 
 - **`-changelogs` now finds mid-history releases in busy monorepos.**

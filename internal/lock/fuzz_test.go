@@ -24,6 +24,8 @@ func FuzzAllParsers(f *testing.F) {
 		"a==1.0.0\n# comment\n-r other.txt\n",
 		"module m\n\ngo 1.24\n\nrequire (\n\tgithub.com/a/b v1.2.3\n)\n",
 		"GEM\n  remote: https://rubygems.org/\n  specs:\n    rake (13.0.6)\n",
+		"GEM\n  remote: https://rubygems.org/\n  specs:\n    rake (13.0.6)\n\nCHECKSUMS\n  rake (13.0.6) sha256=0000000000000000000000000000000000000000000000000000000000000000\n  bare (1.0.0)\n",
+		"github.com/a/b v1.2.3 h1:AAAA=\ngithub.com/a/b v1.2.3/go.mod h1:BBBB=\ngolang.org/x/c v0.1.0/go.mod h1:CCCC=\n",
 		"%{\n  \"plug\": {:hex, :plug, \"1.14.0\", \"abc\", [:mix], [], \"hexpm\"},\n}\n",
 		"packages:\n  http:\n    dependency: \"direct main\"\n    version: \"1.2.0\"\n",
 		"org.example:lib:1.0=classpath\nempty=\n",

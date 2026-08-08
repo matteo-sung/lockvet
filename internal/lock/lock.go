@@ -189,6 +189,12 @@ type File struct {
 	// deprecation signal. nil elsewhere.
 	PkgYanked map[string]string
 
+	// PinsOnly marks files whose whole job is recording pins for a
+	// sibling manifest (go.sum next to go.mod): version churn in them
+	// duplicates the manifest's rows, so diffing surfaces ONLY
+	// same-version repins — the tampered-hash shape — and nothing else.
+	PinsOnly bool
+
 	// Pins records what the lockfile itself pins for a (package, version)
 	// beyond the version string: the content hash it expects and the
 	// registry host it resolves from. Filled only by formats that write
@@ -440,6 +446,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"pylock.toml", PyPI, parsePylock}
 	case "go.mod":
 		return &Parser{"go.mod", Go, parseGoMod}
+	case "go.sum":
+		return &Parser{"go.sum", Go, parseGoSum}
 	case "composer.lock":
 		return &Parser{"composer.lock", Packagist, parseComposerLock}
 	case "Gemfile.lock":
@@ -530,6 +538,11 @@ func ByBasename(p string) *Parser {
 		(strings.HasSuffix(base, ".yml") || strings.HasSuffix(base, ".yaml")) {
 		return &Parser{"docker-compose.yml", Docker, parseComposeFile}
 	}
+	// Appraisal writes per-variant lockfiles beside the gemfiles it
+	// generates (gemfiles/rails_7.0.gemfile.lock) — same format exactly.
+	if strings.HasSuffix(base, ".gemfile.lock") {
+		return &Parser{"Gemfile.lock", RubyGems, parseGemfileLock}
+	}
 	// Gradle allows extra catalogs beside libs (gradle/tools.versions.toml).
 	if strings.HasSuffix(base, ".versions.toml") {
 		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
@@ -588,7 +601,7 @@ func KnownBasenames() []string {
 		"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
 		"pylock.toml",
-		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
+		"go.mod", "go.sum", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"rebar.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
 		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",

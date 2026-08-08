@@ -435,3 +435,54 @@ package:
 `)
 	wantPin(t, f, "numpy", "1.26.4", "", "conda.anaconda.org")
 }
+
+func TestGemfileChecksumPins(t *testing.T) {
+	f := mustParse(t, "Gemfile.lock", `GEM
+  remote: https://rubygems.org/
+  specs:
+    nokogiri (1.16.0)
+    nokogiri (1.16.0-x86_64-linux)
+    rack (3.1.0)
+    rake (13.2.1)
+
+DEPENDENCIES
+  nokogiri
+  rack
+  rake
+
+CHECKSUMS
+  nokogiri (1.16.0) sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  nokogiri (1.16.0-x86_64-linux) sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  rack (3.1.0) sha256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  rake (13.2.1)
+
+BUNDLED WITH
+   2.6.2
+`)
+	// Platform gems keep their own version key and their own hash.
+	wantPin(t, f, "nokogiri", "1.16.0", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "rubygems.org")
+	wantPin(t, f, "nokogiri", "1.16.0-x86_64-linux", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "rubygems.org")
+	wantPin(t, f, "rack", "3.1.0", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "rubygems.org")
+	// Checksum-less entry records nothing: an absent hash proves nothing.
+	wantPin(t, f, "rake", "13.2.1", "", "rubygems.org")
+}
+
+func TestGoSumPins(t *testing.T) {
+	f := mustParse(t, "go.sum", `github.com/spf13/cobra v1.8.0 h1:7aJaZx1B85qltLMc546zn58BxxfZdR/W22ej9CFoEf0=
+github.com/spf13/cobra v1.8.0/go.mod h1:WXLWApfZ71AjXPya3WOlMsY9yMs7YeiHhFVlvLyhcho=
+golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
+# comment line
+bad line without enough fields
+`)
+	if !f.PinsOnly {
+		t.Fatalf("go.sum must parse pins-only")
+	}
+	wantPin(t, f, "github.com/spf13/cobra", "1.8.0",
+		"h1:7aJaZx1B85qltLMc546zn58BxxfZdR/W22ej9CFoEf0= go.mod#h1:WXLWApfZ71AjXPya3WOlMsY9yMs7YeiHhFVlvLyhcho=", "")
+	// A /go.mod-only entry (module needed only for the build graph)
+	// still records its manifest hash, artifact-scoped.
+	wantPin(t, f, "golang.org/x/text", "0.14.0", "go.mod#h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=", "")
+	if len(f.Packages) != 2 {
+		t.Fatalf("packages: %+v", f.Packages)
+	}
+}

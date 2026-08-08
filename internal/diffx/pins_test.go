@@ -253,3 +253,101 @@ func TestArtifactScopedIntegrity(t *testing.T) {
 		}
 	}
 }
+
+const goSumOld = `github.com/spf13/cobra v1.8.0 h1:7aJaZx1B85qltLMc546zn58BxxfZdR/W22ej9CFoEf0=
+github.com/spf13/cobra v1.8.0/go.mod h1:WXLWApfZ71AjXPya3WOlMsY9yMs7YeiHhFVlvLyhcho=
+golang.org/x/text v0.14.0 h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=
+golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
+`
+
+func TestGoSumBumpProducesNoRows(t *testing.T) {
+	// An ordinary upgrade rewrites go.sum lines wholesale — that story
+	// belongs to go.mod's rows; go.sum must stay silent.
+	newSum := strings.ReplaceAll(goSumOld, "v0.14.0", "v0.15.0")
+	fd := Diff(parseFile(t, "go.sum", goSumOld), parseFile(t, "go.sum", newSum))
+	if len(fd.Changes) != 0 {
+		t.Fatalf("version churn in go.sum must not produce rows: %+v", fd.Changes)
+	}
+}
+
+func TestGoSumNewFileProducesNoRows(t *testing.T) {
+	fd := Diff(nil, parseFile(t, "go.sum", goSumOld))
+	if len(fd.Changes) != 0 {
+		t.Fatalf("a brand-new go.sum must not produce rows: %+v", fd.Changes)
+	}
+}
+
+func TestGoSumSameVersionHashSwapFlags(t *testing.T) {
+	// The poisoned-go.sum shape: the version claims nothing moved, but
+	// the module hash no longer matches what earlier builds verified.
+	newSum := strings.ReplaceAll(goSumOld,
+		"h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=",
+		"h1:tampered0000000000000000000000000000000000+A=")
+	fd := Diff(parseFile(t, "go.sum", goSumOld), parseFile(t, "go.sum", newSum))
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repin, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged || c.Name != "golang.org/x/text" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestGoSumGoModHashSwapFlags(t *testing.T) {
+	// Only the /go.mod manifest hash changes: still a repin (the
+	// manifest drives resolution), compared artifact-scoped so it never
+	// crosses with the zip hash.
+	newSum := strings.ReplaceAll(goSumOld,
+		"h1:WXLWApfZ71AjXPya3WOlMsY9yMs7YeiHhFVlvLyhcho=",
+		"h1:tampered000000000000000000000000000000000000=")
+	fd := Diff(parseFile(t, "go.sum", goSumOld), parseFile(t, "go.sum", newSum))
+	if len(fd.Changes) != 1 || fd.Changes[0].Name != "github.com/spf13/cobra" || !fd.Changes[0].IntegrityChanged {
+		t.Fatalf("want cobra repin, got %+v", fd.Changes)
+	}
+}
+
+func TestGoSumUntidiedGrowthStillChecksCommonVersions(t *testing.T) {
+	// go.sum grows an extra version (no tidy) in the same edit that swaps
+	// an existing version's hash: the common version still gets checked.
+	newSum := goSumOld +
+		"golang.org/x/text v0.15.0 h1:h1qWSJVwyDCLBWPFHYtIYSRXcxAlxG2Bo0oPS+sGdIs=\n" +
+		"golang.org/x/text v0.15.0/go.mod h1:qtEHqOvUCLEHmAJvs8CkhbULhvfyLxwyHqLYaCSP6PE=\n"
+	newSum = strings.ReplaceAll(newSum,
+		"h1:ScX5w1eTa3QqT8oi6+ziP7dTV1S2+ALU0bI+0zXKWiQ=",
+		"h1:tampered0000000000000000000000000000000000+A=")
+	fd := Diff(parseFile(t, "go.sum", goSumOld), parseFile(t, "go.sum", newSum))
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repin, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged || c.Name != "golang.org/x/text" ||
+		len(c.Old) != 1 || c.Old[0] != "0.14.0" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestGemfileChecksumSwapFlags(t *testing.T) {
+	const tmpl = `GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (3.1.0)
+
+DEPENDENCIES
+  rack
+
+CHECKSUMS
+  rack (3.1.0) sha256=%s
+
+BUNDLED WITH
+   2.6.2
+`
+	oldF := parseFile(t, "Gemfile.lock", sprintf(tmpl, strings.Repeat("a", 64)))
+	newF := parseFile(t, "Gemfile.lock", sprintf(tmpl, strings.Repeat("b", 64)))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repin, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "rack" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}

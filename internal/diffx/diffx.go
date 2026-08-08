@@ -336,6 +336,10 @@ func Diff(oldF, newF *lock.File) FileDiff {
 	}
 
 	hostMoves := countHostMoves(oldF, newF)
+	// Pins-only files (go.sum) exist to record hashes for a sibling
+	// manifest: their version churn duplicates the manifest's rows, so
+	// only same-version repins — the tampered-hash shape — surface.
+	pinsOnly := (oldF != nil && oldF.PinsOnly) || (newF != nil && newF.PinsOnly)
 	for name := range names {
 		o, n := oldPkgs[name], newPkgs[name]
 		if equal(o, n) {
@@ -349,6 +353,19 @@ func Diff(oldF, newF *lock.File) FileDiff {
 					c.NonRegistry = true
 				}
 				fd.Changes = append(fd.Changes, c)
+			}
+			continue
+		}
+		if pinsOnly {
+			// Version churn is the sibling manifest's row, not ours — but
+			// versions present on BOTH sides still get the repin check
+			// (an untidied go.sum can grow entries in the same edit that
+			// swaps an existing version's hash).
+			if common := intersectVersions(o, n); len(common) > 0 {
+				c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: common, New: common, NewPins: newPinsOf(name, common)}
+				if annotatePinChange(&c, oldF, newF, hostMoves) && c.IntegrityChanged {
+					fd.Changes = append(fd.Changes, c)
+				}
 			}
 			continue
 		}

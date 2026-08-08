@@ -370,6 +370,43 @@ func parseGoMod(p string, data []byte) (*File, error) {
 	return f, nil
 }
 
+// ---- go.sum ----
+//
+// go.sum is not the dependency list (go.mod is): it is the module cache's
+// ledger — one "module version h1:hash" line for every module zip the build
+// may verify, plus a "module version/go.mod h1:hash" line for its manifest.
+// Version churn is go.mod's story, and repeating it here would double every
+// bump row; what go.sum ADDS is the hashes, and a released version's hash
+// never changes legitimately (the h1 dirhash is deterministic over the
+// module's contents). A same-version hash edit means the module's bytes no
+// longer match what every earlier build verified — the poisoned-go.sum
+// shape: a tampered module only installs if go.sum is edited to agree, and
+// for private modules (GONOSUMDB/GOPRIVATE) no checksum database will ever
+// object. So the file parses as pins-only: only repins become rows.
+func parseGoSum(p string, data []byte) (*File, error) {
+	f := newFile(p, "go.sum", Go)
+	f.PinsOnly = true
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(strings.TrimRight(line, "\r"))
+		if len(fields) != 3 || !strings.HasPrefix(fields[1], "v") ||
+			!strings.HasPrefix(fields[2], "h1:") {
+			continue
+		}
+		name, ver := fields[0], fields[1]
+		hash := fields[2]
+		if strings.HasSuffix(ver, "/go.mod") {
+			// The manifest's own hash, artifact-scoped so a zip hash and
+			// a go.mod hash are each compared against their own kind.
+			ver = strings.TrimSuffix(ver, "/go.mod")
+			hash = "go.mod#" + hash
+		}
+		ver = strings.TrimPrefix(ver, "v")
+		f.add(name, ver)
+		f.setPin(name, ver, hash, "")
+	}
+	return f, nil
+}
+
 // ---- composer.lock ----
 
 func parseComposerLock(p string, data []byte) (*File, error) {
@@ -428,6 +465,10 @@ var (
 	gemSpecRe = regexp.MustCompile(`^    ([A-Za-z0-9._-]+) \(([0-9][^)]*)\)\s*$`)
 	gemDepRe  = regexp.MustCompile(`^      ([A-Za-z0-9._-]+)(?: \([^)]*\))?\s*$`)
 	gemRootRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+)(?:!)?(?: \([^)]*\))?!?\s*$`)
+	// Bundler ≥ 2.6 CHECKSUMS entries: "  name (version) sha256=hex".
+	// Entries recorded without a checksum ("  name (version)") stay
+	// unmatched on purpose — an absent hash proves nothing.
+	gemChecksumRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+) \(([0-9][^)]*)\) ([a-z0-9]{1,8})=([A-Za-z0-9+/=_-]+)\s*$`)
 )
 
 func parseGemfileLock(p string, data []byte) (*File, error) {
@@ -438,6 +479,7 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 	// (a pinned fork, an unreleased bump) may not exist on the registry
 	// at all, so registry-derived signals must skip them.
 	nonRegistrySection := false
+	inChecksums := false
 	currentSpec, remoteHost := "", ""
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimRight(line, "\r")
@@ -446,16 +488,28 @@ func parseGemfileLock(p string, data []byte) (*File, error) {
 			inSpecs = true
 			continue
 		case line == "DEPENDENCIES":
-			inSpecs, inDependencies = false, true
+			inSpecs, inDependencies, inChecksums = false, true, false
 			continue
 		case line != "" && line[0] != ' ': // new top-level section (GEM, PLATFORMS, ...)
 			inSpecs, inDependencies = false, false
+			inChecksums = line == "CHECKSUMS"
 			nonRegistrySection = line != "GEM"
 			remoteHost = ""
 			continue
 		case !inSpecs && strings.HasPrefix(strings.TrimSpace(line), "remote: "):
 			if !nonRegistrySection {
 				remoteHost = HostOf(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "remote:")))
+			}
+			continue
+		}
+		if inChecksums {
+			// Bundler ≥ 2.6 records the sha256 of every gem it installed
+			// from a registry, per exact version string — platform gems
+			// ("1.16.0-x86_64-linux") keep their own line and so their
+			// own hash. Same keys as the GEM specs above, so the pins
+			// machinery lines them up without translation.
+			if m := gemChecksumRe.FindStringSubmatch(line); m != nil {
+				f.setPin(m[1], m[2], m[3]+":"+m[4], "")
 			}
 			continue
 		}
