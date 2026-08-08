@@ -45,7 +45,29 @@ jobs:
             fi
             rm -r "${out}"
           done
-          (cd dist && sha256sum * > checksums.txt)
+      # Native Linux packages (.deb / .rpm / .apk) via nfpm; the go build
+      # cache makes the per-arch rebuilds free. Packages land in dist/ so
+      # they are checksummed and attested like every other artifact.
+      - name: Build Linux packages
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME}"
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+          gzip -kf9 extras/man/lockvet.1
+          mkdir -p packaging/tmp
+          for GOARCH in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$GOARCH \
+              go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+              -o packaging/tmp/lockvet .
+            for fmt in deb rpm apk; do
+              VERSION="$VERSION" ARCH="$GOARCH" \
+                "$(go env GOPATH)/bin/nfpm" package -f packaging/nfpm.yaml -p "$fmt" \
+                -t "dist/lockvet_${VERSION}_linux_${GOARCH}.${fmt}"
+            done
+          done
+          rm -r packaging/tmp
+      - name: Checksums
+        run: (cd dist && sha256sum * > checksums.txt)
       # Sigstore build provenance for every artifact (verify with:
       #   gh attestation verify <file> --owner matteo-sung)
       - name: Attest build provenance

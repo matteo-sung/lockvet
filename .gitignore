@@ -1,2 +1,4 @@
 lockvet
 dist/
+packaging/tmp/
+extras/

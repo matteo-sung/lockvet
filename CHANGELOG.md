@@ -4,6 +4,21 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.11 — 2026-08-08
+
+- **Native Linux packages.** Every release now ships `.deb`, `.rpm`, and
+  `.apk` packages for amd64 and arm64 alongside the tarballs — binary,
+  bash/zsh/fish completions, and the man page, installable with
+  `dpkg -i` / `rpm -i` / `apk add --allow-untrusted`. Packages are
+  checksummed in `checksums.txt` and carry Sigstore build provenance
+  like every other artifact (`gh attestation verify <pkg> --owner
+  matteo-sung`). Built with [nfpm](https://nfpm.goreleaser.com/);
+  config lives in `packaging/nfpm.yaml`.
+- Playground: new **"Vet a package" tab** — `lockvet pkg` fully
+  in-browser, with `#pkg=` share links
+  ([try `npm:chakl`](https://matteo-sung.github.io/lockvet/#pkg=npm%3Achakl)).
+  Composer `latest` resolution now works in the browser too.
+
 ## v0.5.10 — 2026-08-08
 
 - **Zig `build.zig.zon` — format #36.** Zig has no lockfile beyond the

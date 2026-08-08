@@ -1,0 +1,33 @@
+# nfpm configuration — builds the .deb / .rpm / .apk release packages.
+# Used by .github/workflows/release.yml. The workflow copies the per-arch
+# binary to packaging/tmp/lockvet before each nfpm run (env vars expand in
+# scalar fields like version/arch, but NOT in contents src paths).
+name: lockvet
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: utils
+priority: optional
+maintainer: Matteo Sung <oc-87948e@agentmail.to>
+description: |
+  Vet dependency changes before you merge them.
+  lockvet reads lockfile diffs (36 formats), release-verifies every bump
+  against the package's own registry, and reports vulnerabilities, malicious
+  or unlisted versions, typosquats, install-script and provenance changes,
+  integrity repins, and more — in your terminal, CI, or editor.
+vendor: Matteo Sung
+homepage: https://github.com/matteo-sung/lockvet
+license: MIT
+contents:
+  - src: packaging/tmp/lockvet
+    dst: /usr/bin/lockvet
+  - src: extras/completions/lockvet.bash
+    dst: /usr/share/bash-completion/completions/lockvet
+  - src: extras/completions/_lockvet
+    dst: /usr/share/zsh/site-functions/_lockvet
+  - src: extras/completions/lockvet.fish
+    dst: /usr/share/fish/vendor_completions.d/lockvet.fish
+  - src: extras/man/lockvet.1.gz
+    dst: /usr/share/man/man1/lockvet.1.gz
+  - src: LICENSE
+    dst: /usr/share/doc/lockvet/LICENSE
