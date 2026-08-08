@@ -307,6 +307,46 @@ func gemLatest(name string) (string, error) {
 }
 
 func packagistLatest(name string) (string, error) {
+	if phpreg.UseAPI {
+		// Browser build: repo.packagist.org (p2) sends no CORS headers,
+		// but the packagist.org package endpoint does. Its versions map
+		// is unordered — the newest non-dev release by publish time wins.
+		var doc struct {
+			Package struct {
+				Versions map[string]struct {
+					Version string `json:"version"`
+					Time    string `json:"time"`
+				} `json:"versions"`
+			} `json:"package"`
+		}
+		status, err := getJSON(phpreg.APIURL+"/packages/"+name+".json", "", &doc)
+		if err != nil {
+			return "", err
+		}
+		if status == http.StatusNotFound {
+			return "", notFound("Packagist", name)
+		}
+		if status != http.StatusOK {
+			return "", unexpected("Packagist", status)
+		}
+		best, bestTime := "", ""
+		for key, v := range doc.Package.Versions {
+			version := v.Version
+			if version == "" {
+				version = key
+			}
+			if version == "" || strings.HasPrefix(version, "dev-") || strings.HasSuffix(version, "-dev") {
+				continue
+			}
+			if bestTime == "" || v.Time > bestTime {
+				best, bestTime = strings.TrimPrefix(version, "v"), v.Time
+			}
+		}
+		if best == "" {
+			return "", nil
+		}
+		return best, nil
+	}
 	var doc struct {
 		Packages map[string][]struct {
 			Version string `json:"version"`

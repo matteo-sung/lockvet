@@ -9,9 +9,12 @@
 **Explain any lockfile change before you merge it.**
 
 **[▶ Try it in your browser](https://matteo-sung.github.io/lockvet/)** — paste a
-Dependabot/Renovate PR URL, drop two lockfiles to diff, or drop one to audit
-what it pins right now — no install needed. Reports are linkable:
-[share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#url=https%3A%2F%2Fgithub.com%2Fmatteo-sung%2Flockvet-demo%2Fpull%2F1).
+Dependabot/Renovate PR URL, drop two lockfiles to diff, drop one to audit
+what it pins right now, or vet a package before you install it — no install
+needed. Reports are linkable:
+[share any PR audit as a URL](https://matteo-sung.github.io/lockvet/#url=https%3A%2F%2Fgithub.com%2Fmatteo-sung%2Flockvet-demo%2Fpull%2F1),
+or [look up a package](https://matteo-sung.github.io/lockvet/#pkg=npm%3Achakl)
+(that one is malware squatting the `chalk` typo).
 
 ![lockvet catching a RUSTSEC advisory hidden in a routine dependabot patch bump](docs/demo.gif)
 
@@ -597,6 +600,15 @@ the Bazel Central Registry (`bazel:<module>`), conda
 GitHub Actions (`actions:owner/repo`), and Swift packages
 (`swift:host/owner/repo` — latest is the highest stable tag); other
 ecosystems (`conan:`, `julia:`) work with an explicit `@version`.
+No install needed here either: the
+[browser playground](https://matteo-sung.github.io/lockvet/)'s **Vet a
+package** mode runs the same lookup in your browser, and the result is a
+shareable URL —
+[`#pkg=npm:chakl`](https://matteo-sung.github.io/lockvet/#pkg=npm%3Achakl)
+resolves the registry's "latest" for a typo of `chalk` and reports the
+malware record attached to it. (A few registries don't answer browsers at
+all — RubyGems, Maven, conda among them — the CLI covers everything.)
+
 `-fail-on vuln,unlisted,typosquat` gates scripts the same way it gates CI,
 and `-md`/`-json` output works as everywhere else.
 

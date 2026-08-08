@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lockvet playground — explain any lockfile change, in your browser</title>
-<meta name="description" content="Paste a Dependabot/Renovate PR URL, drop two lockfiles to diff, or audit what a lockfile pins right now: what's vulnerable, deprecated, missing from its registry, or days old. Runs entirely in your browser via WebAssembly.">
+<meta name="description" content="Paste a Dependabot/Renovate PR URL, drop two lockfiles to diff, audit what a lockfile pins right now, or vet a package before you install it: what's vulnerable, deprecated, missing from its registry, or days old. Runs entirely in your browser via WebAssembly.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%F0%9F%94%8E%3C/text%3E%3C/svg%3E">
 <style>
   :root {
@@ -125,6 +125,7 @@
       <button id="modeUrl" class="active">Vet a PR / compare URL</button>
       <button id="modeFiles">Diff two lockfiles</button>
       <button id="modeAudit">Audit a lockfile</button>
+      <button id="modePkg">Vet a package</button>
     </div>
 
     <div id="urlPane">
@@ -164,6 +165,23 @@
         for every pinned package. Like <code>lockvet audit</code> in the CLI.</div>
         <button class="go" id="goAudit">Audit it</button>
       </div>
+    </div>
+
+    <div id="pkgPane" style="display:none">
+      <div class="row">
+        <input type="text" id="pkgs" spellcheck="false" autocomplete="off"
+               placeholder="npm:left-pad — or pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin … (space/comma list ok)">
+        <button class="go" id="goPkg">Vet it</button>
+      </div>
+      <div class="examples">Try:
+        <button data-p="npm:chakl">npm:chakl (malware squatting the chalk typo)</button> ·
+        <button data-p="npm:event-stream@3.3.6">the 2018 event-stream backdoor</button> ·
+        <button data-p="npm:request">npm:request (deprecated + CVE)</button>
+      </div>
+      <div class="filehint" style="margin-top:10px">Vets a package <i>before</i> it's in any lockfile —
+        the moment you're deciding whether to install it. Advisories (incl. malware records), release age,
+        deprecation / yank, versions missing from the registry index, typosquat suspects. No version =
+        the registry's latest. Like <code>lockvet pkg</code> in the CLI.</div>
     </div>
 
     <details class="opts">
@@ -232,11 +250,10 @@
   });
 
   // ---- mode switching --------------------------------------------------
-  const panes = { url: $("urlPane"), files: $("filesPane"), audit: $("auditPane") };
-  const modeBtns = { url: $("modeUrl"), files: $("modeFiles"), audit: $("modeAudit") };
+  const panes = { url: $("urlPane"), files: $("filesPane"), audit: $("auditPane"), pkg: $("pkgPane") };
+  const modeBtns = { url: $("modeUrl"), files: $("modeFiles"), audit: $("modeAudit"), pkg: $("modePkg") };
   for (const m of Object.keys(modeBtns)) modeBtns[m].onclick = () => setMode(m);
   function setMode(m) {
-    if (m === true) m = "url"; // applyHash calls setMode(true)
     for (const k of Object.keys(panes)) {
       modeBtns[k].classList.toggle("active", k === m);
       panes[k].style.display = k === m ? "" : "none";
@@ -285,11 +302,14 @@
 
   // ---- examples --------------------------------------------------------
   document.querySelectorAll(".examples button").forEach(b => {
-    b.onclick = () => { $("url").value = b.dataset.x; runUrl(); };
+    b.onclick = () => {
+      if (b.dataset.p) { $("pkgs").value = b.dataset.p; runPkg(); }
+      else { $("url").value = b.dataset.x; runUrl(); }
+    };
   });
 
   // ---- run -------------------------------------------------------------
-  const buttons = [$("goUrl"), $("goFiles"), $("goAudit")];
+  const buttons = [$("goUrl"), $("goFiles"), $("goAudit"), $("goPkg")];
   function busy(on, msg) {
     buttons.forEach(b => b.disabled = on);
     status.classList.remove("error");
@@ -310,7 +330,7 @@
       await loadWasm();
       busy(true, "fetching lockfiles + checking OSV.dev / deps.dev…");
       const opts = commonOpts();
-      setHash(url, opts);
+      setHash("url", url, opts);
       const res = await window.lockvetRun({ mode: "url", url, ...opts });
       show(res, /*shareable=*/true);
     } catch (e) { showError(e); }
@@ -351,10 +371,26 @@
     } catch (e) { showError(e); }
     finally { buttons.forEach(b => b.disabled = false); }
   }
+  async function runPkg() {
+    const pkgs = $("pkgs").value.trim();
+    if (!pkgs) { $("pkgs").focus(); return; }
+    out.style.display = "none";
+    try {
+      await loadWasm();
+      busy(true, "asking the registry + checking OSV.dev / deps.dev…");
+      const opts = commonOpts();
+      setHash("pkg", pkgs, opts);
+      const res = await window.lockvetRun({ mode: "pkg", pkgs, ...opts });
+      show(res, /*shareable=*/true);
+    } catch (e) { showError(e); }
+    finally { buttons.forEach(b => b.disabled = false); }
+  }
   $("goUrl").onclick = runUrl;
   $("url").addEventListener("keydown", e => { if (e.key === "Enter") runUrl(); });
   $("goFiles").onclick = runFiles;
   $("goAudit").onclick = runAudit;
+  $("goPkg").onclick = runPkg;
+  $("pkgs").addEventListener("keydown", e => { if (e.key === "Enter") runPkg(); });
 
   function readBytes(f) {
     return f.arrayBuffer().then(b => new Uint8Array(b));
@@ -389,10 +425,10 @@
     if (tab === "terminal") report.innerHTML = ansiToHtml(current.terminal);
     else report.textContent = current[tab];
   }
-  // ---- shareable links (#url=…&only=…&fresh=…; never the token) --------
-  function setHash(url, opts) {
+  // ---- shareable links (#url=… or #pkg=…, &only=…&fresh=…; never the token)
+  function setHash(key, value, opts) {
     const p = new URLSearchParams();
-    p.set("url", url);
+    p.set(key, value);
     if (opts.only) p.set("only", opts.only);
     if (opts.freshDays !== 7) p.set("fresh", String(opts.freshDays));
     if (opts.changelogs) p.set("changelogs", "1");
@@ -403,21 +439,22 @@
   }
   function applyHash() {
     const h = location.hash.replace(/^#/, "");
-    if (!h.includes("url=")) return false;
+    if (!h.includes("url=") && !h.includes("pkg=")) return false;
     const p = new URLSearchParams(h);
     const url = (p.get("url") || "").trim();
-    if (!url) return false;
-    setMode(true);
-    $("url").value = url;
+    const pkgs = (p.get("pkg") || "").trim();
+    if (!url && !pkgs) return false;
     $("only").value = p.get("only") || "";
     if (p.has("fresh")) $("fresh").value = p.get("fresh");
     $("changelogs").checked = p.get("changelogs") === "1";
-    runUrl();
+    if (url) { setMode("url"); $("url").value = url; runUrl(); }
+    else { setMode("pkg"); $("pkgs").value = pkgs; runPkg(); }
     return true;
   }
   window.addEventListener("hashchange", () => {
     const h = new URLSearchParams(location.hash.replace(/^#/, ""));
     if ((h.get("url") || "").trim() && h.get("url").trim() !== $("url").value.trim()) applyHash();
+    else if ((h.get("pkg") || "").trim() && h.get("pkg").trim() !== $("pkgs").value.trim()) applyHash();
   });
   $("shareBtn").onclick = () => {
     navigator.clipboard.writeText(location.href).then(() => {

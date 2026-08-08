@@ -12,12 +12,14 @@
 //
 // opts (a plain object):
 //
-//	mode:      "url" | "files" | "audit"
+//	mode:      "url" | "files" | "audit" | "pkg"
 //	url:       PR / MR / compare / commit URL (mode "url")
 //	token:     optional API token for the matched forge (mode "url")
 //	oldName, oldData, newName, newData:  file names + Uint8Array (mode "files")
 //	auditFiles: [{name, data: Uint8Array}, …] (mode "audit" — the pinned
 //	           set is vetted as-is, like `lockvet audit`)
+//	pkgs:      package specs, whitespace- or comma-separated (mode "pkg" —
+//	           each eco:name[@version] is vetted like `lockvet pkg`)
 //	only:      -only filter pattern ("" = all)
 //	freshDays: like -fresh-days (default 7)
 //	noVulns, noMeta: like the CLI flags
@@ -60,11 +62,13 @@ import (
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/hkgreg"
 	"github.com/matteo-sung/lockvet/internal/jsrreg"
+	"github.com/matteo-sung/lockvet/internal/latest"
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
+	"github.com/matteo-sung/lockvet/internal/pkgspec"
 	"github.com/matteo-sung/lockvet/internal/podreg"
 	"github.com/matteo-sung/lockvet/internal/pubreg"
 	"github.com/matteo-sung/lockvet/internal/pypireg"
@@ -140,6 +144,7 @@ type request struct {
 	oldName, newName string
 	oldData, newData []byte
 	auditFiles       []namedFile
+	pkgs             string
 	only             string
 	freshDays        int
 	noVulns, noMeta  bool
@@ -180,6 +185,7 @@ func decode(opts js.Value) request {
 		newName:    str("newName"),
 		oldData:    data("oldData"),
 		newData:    data("newData"),
+		pkgs:       strings.TrimSpace(str("pkgs")),
 		only:       strings.TrimSpace(str("only")),
 		freshDays:  7,
 		noVulns:    boolean("noVulns"),
@@ -210,6 +216,7 @@ func run(opts js.Value) (js.Value, error) {
 		title        string
 		warnings     []string
 		audit        bool
+		pkg          bool
 	)
 
 	switch req.mode {
@@ -323,8 +330,43 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		target = strings.Join(names, ", ")
 
+	case "pkg":
+		// `lockvet pkg` in the browser: each spec becomes a synthetic
+		// one-package diff against nothing, so the whole pipeline —
+		// advisories, ages, deprecation, unlisted, typosquat, install
+		// scripts, provenance — answers "should I install this?" before
+		// anything is installed.
+		specs := strings.FieldsFunc(req.pkgs, func(r rune) bool {
+			return r == ' ' || r == '\t' || r == '\n' || r == ','
+		})
+		if len(specs) == 0 {
+			return js.Undefined(), errors.New("give at least one package as <ecosystem>:<name>[@version], e.g. npm:left-pad or pypi:requests@2.32.0")
+		}
+		pkg = true
+		var labels []string
+		for _, arg := range specs {
+			spec, err := pkgspec.Parse(arg)
+			if err != nil {
+				return js.Undefined(), err
+			}
+			if spec.Version == "" {
+				if req.noMeta {
+					return js.Undefined(), fmt.Errorf("%s: the registry-checks-off option can't ask the registry what \"latest\" is — say which version to vet", spec.Label)
+				}
+				v, err := latest.Resolve(spec.Eco, spec.LookupName())
+				if err != nil {
+					return js.Undefined(), fmt.Errorf("%v — not every registry answers browsers; adding @version may help", err)
+				}
+				spec.Version = v
+				spec.Label += "@" + v + " (latest)"
+			}
+			labels = append(labels, spec.Label)
+			diffs = append(diffs, diffx.Diff(nil, spec.File()))
+		}
+		target = strings.Join(labels, ", ")
+
 	default:
-		return js.Undefined(), fmt.Errorf("unknown mode %q (want \"url\", \"files\", or \"audit\")", req.mode)
+		return js.Undefined(), fmt.Errorf("unknown mode %q (want \"url\", \"files\", \"audit\", or \"pkg\")", req.mode)
 	}
 
 	if req.only != "" {
@@ -462,6 +504,14 @@ func run(opts js.Value) (js.Value, error) {
 		// Same JSON shape as `lockvet audit -json`: every package is an
 		// Added change, "introduced_vulns" = advisories affecting the pin.
 		doc["mode"] = "audit"
+		delete(doc, "base")
+		delete(doc, "target")
+	} else if pkg {
+		render.Terminal(&term, diffs, sum, true, vulnsChecked, metaChecked, req.freshDays)
+		render.Markdown(&md, diffs, sum, vulnsChecked, metaChecked, req.freshDays)
+		// Same JSON shape as `lockvet pkg -json`: each file entry is one
+		// requested spec, "introduced_vulns" = advisories on that version.
+		doc["mode"] = "pkg"
 		delete(doc, "base")
 		delete(doc, "target")
 	} else {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/matteo-sung/lockvet/internal/lock"
+	"github.com/matteo-sung/lockvet/internal/pkgspec"
 )
 
 func TestParsePkgSpec(t *testing.T) {
@@ -39,14 +40,14 @@ func TestParsePkgSpec(t *testing.T) {
 		{"pub:dio@5.0.0", lock.Pub, "dio", "5.0.0"},
 	}
 	for _, c := range cases {
-		spec, err := parsePkgSpec(c.in)
+		spec, err := pkgspec.Parse(c.in)
 		if err != nil {
-			t.Errorf("parsePkgSpec(%q): %v", c.in, err)
+			t.Errorf("pkgspec.Parse(%q): %v", c.in, err)
 			continue
 		}
-		if spec.eco != c.eco || spec.name != c.name || spec.version != c.version {
-			t.Errorf("parsePkgSpec(%q) = {%s %q %q}, want {%s %q %q}",
-				c.in, spec.eco, spec.name, spec.version, c.eco, c.name, c.version)
+		if spec.Eco != c.eco || spec.Name != c.name || spec.Version != c.version {
+			t.Errorf("pkgspec.Parse(%q) = {%s %q %q}, want {%s %q %q}",
+				c.in, spec.Eco, spec.Name, spec.Version, c.eco, c.name, c.version)
 		}
 	}
 }
@@ -60,8 +61,8 @@ func TestParsePkgSpecErrors(t *testing.T) {
 		"zzz:something", // unknown ecosystem
 		"jsr:std/http",  // JSR names need @scope
 	} {
-		if _, err := parsePkgSpec(in); err == nil {
-			t.Errorf("parsePkgSpec(%q): want error, got none", in)
+		if _, err := pkgspec.Parse(in); err == nil {
+			t.Errorf("pkgspec.Parse(%q): want error, got none", in)
 		}
 	}
 }
