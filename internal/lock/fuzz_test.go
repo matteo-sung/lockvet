@@ -52,6 +52,7 @@ func FuzzAllParsers(f *testing.F) {
 		"# syntax=docker/dockerfile:1\nARG B=alpine:3.21@sha256:ab\nFROM --platform=$BUILDPLATFORM golang:1.26 AS build\nFROM ${B}\nCOPY --from=build /a /a\nCOPY --from=ghcr.io/o/r:v1 /t /t\n",
 		"services:\n  db:\n    image: postgres:18@sha256:ab\n  app:\n    build: .\n  x:\n    image: ${REG}/svc:${TAG}\n",
 		"repos:\n-   repo: https://github.com/psf/black\n    rev: \"24.3.0\"\n    hooks:\n    -   id: black\n- repo: git@gitlab.com:g/h\n  rev: v1 # x\n- repo: local\n  hooks: []\n",
+		"{\"1.2.0\",\n[{<<\"certifi\">>,{pkg,<<\"certifi\">>,<<\"2.12.0\">>},1},\n {<<\"uuid\">>,{pkg,<<\"uuid_erl\">>,<<\"2.0.1\">>},0},\n {<<\"cowboy\">>,{git,\"https://github.com/n/cowboy.git\",{ref,\"72d5\"}},0}]}.\n[\n{pkg_hash,[\n {<<\"certifi\">>, <<\"2D1CCA2EC95F59643862AF91F001478C9863C2AC9CB6E2F89780BFD8DE987329\">>}]},\n{pkg_hash_ext,[\n {<<\"certifi\">>, <<\"266DA46BDB06D6C6BEC50941D0D1FDB69EDF4F345AA3E3BF6F14CE7E9C7BA2F7\">>}]}].\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

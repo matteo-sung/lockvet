@@ -4,6 +4,25 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.14 — 2026-08-08
+
+- **rebar.lock: format #40.** Erlang's rebar3 lockfile gets the full Hex
+  treatment mix.lock already had: OSV advisories, release ages and ⏱
+  published-days-ago, retirements with the maintainer's reason, and the
+  registry-verified `▲ not in registry index` check — all straight from
+  hex.pm. The lock's own level numbers mark direct dependencies, so
+  `(direct)` / `via …` labels need no manifest. Renamed forks resolve
+  under their real Hex package name (`{<<"uuid">>,{pkg,<<"uuid_erl">>,…}}`
+  is reported as `uuid_erl` — the name hex.pm and OSV actually know);
+  `{git,…}` / `{path,…}` entries pin a commit, not a release, and are
+  exempt from registry judgement. `pkg_hash` / `pkg_hash_ext` checksums
+  become integrity pins: a same-version hash change surfaces as
+  `‼ REPINNED` (hex.pm tarballs are immutable — a changed hash means the
+  artifact this pin expects was replaced). Works in every mode: diff, PR
+  URLs, `audit`, `queue`, MCP, pre-commit, and the browser playground
+  (hex.pm is CORS-open). Replayed 220 rebar.lock commits from rebar3 and
+  VerneMQ history: zero false flags.
+
 ## v0.5.13 — 2026-08-08
 
 - **pre-commit configs: format #39.** `.pre-commit-config.yaml` is a

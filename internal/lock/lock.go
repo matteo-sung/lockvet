@@ -435,6 +435,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"Pipfile.lock", PyPI, parsePipfileLock}
 	case "mix.lock":
 		return &Parser{"mix.lock", Hex, parseMixLock}
+	case "rebar.lock":
+		return &Parser{"rebar.lock", Hex, parseRebarLock}
 	case "pubspec.lock":
 		return &Parser{"pubspec.lock", Pub, parsePubspecLock}
 	case "gradle.lockfile":
@@ -555,6 +557,7 @@ func KnownBasenames() []string {
 		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
 		"pylock.toml",
 		"go.mod", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
+		"rebar.lock",
 		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
 		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",

@@ -84,9 +84,9 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 39 formats:
+- **across every ecosystem, in one static binary** — 40 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
-  `requirements.txt`, `pylock.toml` (PEP 751), Go modules, Composer, Bundler, Hex/mix, pub/Flutter,
+  `requirements.txt`, `pylock.toml` (PEP 751), Go modules, Composer, Bundler, Hex (mix & rebar3), pub/Flutter,
   Gradle (lockfiles, version catalogs & verification metadata), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
   Helm, Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
@@ -162,22 +162,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.13/lockvet_v0.5.13_linux_amd64.deb
-sudo dpkg -i lockvet_v0.5.13_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.14/lockvet_v0.5.14_linux_amd64.deb
+sudo dpkg -i lockvet_v0.5.14_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.13/lockvet_v0.5.13_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.14/lockvet_v0.5.14_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.13/lockvet_v0.5.13_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.5.13_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.14/lockvet_v0.5.14_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.5.14_linux_amd64.apk
 ```
 
 Go:
@@ -197,7 +197,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.13 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.14 lockvet
 ```
 
 ### Shell completions & man page
@@ -222,8 +222,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.13_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.13 --owner matteo-sung
+gh attestation verify lockvet_v0.5.14_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.14 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -465,7 +465,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.13
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.14
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -524,7 +524,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 39 formats, SBOMs, CI workflows and Dockerfiles included — and runs the full
+lockfile it finds — all 40 formats, SBOMs, CI workflows and Dockerfiles included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -581,7 +581,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.13/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.14/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -661,7 +661,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.13", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.14", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -716,7 +716,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.13
+      - uses: matteo-sung/lockvet@v0.5.14
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -743,7 +743,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.13
+      - uses: matteo-sung/lockvet@v0.5.14
         with:
           sarif: 'true'
 ```
@@ -763,7 +763,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.13
+  image: ghcr.io/matteo-sung/lockvet:0.5.14
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -788,7 +788,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.13
+          image: ghcr.io/matteo-sung/lockvet:0.5.14
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -806,7 +806,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.13
+    container: ghcr.io/matteo-sung/lockvet:0.5.14
     steps:
       - checkout: none
       - script: >
@@ -830,7 +830,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.13
+    image: ghcr.io/matteo-sung/lockvet:0.5.14
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -849,7 +849,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.13
+    rev: v0.5.14
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1304,7 +1304,7 @@ playground. Formats that record the data: npm (v1–v3), pnpm, yarn
 Pipfile.lock, `requirements.txt --hash`, `pylock.toml` (PEP 751 artifact
 hashes and index hosts — the Python confusion shape flags too),
 Gemfile.lock (hosts),
-mix.lock, Gleam's manifest.toml, pubspec.lock (hashes **and** hosts —
+mix.lock, rebar.lock (`pkg_hash`/`pkg_hash_ext`), Gleam's manifest.toml, pubspec.lock (hashes **and** hosts —
 the Dart confusion shape flags too), Podfile.lock (trunk podspec
 checksums), Package.resolved, composer.lock, Julia Manifest.toml,
 `.terraform.lock.hcl` (provider `h1:`/`zh:` hashes), conda/pixi
@@ -1500,6 +1500,7 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | PHP | `composer.lock` |
 | Ruby | `Gemfile.lock` |
 | Elixir | `mix.lock` — release ages, retirements and the unlisted check straight from hex.pm; renamed forks (`{:hex, :ts_chatterbox, …}`) resolve under their real Hex package name |
+| Erlang | `rebar.lock` — Hex advisories, ages/retirements/unlisted from hex.pm, direct deps from the lock's own level numbers, `pkg_hash`/`pkg_hash_ext` checksums as integrity pins (a same-version hash change surfaces as ‼ repinned); renamed forks (`{<<"uuid">>,{pkg,<<"uuid_erl">>,…}}`) resolve under their real Hex package name; git/path deps exempt |
 | Dart / Flutter | `pubspec.lock` — release ages, discontinued/retracted flags and the unlisted check straight from pub.dev (git/path/SDK/private-host packages exempt) |
 | Java / JVM | `gradle.lockfile`, `libs.versions.toml` (Gradle version catalogs — the file Renovate and Dependabot actually bump, plugins resolved as their `id:id.gradle.plugin` marker against the Gradle Plugin Portal) and `verification-metadata.xml` (Gradle dependency verification — the wall-of-XML diff nobody reviews becomes package changes, and a same-version checksum change surfaces as ‼ repinned) — bumps onto [relocation stubs](https://maven.apache.org/guides/mini/guide-relocation.html) (`mysql:mysql-connector-java` → `com.mysql:mysql-connector-j`) land in the deprecation lane, and unlisted checks are verified against Maven Central, Google's Maven repository and the Plugin Portal |
 | .NET | `packages.lock.json` |
@@ -1548,7 +1549,7 @@ Terraform providers, packages archived on CRAN, packages and individual
 versions deprecated on Hackage — replacement suggestions included,
 Bazel module versions yanked from the Bazel Central Registry with the
 registry's reason, conda releases marked broken), changelog links and the unlisted check all work for `composer.lock`,
-`mix.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `MODULE.bazel.lock`, `MODULE.bazel`, `pixi.lock` and `conda-lock.yml` too (plus license
+`mix.lock`, `rebar.lock`, Gleam's `manifest.toml`, `pubspec.lock`, `deno.lock`'s `jsr:` packages, `Podfile.lock`, `.terraform.lock.hcl`, `renv.lock`, `stack.yaml.lock`, `cabal.project.freeze`, `MODULE.bazel.lock`, `MODULE.bazel`, `pixi.lock` and `conda-lock.yml` too (plus license
 changes for Composer, CocoaPods, CRAN and conda; Hex, pub.dev, jsr.io, the Terraform registry, Hackage and the Bazel Central Registry keep no usable per-release license history,
 so that one check is honestly skipped there). The Bazel Central Registry
 also records no publish timestamps (they live only in its git history),
