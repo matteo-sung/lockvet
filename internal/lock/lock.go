@@ -574,6 +574,14 @@ func ByBasename(p string) *Parser {
 	if strings.HasSuffix(base, ".versions.toml") {
 		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
 	}
+	// Gradle build scripts: build.gradle(.kts), settings.gradle(.kts),
+	// and every other *.gradle(.kts) script (buildSrc convention
+	// plugins, split dependencies.gradle files). The build script is
+	// the pin file for most Gradle projects — bots bump coordinates in
+	// place. Lenient: scripts without exact pins parse to an empty file.
+	if strings.HasSuffix(base, ".gradle") || strings.HasSuffix(base, ".gradle.kts") {
+		return &Parser{"build.gradle", Maven, parseBuildGradle}
+	}
 	// conda-lock supports named unified lockfiles (chipyard keeps
 	// conda-reqs.conda-lock.yml, torchlens audio.pixi.lock, …).
 	if strings.HasSuffix(base, ".pixi.lock") {

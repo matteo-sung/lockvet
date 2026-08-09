@@ -137,3 +137,24 @@ func TestPickHighest(t *testing.T) {
 		t.Fatalf("pickHighest(nil) = %q, want empty", v)
 	}
 }
+
+func TestPickHighestMavenStable(t *testing.T) {
+	got := pickHighestMavenStable([]string{
+		"2.24.3", "3.0.0-alpha1", "3.0.0-beta3", "2.24.0",
+	})
+	if got != "2.24.3" {
+		t.Errorf("log4j shape = %q, want 2.24.3", got)
+	}
+	if got := pickHighestMavenStable([]string{"4.1.114.Final", "4.1.115.Final", "5.0.0.Alpha5"}); got != "4.1.115.Final" {
+		t.Errorf("netty shape = %q, want 4.1.115.Final", got)
+	}
+	if got := pickHighestMavenStable([]string{"33.3.1-jre", "33.4.0-jre", "33.4.0-android"}); got != "33.4.0-jre" {
+		t.Errorf("guava shape = %q, want 33.4.0-jre", got)
+	}
+	if got := pickHighestMavenStable([]string{"1.0.0-M1", "1.0.0-RC2", "0.9.0-beta"}); got != "" {
+		t.Errorf("all-prerelease = %q, want empty", got)
+	}
+	if got := pickHighestMavenStable([]string{"6.2.1", "6.2.2.RELEASE", "7.0.0-M1"}); got != "6.2.2.RELEASE" {
+		t.Errorf("spring shape = %q, want 6.2.2.RELEASE", got)
+	}
+}

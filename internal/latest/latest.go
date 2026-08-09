@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -565,6 +566,14 @@ func mavenLatest(name string) (string, error) {
 		if err := mvnreg.DecodeXML(body, &doc); err != nil {
 			return "", err
 		}
+		// Central's <release>/<latest> tags include betas and RCs
+		// (log4j-core's <release> is a 3.0.0 beta). Prefer the highest
+		// version whose qualifier is stable by Maven's own convention
+		// (Final/RELEASE/GA/jre are releases; alpha/beta/rc/M1/… are
+		// not); the tags only break ties when no stable version exists.
+		if v := pickHighestMavenStable(doc.Versioning.Versions); v != "" {
+			return v, nil
+		}
 		if doc.Versioning.Release != "" {
 			return doc.Versioning.Release, nil
 		}
@@ -652,6 +661,41 @@ func pickHighest(vs []string) string {
 		return best
 	}
 	return bestAny
+}
+
+// pickHighestMavenStable returns the highest version that is a release
+// by Maven's qualifier convention. Unlike prereleaseLooking (which
+// treats any letter as suspect), Maven qualifiers like Final, RELEASE,
+// GA, jre and android mark ordinary releases — only the well-known
+// pre-release tokens (alpha, beta, milestone, rc, cr, snapshot, ea,
+// preview, dev, M1, b02) disqualify a version.
+func pickHighestMavenStable(versions []string) string {
+	best := ""
+	for _, v := range versions {
+		if v == "" || mavenPrerelease(v) {
+			continue
+		}
+		if best == "" || vers.Compare(v, best) > 0 {
+			best = v
+		}
+	}
+	return best
+}
+
+var mavenPreTokenRe = regexp.MustCompile(`(?i)^(alpha|beta|milestone|rc|cr|snapshot|ea|preview|pre|dev|test|m|a|b)[-.]?\d*$`)
+
+func mavenPrerelease(v string) bool {
+	for _, tok := range strings.FieldsFunc(v, func(r rune) bool {
+		return r == '.' || r == '-' || r == '_'
+	}) {
+		if tok == "" || unicode.IsDigit(rune(tok[0])) {
+			continue
+		}
+		if mavenPreTokenRe.MatchString(tok) {
+			return true
+		}
+	}
+	return false
 }
 
 // prereleaseLooking: anything beyond digits, dots and a leading v smells
