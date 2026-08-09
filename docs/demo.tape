@@ -1,7 +1,7 @@
 Output lockvet-demo.gif
 
 Set FontSize 15
-Set Width 900
+Set Width 1040
 Set Height 480
 Set Padding 12
 Set Theme "Catppuccin Mocha"
