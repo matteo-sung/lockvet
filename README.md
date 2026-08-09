@@ -1986,7 +1986,7 @@ to the cache.
 
 |  | `git diff` on the lockfile | [whatsdiff](https://github.com/whatsdiff/whatsdiff) v2.6 | [dependency-review-action](https://github.com/actions/dependency-review-action) | **lockvet** |
 |---|---|---|---|---|
-| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **34** across 20+ ecosystems, + CycloneDX/SPDX SBOMs |
+| Lockfile formats | any (raw text) | 3 (composer, npm, pnpm) | GitHub dependency-graph ecosystems | **60** across 30+ ecosystems, + CycloneDX/SPDX SBOMs |
 | Readable per-package summary | ✗ | ✓ | ✓ (job summary / PR comment) | ✓ |
 | Vulnerabilities introduced / fixed by the change | ✗ | ✗ | introduced only (GitHub Advisory DB) | ✓ both (OSV.dev) |
 | Release age + ⏱ cooldown flag on fresh versions | ✗ | ✗ | ✗ | ✓ (deps.dev) |
@@ -2049,9 +2049,10 @@ Dependabot PR, that's lockvet.
 regressions, known vulns — with an interactive prompt and package-manager
 aliasing so it can be your daily `npm`. If you live in npm, it's a great
 daily driver. [`lockvet pkg`](#vet-a-package-before-you-install-it--lockvet-pkg)
-runs the same kind of pre-install check across ~19 ecosystems (npm, PyPI,
+runs the same kind of pre-install check across ~30 ecosystems (npm, PyPI,
 crates.io, RubyGems, Go, Maven, NuGet, Composer, Hex, pub.dev, JSR,
-CocoaPods, Terraform, CRAN, GitHub Actions, …) — but it's a one-shot
+CocoaPods, Terraform, CRAN, Helm, GitHub Actions, CircleCI orbs,
+toolchains, …) — but it's a one-shot
 report, not an install wrapper, and pre-install vetting is one subcommand
 of a tool whose main job is diffs and CI gates.
 

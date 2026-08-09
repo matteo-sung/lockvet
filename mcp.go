@@ -216,7 +216,7 @@ func mcpTools() []map[string]any {
 		{
 			"name":        "vet_files",
 			"title":       "Vet two lockfiles or SBOMs on disk",
-			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 40 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
+			"description": "Explain the dependency changes between two files on disk, no git needed: two lockfiles (any of the 60 supported formats; one side may carry a suffix, e.g. Cargo.lock.orig vs Cargo.lock) or two CycloneDX/SPDX JSON SBOMs under any filename — e.g. syft scans of two container images.",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
