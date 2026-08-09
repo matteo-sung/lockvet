@@ -558,6 +558,13 @@ func ByBasename(p string) *Parser {
 		return &Parser{"kustomization.yaml", Docker, parseKustomization}
 	case ".gitlab-ci.yml", ".gitlab-ci.yaml":
 		return &Parser{"gitlab-ci", Docker, parseGitLabCI}
+	case "build.properties":
+		// sbt's project/build.properties pins the sbt version itself —
+		// a Maven Central artifact (org.scala-sbt:sbt) that
+		// scala-steward bumps everywhere. Lenient: build.properties
+		// files without an sbt.version key (ant projects share the
+		// basename) parse to an empty file.
+		return &Parser{"build.properties", Maven, parseSbtBuildProps}
 	case "devcontainer.json", ".devcontainer.json":
 		// Dev Container configs: .devcontainer/devcontainer.json,
 		// .devcontainer.json, .devcontainer/<name>/devcontainer.json —
@@ -593,6 +600,15 @@ func ByBasename(p string) *Parser {
 	// place. Lenient: scripts without exact pins parse to an empty file.
 	if strings.HasSuffix(base, ".gradle") || strings.HasSuffix(base, ".gradle.kts") {
 		return &Parser{"build.gradle", Maven, parseBuildGradle}
+	}
+	// sbt build definitions: build.sbt, plugins.sbt and every other
+	// *.sbt file, plus the project/*.scala helper convention
+	// (Dependencies.scala keeps the coordinates in many builds). The
+	// build definition is the pin file for Scala — scala-steward bumps
+	// coordinates in place. Lenient: files without exact pins parse to
+	// an empty file.
+	if strings.HasSuffix(base, ".sbt") || isSbtProjectScalaPath(fullPath) {
+		return &Parser{"build.sbt", Maven, parseSbt}
 	}
 	// conda-lock supports named unified lockfiles (chipyard keeps
 	// conda-reqs.conda-lock.yml, torchlens audio.pixi.lock, …).
@@ -682,7 +698,8 @@ func KnownBasenames() []string {
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
-		"libs.versions.toml", "verification-metadata.xml", "pom.xml", "build.zig.zon",
+		"libs.versions.toml", "verification-metadata.xml", "pom.xml",
+		"build.sbt", "build.properties", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
 		"kustomization.yaml", "values.yaml", "devcontainer.json",
 		".gitlab-ci.yml", ".pre-commit-config.yaml",

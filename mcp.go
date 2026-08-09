@@ -26,9 +26,9 @@ const mcpLatestProtocol = "2025-06-18"
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
 version is, what's deprecated, what's missing from the registry index, what looks like a typosquat, what suddenly runs install scripts, what silently drops sigstore provenance, what changes its content hash without a version change, what moves from a private registry to the public one
-(unpublished/pulled releases), and license changes — across 52 lockfile
+(unpublished/pulled releases), and license changes — across 54 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
-conda, Julia, Haskell, Terraform, Helm, Ansible Galaxy, renv, SBOMs, and more).
+conda, Julia, Haskell, Scala/sbt, Terraform, Helm, Ansible Galaxy, renv, SBOMs, and more).
 
 Use vet_url for a pull/merge request, compare, or commit URL on GitHub,
 GitLab, Bitbucket, Gitea/Forgejo, or Azure DevOps (no clone needed);
