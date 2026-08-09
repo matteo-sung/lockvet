@@ -115,7 +115,11 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 				}
 			}
 			if c.TagMismatch {
-				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim("the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"))
+				mismatchWhy := "the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"
+				if c.Ecosystem == "Gradle" {
+					mismatchWhy = "the pinned distributionSha256Sum is not any checksum Gradle publishes for this version — the wrapper would happily verify a poisoned distribution against a poisoned checksum; do not run this build until you know why"
+				}
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim(mismatchWhy))
 			}
 			if c.TyposquatOf != "" {
 				fmt.Fprintf(w, "      %s %s\n", s.bred("≈ name resembles "+c.TyposquatOf+":"), s.dim("pinned recently and one edit away from a popular package — the shape of a typosquat; make sure this is the package you meant"))

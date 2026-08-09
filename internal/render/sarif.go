@@ -211,6 +211,8 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 				text := fmt.Sprintf("%s, but the pinned commit is not what the upstream repository's release tag points at today (%s). Released tags are supposed to be immutable — either the tag has been re-pointed since this was resolved, or the lockfile was edited to fetch a different commit while displaying an innocent version. Verify the commit before trusting it.%s", what, strings.Join(c.TagMismatches, "; "), via)
 				if c.Ecosystem == "Docker" {
 					text = fmt.Sprintf("%s, but the pinned digest is not what the registry serves for this tag today (%s). Image tags do move — the tag may simply have been rebuilt since this pin was made (re-pin to refresh) — but a pin that never came from this registry looks the same. Verify before trusting.%s", what, strings.Join(c.TagMismatches, "; "), via)
+				} else if c.Ecosystem == "Gradle" {
+					text = fmt.Sprintf("%s, but the pinned distributionSha256Sum is not any checksum Gradle publishes for this version (%s). The wrapper would happily verify a poisoned distribution against a poisoned checksum. Do not run this build until you know why.%s", what, strings.Join(c.TagMismatches, "; "), via)
 				}
 				results = append(results, result{
 					RuleID: "tag-mismatch", RuleIndex: idx,

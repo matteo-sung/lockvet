@@ -22,7 +22,7 @@
     introduced (OSV.dev), release ages, deprecations, versions missing from
     the registry index, newly added install scripts, dropped provenance,
     typosquat lookalikes, integrity/resolution tampering, and the dependency
-    chain pulling each transitive change in. 50 lockfile formats plus SBOMs,
+    chain pulling each transitive change in. 52 lockfile formats plus SBOMs,
     CI workflow pins, container base images (Dockerfile / Compose),
     Kubernetes manifests and kustomizations (Flux and Argo CD CRs
     included), and pre-commit hook rev pins themselves.
@@ -49,6 +49,7 @@
       Containerfile\.[^/]+|[^/]+\.Containerfile|
       (docker-)?compose(\.[^/]+)?\.ya?ml|
       [^/]*\.versions\.toml|[^/]*\.gradle(\.kts)?|verification-metadata(\.dryrun)?\.xml|pom\.xml|
+      gradle-wrapper\.properties|maven-wrapper\.properties|
       bom\.json|sbom\.json|cyclonedx\.json|spdx\.json|
       [^/]*\.(cdx|spdx|cyclonedx)\.json|
       action\.ya?ml|\.pre-commit-config\.ya?ml|

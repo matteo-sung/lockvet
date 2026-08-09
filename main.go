@@ -32,6 +32,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/goreg"
+	"github.com/matteo-sung/lockvet/internal/gradlereg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/helmreg"
@@ -787,6 +788,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := gradlereg.Annotate(diffs, *freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Gradle version-index check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if ok, err := condareg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: anaconda.org registry check skipped: %v\n", err)
 		} else if ok {
@@ -1318,6 +1324,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := bzlreg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Bazel Central Registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := gradlereg.Annotate(combined, o.freshDays); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: Gradle version-index check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

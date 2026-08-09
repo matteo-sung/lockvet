@@ -31,6 +31,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/gitx"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/goreg"
+	"github.com/matteo-sung/lockvet/internal/gradlereg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
@@ -278,6 +279,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if ok, err := bzlreg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Bazel Central Registry check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := gradlereg.Annotate(diffs, o.freshDays); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("Gradle version-index check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}

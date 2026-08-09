@@ -75,6 +75,8 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"gitlab-ci":      lock.GitLabCI,
 	"orb":            lock.CircleCI,
 	"circleci":       lock.CircleCI,
+	"gradle":         lock.GradleDist,
+	"gradle-dist":    lock.GradleDist,
 	"swift":          lock.SwiftURL,
 	"swiftpm":        lock.SwiftURL,
 	"spm":            lock.SwiftURL,

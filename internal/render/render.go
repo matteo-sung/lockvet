@@ -182,18 +182,26 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 					integrityWhy = "same version, different go.sum hash — a released module version's h1 hash never changes, so the module these builds will accept no longer matches what every earlier build verified; do not trust this without finding out why"
 				} else if c.Ecosystem == "Zig" {
 					integrityWhy = "same version, different hash — the source archive this pin expects was replaced (moved tag, re-cut tarball, hijacked mirror, or hand-edited manifest); do not trust this without finding out why"
+				} else if c.Ecosystem == "Gradle" {
+					integrityWhy = "same version, different distributionSha256Sum — a released Gradle distribution never changes, so the checksum the wrapper will enforce no longer matches what every earlier build verified; do not trust this without finding out why"
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim(integrityWhy))
 			}
 			if c.TagMismatch {
 				mismatchWhy := "the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"
-				if c.Ecosystem == "Docker" {
+				if c.Ecosystem == "Gradle" {
+					mismatchWhy = "the pinned distributionSha256Sum is not any checksum Gradle publishes for this version — the wrapper would happily verify a poisoned distribution against a poisoned checksum; do not run this build until you know why"
+				} else if c.Ecosystem == "Docker" {
 					mismatchWhy = "the pinned digest is not what the registry serves for this tag today — image tags do move, so this may only mean the tag was rebuilt since the pin was made (re-pin to refresh); it can also mean the pin never came from this registry — verify before trusting"
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ tag mismatch: "+join(c.TagMismatches)), s.dim(mismatchWhy))
 			}
 			if c.DigestVerified {
-				fmt.Fprintf(w, "      %s %s\n", s.green("✔ digest verified:"), s.dim("the registry serves exactly this digest for the tag today"))
+				verifiedWhat := "the registry serves exactly this digest for the tag today"
+				if c.Ecosystem == "Gradle" {
+					verifiedWhat = "distributionSha256Sum is exactly the checksum Gradle publishes for this version"
+				}
+				fmt.Fprintf(w, "      %s %s\n", s.green("✔ digest verified:"), s.dim(verifiedWhat))
 			}
 			if c.RegistryMoved {
 				movedWhy := "this package now resolves from the public registry instead of a private host — the shape of a dependency-confusion attack; make sure the public package is really yours"
@@ -546,7 +554,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			}
 			if c.TagMismatch {
 				mismatchNote := "the pinned commit is not what the upstream tag points at today — the tag was moved since resolution or the lockfile was edited"
-				if c.Ecosystem == "Docker" {
+				if c.Ecosystem == "Gradle" {
+					mismatchNote = "the pinned distributionSha256Sum is not any checksum Gradle publishes for this version — the wrapper would verify a poisoned distribution against it"
+				} else if c.Ecosystem == "Docker" {
 					mismatchNote = "the pinned digest is not what the registry serves for this tag today — rebuilt tag (re-pin to refresh) or a pin that never came from this registry"
 				}
 				fmt.Fprintf(w, "| ‼ | ↳ tag mismatch | | %s | %s |%s\n", esc(join(c.TagMismatches)), mismatchNote, padCell)

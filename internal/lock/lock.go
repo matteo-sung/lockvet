@@ -125,6 +125,14 @@ const (
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
 	SBOMEco Ecosystem = "SBOM"
+
+	// GradleDist is the Gradle distribution itself, pinned by
+	// gradle-wrapper.properties: no OSV ecosystem and no deps.dev
+	// system — internal/gradlereg verifies pins against
+	// services.gradle.org (ages, broken releases, unlisted versions,
+	// official checksums). Maven's wrapper pins, by contrast, are
+	// ordinary Maven coordinates and use the Maven ecosystem.
+	GradleDist Ecosystem = "Gradle"
 )
 
 // HasOSV reports whether the ecosystem can be queried on OSV.dev.
@@ -480,6 +488,10 @@ func ByBasename(p string) *Parser {
 		return &Parser{"pubspec.lock", Pub, parsePubspecLock}
 	case "gradle.lockfile":
 		return &Parser{"gradle.lockfile", Maven, parseGradleLockfile}
+	case "gradle-wrapper.properties":
+		return &Parser{"gradle-wrapper.properties", GradleDist, parseGradleWrapperProps}
+	case "maven-wrapper.properties":
+		return &Parser{"maven-wrapper.properties", Maven, parseMavenWrapperProps}
 	case "packages.lock.json":
 		return &Parser{"packages.lock.json", NuGet, parseNuGetLock}
 	case "Package.resolved":
@@ -663,7 +675,8 @@ func KnownBasenames() []string {
 		"pylock.toml",
 		"go.mod", "go.sum", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"rebar.lock",
-		"pubspec.lock", "gradle.lockfile", "packages.lock.json", "Package.resolved",
+		"pubspec.lock", "gradle.lockfile", "gradle-wrapper.properties",
+		"maven-wrapper.properties", "packages.lock.json", "Package.resolved",
 		"Podfile.lock", "deno.lock", "flake.lock", "renv.lock", "pixi.lock",
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
 		"requirements.lock", "Manifest.toml", "manifest.toml",

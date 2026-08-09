@@ -26,6 +26,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/cranreg"
 	"github.com/matteo-sung/lockvet/internal/gemreg"
 	"github.com/matteo-sung/lockvet/internal/goreg"
+	"github.com/matteo-sung/lockvet/internal/gradlereg"
 	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
@@ -103,6 +104,10 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.Conda:     condaLatest,
 	lock.Hackage:   hkgreg.Latest,
 	lock.Bazel:     bzlreg.Latest,
+
+	// The Gradle distribution: latest = the version services.gradle.org
+	// marks current.
+	lock.GradleDist: gradlereg.Latest,
 
 	// Ansible Galaxy collections resolve via the v3 index's
 	// highest_version; classic roles fall back to the v1 role index.

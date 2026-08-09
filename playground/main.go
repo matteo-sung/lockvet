@@ -59,6 +59,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/ghpr"
 	"github.com/matteo-sung/lockvet/internal/glmr"
 	"github.com/matteo-sung/lockvet/internal/goreg"
+	"github.com/matteo-sung/lockvet/internal/gradlereg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
 	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
@@ -467,6 +468,13 @@ func run(opts js.Value) (js.Value, error) {
 		// browser depends on its CORS headers — failures make no claims.
 		if ok, err := helmreg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("Helm chart repository check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		// services.gradle.org is CORS-open: wrapper pins get the full
+		// treatment in the browser too.
+		if ok, err := gradlereg.Annotate(diffs, req.freshDays); err != nil {
+			warnings = append(warnings, fmt.Sprintf("Gradle version-index check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}
