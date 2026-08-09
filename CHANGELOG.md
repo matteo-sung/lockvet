@@ -4,6 +4,31 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.2 — 2026-08-09
+
+- **vcpkg manifests are format #60, and the registry lineup is 22.**
+  `vcpkg.json` barely pins versions — the `builtin-baseline` commit does:
+  every dependency resolves to what microsoft/vcpkg recorded at that
+  commit, so the baseline IS the lockfile. lockvet now verifies each
+  baseline bump against the registry repository itself: the commit's own
+  date becomes the release age, `old...new` compare links let you read
+  what the registry picked up, and a baseline that is **not** a commit in
+  the registry's repository — the poisoned-registry shape, where the
+  build only resolves on a fork — lands in the ▲ lane with
+  vcpkg-specific wording. `overrides` version pins are checked against
+  the registry's append-only versions database (a version no port ever
+  shipped is real evidence), and `vcpkg-configuration.json` registry
+  baselines get the same treatment — a swapped `default-registry`
+  surfaces as a resolution move (⇄). Honesty gates: overrides under
+  declared `overlay-ports` or custom registries claim nothing
+  (microsoft/terminal pins fmt to an overlay-only version exactly this
+  way — replayed, quiet), and both baseline and override claims require
+  the outgoing value to resolve first. `lockvet pkg vcpkg:<port>`
+  resolves latest from the versions database. Replayed 50 manifest-bump
+  pairs across microsoft/terminal, cesium-native, OpenVINO and
+  onnxruntime: zero noise. Everything works in the browser playground
+  too (both endpoints are CORS-open).
+
 ## v0.6.1 — 2026-08-09
 
 - **Single-tool version files are format #57.** `.nvmrc` / `.node-version`

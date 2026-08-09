@@ -22,7 +22,7 @@
     introduced (OSV.dev), release ages, deprecations, versions missing from
     the registry index, newly added install scripts, dropped provenance,
     typosquat lookalikes, integrity/resolution tampering, and the dependency
-    chain pulling each transitive change in. 59 lockfile formats plus SBOMs,
+    chain pulling each transitive change in. 60 lockfile formats plus SBOMs,
     CI workflow pins, container base images (Dockerfile / Compose),
     Kubernetes manifests and kustomizations (Flux and Argo CD CRs
     included), and pre-commit hook rev pins themselves.
@@ -44,6 +44,7 @@
       [^/]*conda-lock\.ya?ml|[^/]*pixi\.lock|[^/]*\.terraform\.lock\.hcl|
       Chart\.lock|Chart\.ya?ml|requirements\.ya?ml|requirements\.lock|[Mm]anifest\.toml|Manifest-v[^/]*\.toml|
       stack\.yaml\.lock|cabal\.project\.freeze|cabal\.config|conan\.lock|
+      vcpkg\.json|vcpkg-configuration\.json|
       MODULE\.bazel|MODULE\.bazel\.lock|build\.zig\.zon|
       Dockerfile|Containerfile|Dockerfile\.[^/]+|[^/]+\.[Dd]ockerfile|
       Containerfile\.[^/]+|[^/]+\.Containerfile|

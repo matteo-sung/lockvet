@@ -382,6 +382,9 @@ func unlistedText(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "Docker" {
 		return fmt.Sprintf("%s, but the image registry does not serve %s for this image. A deleted tag, the wrong repository, or a fabricated digest pin looks exactly like this. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}
+	if vcpkgBaseline(c) {
+		return fmt.Sprintf("%s, but baseline %s is not a commit in the registry's repository. vcpkg resolves every dependency's version from the baseline commit, so a baseline only reachable in a fork is the poisoned-registry shape. Verify where it comes from.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
+	}
 	return fmt.Sprintf("%s, but version %s is missing from the registry index even though other versions of the package are listed. Unpublished or deleted releases look exactly like this (registries pull malicious versions); a release published minutes ago may also not be indexed yet. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 }
 
@@ -501,6 +504,9 @@ func movedMessage(c diffx.Change, what, via string) string {
 	}
 	if c.Ecosystem == "Zig" {
 		return fmt.Sprintf("%s and now fetches from %s instead of %s. A dependency that changes source without you editing build.zig.zon means someone re-pointed it; make sure the move was intentional.%s", what, c.NewHost, c.OldHost, via)
+	}
+	if vcpkgBaseline(c) {
+		return fmt.Sprintf("%s and its baseline now resolves from %s instead of %s. Every dependency's version resolves from the registry baseline, so a repository swap you didn't make re-points the whole dependency tree; make sure the move was intentional.%s", what, c.NewHost, c.OldHost, via)
 	}
 	return fmt.Sprintf("%s and now resolves from %s instead of %s. A package that silently moves from a private host to the public registry is the shape of a dependency-confusion attack; make sure the public package is really yours.%s", what, c.NewHost, c.OldHost, via)
 }

@@ -143,6 +143,14 @@ const (
 	// are real registry packages and are marked per-package via
 	// File.PkgEco; gradle/maven/sbt map onto their existing registries.
 	MiseTool Ecosystem = "mise/asdf"
+
+	// Vcpkg covers vcpkg.json / vcpkg-configuration.json (C/C++). There
+	// is no OSV ecosystem and no deps.dev system — internal/vcpkgreg is
+	// the metadata layer: baseline commits are verified against the
+	// registry repository itself (existence + commit date via the GitHub
+	// API) and override pins against the registry's append-only versions
+	// database.
+	Vcpkg Ecosystem = "vcpkg"
 )
 
 // HasOSV reports whether the ecosystem can be queried on OSV.dev.
@@ -568,6 +576,10 @@ func ByBasename(p string) *Parser {
 		return &Parser{"cabal.project.freeze", Hackage, parseCabalFreeze}
 	case "conan.lock":
 		return &Parser{"conan.lock", Conan, parseConanLock}
+	case "vcpkg.json":
+		return &Parser{"vcpkg.json", Vcpkg, parseVcpkgManifest}
+	case "vcpkg-configuration.json":
+		return &Parser{"vcpkg-configuration.json", Vcpkg, parseVcpkgConfiguration}
 	case "MODULE.bazel.lock":
 		return &Parser{"MODULE.bazel.lock", Bazel, parseBazelLock}
 	case "MODULE.bazel":
@@ -727,7 +739,8 @@ func KnownBasenames() []string {
 		"conda-lock.yml", ".terraform.lock.hcl", "Chart.lock",
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
-		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
+		"conan.lock", "vcpkg.json", "vcpkg-configuration.json",
+		"MODULE.bazel.lock", "MODULE.bazel",
 		"libs.versions.toml", "verification-metadata.xml", "pom.xml",
 		"build.sbt", "build.properties", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",

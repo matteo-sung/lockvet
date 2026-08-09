@@ -170,6 +170,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned version matches no tag in the tool's repository — mise/asdf would build or download exactly what this pin names; verify what gets installed"))
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags, so this one was deleted or renamed after resolution; verify what the pin fetches"))
+				} else if vcpkgBaseline(c) {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a commit in the registry: "+join(c.UnlistedVersions)), s.dim("this baseline is not a commit in the registry's repository — vcpkg resolves every dependency's version from the baseline commit, and a baseline only reachable in a fork is the poisoned-registry shape; verify where it comes from"))
 				} else if c.Ecosystem == "Docker" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in the registry: "+join(c.UnlistedVersions)), s.dim("the registry does not serve this for the image — a deleted tag, the wrong repository, or a fabricated pin; verify before trusting"))
 				} else {
@@ -211,6 +213,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 					movedWhy = "this flake input now fetches from a different repository — if you didn't change it in flake.nix yourself, someone re-pointed your dependency"
 				} else if c.Ecosystem == "Zig" {
 					movedWhy = "this dependency now fetches from a different source — if you didn't change it in build.zig.zon yourself, someone re-pointed your dependency"
+				} else if vcpkgBaseline(c) {
+					movedWhy = "the registry baseline now points at a different repository — every dependency's version resolves from that baseline, so a swap you didn't make re-points your whole dependency tree"
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("⇄ resolution moved: "+c.OldHost+" → "+c.NewHost), s.dim(movedWhy))
 			}
@@ -547,6 +551,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned version matches no tag in the tool's repository — mise/asdf installs exactly what the pin names; verify what gets installed |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | no matching tag in the package's repository — version pins only resolve from tags; verify what this pin fetches |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				} else if vcpkgBaseline(c) {
+					fmt.Fprintf(w, "| ❗ | ↳ not a commit in the registry | | %s | the baseline is not a commit in the registry's repository — the build only resolves on a checkout that carries it; verify where it comes from |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "Docker" {
 					fmt.Fprintf(w, "| ❗ | ↳ not in the registry | | %s | the registry does not serve this for the image — a deleted tag, the wrong repository, or a fabricated pin |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else {
@@ -574,6 +580,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					movedNote = "this flake input now fetches from a different repository — make sure that was intentional"
 				} else if c.Ecosystem == "Zig" {
 					movedNote = "this dependency now fetches from a different source — make sure that was intentional"
+				} else if vcpkgBaseline(c) {
+					movedNote = "the registry baseline now points at a different repository — every dependency resolves from it; make sure that was intentional"
 				}
 				fmt.Fprintf(w, "| ⇄ | ↳ resolution moved | %s | %s | %s |%s\n", esc(c.OldHost), esc(c.NewHost), movedNote, padCell)
 			}
@@ -735,4 +743,12 @@ func shortHash(d string) string {
 		return d[:12]
 	}
 	return d
+}
+
+// vcpkgBaseline reports whether a vcpkg change pins a registry baseline
+// commit ("builtin-baseline", "default-registry", "registry <host>")
+// rather than a port version override.
+func vcpkgBaseline(c diffx.Change) bool {
+	return c.Ecosystem == "vcpkg" && (c.Name == "builtin-baseline" ||
+		c.Name == "default-registry" || strings.HasPrefix(c.Name, "registry "))
 }

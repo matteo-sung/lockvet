@@ -110,6 +110,8 @@ func AuditTerminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned version matches no tag in the tool's repository — mise/asdf installs exactly what the pin names; verify what gets installed"))
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags; verify what this pin fetches"))
+				} else if vcpkgBaseline(c) {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a commit in the registry: "+join(c.UnlistedVersions)), s.dim("this baseline is not a commit in the registry's repository — a baseline only reachable in a fork is the poisoned-registry shape; verify where it comes from"))
 				} else if c.Ecosystem == "Docker" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not in the registry: "+join(c.UnlistedVersions)), s.dim("the registry does not serve this for the image — a deleted tag, the wrong repository, or a fabricated pin; verify before trusting"))
 				} else {
@@ -304,6 +306,8 @@ func AuditMarkdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulns
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — pinned version matches no tag in the tool's repository; mise/asdf installs exactly what the pin names |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | %s — no matching tag in the package's repository; version pins only resolve from tags |%s\n", esc(join(c.UnlistedVersions)), padCell)
+				} else if vcpkgBaseline(c) {
+					fmt.Fprintf(w, "| ❗ | ↳ not a commit in the registry | %s — the baseline is not a commit in the registry's repository; verify where it comes from |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "Docker" {
 					fmt.Fprintf(w, "| ❗ | ↳ not in the registry | %s — the registry does not serve this for the image; deleted tag, wrong repository, or fabricated pin |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else {

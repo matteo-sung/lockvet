@@ -76,6 +76,8 @@ func FuzzAllParsers(f *testing.F) {
 		"[[tools.node]]\nversion = \"20.11.0\"\nbackend = \"core:node\"\n\n[tools.node.platforms.linux-x64]\nchecksum = \"sha256:a6c213b7a2c3b8b9c0aaf8d7f5b3a5c8d4e2f4a5b6c7d8e9f0a1b2c3d4e5f6a7\"\nurl = \"https://nodejs.org/dist/x.tar.xz\"\n\n[[tools.ripgrep]]\nversion = \"14.1.1\"\nbackend = \"aqua:BurntSushi/ripgrep\"\noptions = { exe = \"rg\" }\n\n[tools.ripgrep.checksums]\n\"rg.tar.gz\" = \"blake3:ab\"\n",
 		"ruby-3.3.4\n# c\nv18.16.0\nlts/hydrogen\npypy3.10-7.3.16\n",
 		"java=17.0.9-tem\ngradle=8.5 # c\nkotlin=1.9.22\nbroken line\n=\n",
+		"{\n// c\n\"name\": \"app\",\n\"builtin-baseline\": \"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\",\n\"dependencies\": [\"zlib\", {\"name\": \"fmt\", \"version>=\": \"10.0.0\"}],\n\"overrides\": [{\"name\": \"openssl\", \"version\": \"3.1.4\", \"port-version\": 2}, {\"name\": \"b\", \"version-date\": \"2024-01-01\"}],\n\"vcpkg-configuration\": {\"default-registry\": {\"kind\": \"git\", \"repository\": \"https://github.com/o/reg\", \"baseline\": \"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\"}, \"registries\": [{\"kind\": \"git\", \"repository\": \"git@github.com:o/r2.git\", \"baseline\": \"cafecafecafecafecafecafecafecafecafecafe\", \"packages\": [\"boost*\"]}]}\n}",
+		"{\"default-registry\": {\"kind\": \"builtin\", \"baseline\": \"0123456789abcdef0123456789abcdef01234567\"}, \"registries\": [{\"kind\": \"filesystem\", \"path\": \"/x\", \"packages\": [\"a\"]}]}",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

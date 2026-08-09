@@ -234,9 +234,9 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 59 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs, asdf/mise toolchain pins (.tool-versions, mise.toml, mise.lock with per-platform checksum integrity pins, .nvmrc/.python-version/.ruby-version-style version files, .sdkmanrc), Gradle build scripts / wrappers / version catalogs / verification metadata, Maven POMs and sbt build definitions) across the npm, pnpm, yarn, bun, Cargo,
+It understands 60 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs, asdf/mise toolchain pins (.tool-versions, mise.toml, mise.lock with per-platform checksum integrity pins, .nvmrc/.python-version/.ruby-version-style version files, .sdkmanrc), Gradle build scripts / wrappers / version catalogs / verification metadata, Maven POMs and sbt build definitions) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
-Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam, Scala (sbt),
+Swift, CocoaPods, Conan, vcpkg, Deno, Nix, conda, R, Julia, Haskell, Gleam, Scala (sbt),
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and
 SPDX JSON SBOMs \(em all in one static binary.
 .SH MODES
@@ -446,7 +446,9 @@ Data sources:
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
 NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
 the Terraform and OpenTofu registries, ConanCenter, CRAN (via METACRAN),
-Hackage, anaconda.org, the Bazel Central Registry, Ansible Galaxy, the CircleCI orb registry, Helm chart
+Hackage, anaconda.org, the Bazel Central Registry, microsoft/vcpkg's
+versions database and registry repository (baseline commits verified to
+exist), Ansible Galaxy, the CircleCI orb registry, Helm chart
 repositories' own index.yaml, the Go module proxy,
 and the Maven repositories
 (Central and Google) themselves (version listings, install scripts,

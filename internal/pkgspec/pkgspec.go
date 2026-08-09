@@ -80,6 +80,8 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"swift":          lock.SwiftURL,
 	"swiftpm":        lock.SwiftURL,
 	"spm":            lock.SwiftURL,
+	"vcpkg":          lock.Vcpkg,
+	"port":           lock.Vcpkg,
 	"tool":           lock.MiseTool,
 	"mise":           lock.MiseTool,
 	"asdf":           lock.MiseTool,
@@ -112,7 +114,7 @@ func Parse(arg string) (Spec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, ansible, swift, orb, tool", ecoPart)
+		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, vcpkg, conda, cran, julia, hackage, bazel, ansible, swift, orb, tool", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {

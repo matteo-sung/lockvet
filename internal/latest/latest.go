@@ -41,6 +41,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/pubreg"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
+	"github.com/matteo-sung/lockvet/internal/vcpkgreg"
 	"github.com/matteo-sung/lockvet/internal/vers"
 )
 
@@ -104,6 +105,10 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	lock.Conda:     condaLatest,
 	lock.Hackage:   hkgreg.Latest,
 	lock.Bazel:     bzlreg.Latest,
+
+	// vcpkg ports: the newest entry in microsoft/vcpkg's append-only
+	// versions database ("12.2.0#1" form, port-version included).
+	lock.Vcpkg: vcpkgreg.Latest,
 
 	// The Gradle distribution: latest = the version services.gradle.org
 	// marks current.

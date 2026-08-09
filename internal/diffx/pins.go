@@ -107,7 +107,7 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 		c.OldHost, c.NewHost = oh, nh
 		eco := lock.Ecosystem(c.Ecosystem)
 		switch {
-		case eco == lock.Nix || eco == lock.Zig:
+		case eco == lock.Nix || eco == lock.Zig || eco == lock.Vcpkg:
 			// Flake and build.zig.zon "hosts" are whole source locations
 			// (forge repo paths, mirror hostnames): a host move means the
 			// dependency was re-pointed at a different source — the
@@ -117,7 +117,12 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 			// dependency to a fork or mirror WITH a new pin is routine,
 			// visible business (a fifth of real ghostty/libvaxis history);
 			// a source that changes while the version claims nothing moved
-			// is the shape worth stopping for.
+			// is the shape worth stopping for. For vcpkg the host is the
+			// registry repository a default-registry baseline resolves
+			// from: a swap re-points EVERY dependency's version source.
+			// Even a same-commit swap flags (as a repin): today's content
+			// is sha-identical, but every FUTURE baseline bump would come
+			// from the new repository — the setup step of the attack.
 			if eco == lock.Zig && len(common) == 0 {
 				break
 			}

@@ -81,6 +81,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/render"
 	"github.com/matteo-sung/lockvet/internal/squat"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
+	"github.com/matteo-sung/lockvet/internal/vcpkgreg"
 )
 
 var version = "dev" // set via -ldflags at build time
@@ -475,6 +476,11 @@ func run(opts js.Value) (js.Value, error) {
 		// treatment in the browser too.
 		if ok, err := gradlereg.Annotate(diffs, req.freshDays); err != nil {
 			warnings = append(warnings, fmt.Sprintf("Gradle version-index check skipped: %v", err))
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := vcpkgreg.Annotate(diffs, req.freshDays, ""); err != nil {
+			warnings = append(warnings, fmt.Sprintf("vcpkg registry check skipped: %v", err))
 		} else if ok {
 			metaChecked = true
 		}

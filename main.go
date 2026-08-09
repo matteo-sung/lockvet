@@ -57,6 +57,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/swiftreg"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
+	"github.com/matteo-sung/lockvet/internal/vcpkgreg"
 	"github.com/matteo-sung/lockvet/internal/vers"
 )
 
@@ -793,6 +794,11 @@ func main() {
 		} else if ok {
 			metaChecked = true
 		}
+		if ok, err := vcpkgreg.Annotate(diffs, *freshDays, ghpr.Token()); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: vcpkg registry check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
 		if ok, err := condareg.Annotate(diffs, *freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: anaconda.org registry check skipped: %v\n", err)
 		} else if ok {
@@ -1329,6 +1335,11 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		}
 		if ok, err := gradlereg.Annotate(combined, o.freshDays); err != nil {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: Gradle version-index check skipped: %v\n", err)
+		} else if ok {
+			metaChecked = true
+		}
+		if ok, err := vcpkgreg.Annotate(combined, o.freshDays, ghpr.Token()); err != nil {
+			fmt.Fprintf(os.Stderr, "lockvet: warning: vcpkg registry check skipped: %v\n", err)
 		} else if ok {
 			metaChecked = true
 		}

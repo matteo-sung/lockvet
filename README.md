@@ -85,10 +85,10 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 59 formats:
+- **across every ecosystem, in one static binary** — 60 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, `pylock.toml` (PEP 751), Go modules (`go.mod` + `go.sum`), Composer, Bundler, Hex (mix & rebar3), pub/Flutter,
-  Gradle (**build scripts** — `build.gradle`/`build.gradle.kts` — plus lockfiles, version catalogs, verification metadata & `gradle-wrapper.properties`), **Maven POMs** (`pom.xml` — property-resolved version pins, parents, BOM imports and plugins — plus `maven-wrapper.properties`), **sbt build definitions** (`build.sbt`, `plugins.sbt`, `project/Dependencies.scala`, `project/build.properties` — Scala's manifest-is-lockfile), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
+  Gradle (**build scripts** — `build.gradle`/`build.gradle.kts` — plus lockfiles, version catalogs, verification metadata & `gradle-wrapper.properties`), **Maven POMs** (`pom.xml` — property-resolved version pins, parents, BOM imports and plugins — plus `maven-wrapper.properties`), **sbt build definitions** (`build.sbt`, `plugins.sbt`, `project/Dependencies.scala`, `project/build.properties` — Scala's manifest-is-lockfile), NuGet, Swift Package Manager, CocoaPods, Conan, **vcpkg** (manifest baselines & version overrides), R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
   Helm, Ansible Galaxy (`requirements.yml`), Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
   and **GitLab CI configs** (`include: component:` catalog pins, job `image:`/`services:` refs),
@@ -176,22 +176,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.1/lockvet_v0.6.1_linux_amd64.deb
-sudo dpkg -i lockvet_v0.6.1_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.2/lockvet_v0.6.2_linux_amd64.deb
+sudo dpkg -i lockvet_v0.6.2_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.6.1/lockvet_v0.6.1_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.6.2/lockvet_v0.6.2_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.1/lockvet_v0.6.1_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.6.1_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.2/lockvet_v0.6.2_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.6.2_linux_amd64.apk
 ```
 
 Go:
@@ -211,7 +211,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.6.1 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.6.2 lockvet
 ```
 
 ### Shell completions & man page
@@ -236,8 +236,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.6.1_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.6.1 --owner matteo-sung
+gh attestation verify lockvet_v0.6.2_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.6.2 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -479,7 +479,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.6.1
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.6.2
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -538,7 +538,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 59 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
+lockfile it finds — all 60 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -595,7 +595,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.6.1/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.6.2/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -638,11 +638,14 @@ lockvet pkg swift:Alamofire/Alamofire       # SwiftPM (github.com implied)
 lockvet pkg helm:https://charts.bitnami.com/bitnami/postgresql  # Helm charts
 lockvet pkg ansible:community.general       # Ansible Galaxy (collections & roles)
 lockvet pkg tool:node tool:terraform        # asdf/mise tools, from the tool's own repo tags
+lockvet pkg vcpkg:fmt                       # vcpkg ports, from the registry's versions database
 ```
 
 Latest-version lookup covers npm, PyPI, crates.io, RubyGems, Packagist, Go,
 Hex, pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, CRAN, Hackage,
-the Bazel Central Registry (`bazel:<module>`), conda
+the Bazel Central Registry (`bazel:<module>`), vcpkg ports
+(`vcpkg:<port>` — the newest entry in microsoft/vcpkg's versions
+database, port-version included), conda
 (`conda:[channel/]name` — the channel defaults to conda-forge),
 Helm charts (`helm:<repo-url>/<chart>` — resolved against that
 repository's own index, skipping deprecated releases),
@@ -684,7 +687,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.6.1", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.6.2", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -739,7 +742,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.6.1
+      - uses: matteo-sung/lockvet@v0.6.2
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -766,7 +769,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.6.1
+      - uses: matteo-sung/lockvet@v0.6.2
         with:
           sarif: 'true'
 ```
@@ -786,7 +789,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.6.1
+  image: ghcr.io/matteo-sung/lockvet:0.6.2
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -811,7 +814,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.6.1
+          image: ghcr.io/matteo-sung/lockvet:0.6.2
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -829,7 +832,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.6.1
+    container: ghcr.io/matteo-sung/lockvet:0.6.2
     steps:
       - checkout: none
       - script: >
@@ -853,7 +856,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.6.1
+    image: ghcr.io/matteo-sung/lockvet:0.6.2
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -872,7 +875,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.6.1
+    rev: v0.6.2
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1778,6 +1781,7 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | .NET | `packages.lock.json` |
 | Swift | `Package.resolved` |
 | C / C++ | `conan.lock` (Conan 2 flat lockfiles and Conan 1 graph locks) — release ages straight from ConanCenter, dated by each version's oldest recipe revision so re-exports don't make old releases look fresh (refs with a user/channel exempt; a ref doesn't record its remote, so no unlisted claims) |
+| vcpkg | `vcpkg.json` + `vcpkg-configuration.json` — the `builtin-baseline` commit IS the lockfile (every dependency resolves to what the registry recorded at that commit): baselines are verified to exist in the registry's repository (a baseline only reachable in a fork is the poisoned-registry shape) with the commit's own date as the age and rev…rev compare links; `overrides` version pins are checked against microsoft/vcpkg's append-only versions database; registry baselines in `vcpkg-configuration.json` get the same treatment, and a swapped `default-registry` surfaces as a resolution move (overrides under `overlay-ports` or custom registries honestly claim nothing) |
 | Bazel | `MODULE.bazel.lock` (both the modern registry-hash shape and the Bazel 7.0/7.1 dep-graph shape) and `MODULE.bazel` itself (`bazel_dep` pins exact versions and update bots bump them in place, go.mod-style) — yanked versions with the registry's reason, source-repo changelog links and the registry-verified unlisted check straight from the Bazel Central Registry (modules from private registries and `git_override`/`local_path_override` exempt) |
 | iOS / CocoaPods | `Podfile.lock` — release ages, deprecated-pod flags, license changes and the unlisted check straight from the CocoaPods CDN and trunk registry (git/path pods and private specs repos exempt) |
 | R | `renv.lock` — CRAN + Bioconductor advisories (`RSEC-…`); release ages, archived-package flags, license changes, changelog links and a mirror-lag-safe unlisted check straight from CRAN itself (GitHub/GitLab/local/git installs exempt) |
@@ -1839,6 +1843,16 @@ neither place was never on CRAN).
 `conan.lock` gets release ages only: a Conan reference doesn't record
 which remote it came from, so absence from ConanCenter proves nothing and
 lockvet makes no unlisted or deprecation claims there.
+vcpkg manifests are baseline-pinned: the `builtin-baseline` commit decides
+every dependency's version, so lockvet verifies the commit exists in the
+registry's repository (a baseline only reachable in a fork is the
+poisoned-registry shape — the build resolves on the attacker's checkout
+and nowhere else), dates it, links `old...new` on the registry repo, and
+checks `overrides` version pins against microsoft/vcpkg's append-only
+versions database. Both claims are gated on the outgoing value resolving
+(projects on overlay ports or custom registries never trip them), and
+`overlay-ports` declared in the manifest's configuration turn override
+claims off entirely.
 Nix flake inputs pin git revisions, not versions — lockvet shows them as
 `<commit-date>.<short-rev>` so the diff still reads chronologically, turns
 each input's `lastModified` into release ages (the ⏱ cooldown flag works

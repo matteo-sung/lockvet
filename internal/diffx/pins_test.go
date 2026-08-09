@@ -351,3 +351,49 @@ BUNDLED WITH
 		t.Fatalf("bad change: %+v", c)
 	}
 }
+
+const vcpkgCfgTmpl = `{"default-registry": {"kind": "git", "repository": "https://github.com/%s", "baseline": "%s"}}`
+
+func TestVcpkgDefaultRegistrySwapFlagsMove(t *testing.T) {
+	// Repository swap WITH a baseline change: the whole dependency tree
+	// re-points — resolution-moved lane.
+	oldF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "microsoft/vcpkg", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	newF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "evil/vcpkg-fork", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if !c.RegistryMoved {
+		t.Error("swapped default-registry should flag the resolution-moved lane")
+	}
+	if c.OldHost != "github.com/microsoft/vcpkg" || c.NewHost != "github.com/evil/vcpkg-fork" {
+		t.Errorf("hosts = %q -> %q", c.OldHost, c.NewHost)
+	}
+	if c.SourceRepo != "" {
+		t.Errorf("re-pointed registry must not get a SourceRepo (compare links would lie), got %q", c.SourceRepo)
+	}
+}
+
+func TestVcpkgDefaultRegistrySwapSameShaRepins(t *testing.T) {
+	// Same commit, different repository: today's content is sha-identical,
+	// but every future baseline bump would come from the new repository —
+	// surfaced as a repin + move, the setup step of the attack.
+	oldF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "microsoft/vcpkg", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	newF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "evil/vcpkg-fork", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.RegistryMoved {
+		t.Errorf("want Repinned+RegistryMoved, got kind=%s moved=%v", c.Kind, c.RegistryMoved)
+	}
+}
+
+func TestVcpkgSameConfigNoRows(t *testing.T) {
+	oldF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "microsoft/vcpkg", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	newF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "microsoft/vcpkg", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("identical configs must produce no rows, got %+v", fd.Changes)
+	}
+}

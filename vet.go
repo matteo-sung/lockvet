@@ -55,6 +55,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/swiftreg"
 	"github.com/matteo-sung/lockvet/internal/taglink"
 	"github.com/matteo-sung/lockvet/internal/tfreg"
+	"github.com/matteo-sung/lockvet/internal/vcpkgreg"
 )
 
 type vetOptions struct {
@@ -284,6 +285,11 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 		}
 		if ok, err := gradlereg.Annotate(diffs, o.freshDays); err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Gradle version-index check skipped: %v", err))
+		} else if ok {
+			v.metaChecked = true
+		}
+		if ok, err := vcpkgreg.Annotate(diffs, o.freshDays, ghpr.Token()); err != nil {
+			v.warnings = append(v.warnings, fmt.Sprintf("vcpkg registry check skipped: %v", err))
 		} else if ok {
 			v.metaChecked = true
 		}
