@@ -376,6 +376,9 @@ func unlistedText(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "GitLab CI" {
 		return fmt.Sprintf("%s, but pinned version %s matches no tag in the component's project. CI/CD Catalog releases are cut from tags, and the component's configuration runs in every pipeline. Verify what the include fetches.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}
+	if c.Ecosystem == "mise/asdf" {
+		return fmt.Sprintf("%s, but pinned version %s matches no tag in the tool's repository. mise/asdf would build or download exactly what this pin names. Verify what gets installed.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
+	}
 	if c.Ecosystem == "Docker" {
 		return fmt.Sprintf("%s, but the image registry does not serve %s for this image. A deleted tag, the wrong repository, or a fabricated digest pin looks exactly like this. Verify before trusting.%s", what, strings.Join(c.UnlistedVersions, ", "), via)
 	}

@@ -80,6 +80,9 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"swift":          lock.SwiftURL,
 	"swiftpm":        lock.SwiftURL,
 	"spm":            lock.SwiftURL,
+	"tool":           lock.MiseTool,
+	"mise":           lock.MiseTool,
+	"asdf":           lock.MiseTool,
 }
 
 // Spec is one parsed `eco:name[@version]` argument.
@@ -109,7 +112,7 @@ func Parse(arg string) (Spec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, ansible, swift, orb", ecoPart)
+		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, ansible, swift, orb, tool", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {
@@ -187,6 +190,19 @@ func Parse(arg string) (Spec, error) {
 		}
 		if strings.Count(name, "/") < 3 {
 			return Spec{}, fmt.Errorf("component specs name the project and the component: component:<host>/<project-path>/<component>[@version], e.g. component:gitlab.com/components/opentofu/full-pipeline (got %q)", rest)
+		}
+	case lock.MiseTool:
+		// asdf/mise tools: map exactly as the .tool-versions parser does —
+		// backend prefixes onto their real registries (tool:npm:prettier →
+		// npm), gradle/maven/sbt onto the registries that verify them,
+		// everything else onto the curated tool→repository map.
+		n2, eco2, _, ok2 := lock.ToolEntryEco(name)
+		if !ok2 {
+			return Spec{}, fmt.Errorf("tool specs look like tool:<name>[@version], e.g. tool:node@22.4.0 or tool:ubi:owner/repo@1.2.3 (got %q)", rest)
+		}
+		name, eco = n2, eco2
+		if eco == lock.Go && version != "" && !strings.HasPrefix(version, "v") {
+			version = "v" + version
 		}
 	case lock.CircleCI:
 		// Orbs are addressed namespace/orb-name, exactly as `orbs:`

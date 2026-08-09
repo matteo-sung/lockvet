@@ -4,6 +4,81 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.0 — 2026-08-09
+
+- **asdf/mise toolchain pins are formats #55–56.** `.tool-versions` and
+  `mise.toml` (plus `.mise.toml`, `mise.local.toml` and `mise/config.toml`
+  locations) pin the exact toolchain a project runs — node, python,
+  terraform, kubectl — `mise up` and Renovate's `asdf`/`mise` managers bump
+  them like lockfile entries, and nothing vets them. Every pin is now
+  verified against the tool's OWN repository tags via a curated ~90-tool
+  map that speaks each repo's tag dialect (`go1.23.4`, ruby's `v3_4_2`,
+  Erlang's `OTP-27.1.2`, `jq-1.7.1`, `kustomize/v5.8.1`, PostgreSQL's
+  `REL_18_4`, `swift-6.1-RELEASE`, yarn's 1.x/berry split): verified
+  `(=tag)` resolutions with compare links and `-changelogs` release notes,
+  fuzzy pins (`node = "22"`) resolved to what they'd install today, and
+  the ▲ not-a-release flag when a concrete pin matches no tag — the same
+  check that catches the tj-actions attack shape in workflows. mise's
+  backend-prefixed tools are real registry packages and get the full
+  registry treatment (`npm:prettier` → npm, `cargo:eza` → crates.io,
+  `pipx:`/`pip:` → PyPI, `gem:`, `dotnet:`, `go:` — advisories, ages,
+  deprecations, typosquat checks); `ubi:`/`aqua:`/`github:`/`spm:` tools
+  verify against the named GitHub repo's tags; `gradle`, `maven` and `sbt`
+  pins ride the registries lockvet already verifies (services.gradle.org,
+  Maven Central). Honesty rules: plugin-sourced tools (`asdf:`, `vfox:`),
+  symbolic selectors (`latest`, `lts`, `system`, `ref:`/`path:`/`prefix:`
+  pins), letter-suffixed builds (`3.13t`) and vendor-prefixed Java
+  versions claim nothing; the curated map only lists repos with complete
+  tag history, and every entry is live-validated in tests. `lockvet pkg
+  tool:node` (also `tool:ubi:owner/repo`) vets a tool release before you
+  switch, resolving "latest" from the tool's own tags.
+
+## v0.5.31 — 2026-08-09
+
+- **sbt build definitions + `project/build.properties` are formats
+  #53–54.** Scala has no npm-style lockfile — the build definition is the
+  pin file and scala-steward bumps it in place. `"org" %% "artifact" %
+  "1.2.3"` resolves the Scala binary suffix from the same file's
+  `scalaVersion` (including `val` references) so the registry artifact
+  (`cats-core_2.13`) gets OSV advisories, Maven Central ages and unlisted
+  checks; `addSbtPlugin(…)` pins resolve under the sbt cross-suffix
+  (`sbt-scalafmt_2.12_1.0` — the name Central actually serves);
+  `CrossVersion.full`/`for3Use2_13`/`for2_13Use3` map to their documented
+  suffixes; anything unknowable from the file alone honestly claims
+  nothing. `project/build.properties` pins sbt itself — a real Maven
+  Central artifact with real advisories (try `lockvet pkg
+  maven:org.scala-sbt:sbt@1.10.7`). Validated on 240 replayed commits
+  across playframework, scala-steward, http4s and zio: 0 failures, 0
+  false positives.
+
+## v0.5.30 — 2026-08-09
+
+- **Build-tool wrappers are formats #51–52.** `gradle-wrapper.properties`
+  `distributionUrl` pins are verified against Gradle's own version index
+  at services.gradle.org (release ages, withdrawn-as-broken releases,
+  registry-verified unlisted checks — snapshot/nightly pins exempt), and
+  a pinned `distributionSha256Sum` is cross-checked against the checksum
+  Gradle actually publishes: the wrapper will happily verify a poisoned
+  distribution against a poisoned checksum, so a pin matching no official
+  checksum lands in the ‼ lane, and a matching one renders ✔ digest
+  verified. `.mvn/wrapper/maven-wrapper.properties` pins parse as
+  ordinary Maven coordinates (`org.apache.maven:apache-maven`) and get
+  the full Maven treatment. Corporate mirror URLs stay claim-free in
+  both. `lockvet pkg gradle:gradle` resolves the current release.
+
+## v0.5.29 — 2026-08-09
+
+- **Gradle build scripts are format #50.** `build.gradle` /
+  `build.gradle.kts` (plus `settings.gradle(.kts)` and any other
+  `*.gradle(.kts)` script) parse as pin files: coordinate string literals,
+  Groovy map / Kotlin named-argument forms, `plugins { id(…) version … }`
+  blocks resolved as Plugin Portal markers, and `$version` interpolation
+  against same-file `ext`/`def`/`val`/`extra[…]` assignments — a
+  Log4Shell-era `ext.log4jVersion` downgrade surfaces its advisories even
+  though no dependency line changed. Dynamic versions, unresolved
+  properties and SNAPSHOTs claim nothing. Also: `pkg maven:` latest is
+  now stable-preferring (no more `3.0.0-beta3` for log4j-core).
+
 ## v0.5.28 — 2026-08-09
 
 - **Maven `pom.xml` is format #49.** Maven has no npm-style lockfile —

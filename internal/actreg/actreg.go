@@ -104,6 +104,10 @@ func repoURL(c *diffx.Change) string {
 				return "https://" + repo
 			}
 		}
+	case lock.MiseTool:
+		// asdf/mise toolchain pins: the curated tool→repo map, or the
+		// GitHub repo a ubi:/aqua:/github:/spm: name spells directly.
+		return toolRepoURL(c)
 	}
 	return ""
 }
@@ -225,6 +229,25 @@ func annotateChange(c *diffx.Change, rr repoRefs) {
 		}
 	}
 
+	// mise/asdf tool pins: tag spellings are per-tool (go1.23.4, ruby
+	// v3_3_4, OTP-27.1, jq-1.7.1) and mise accepts fuzzy short pins
+	// ("22" = the latest 22.x): resolve what the generic pass missed.
+	if lock.Ecosystem(c.Ecosystem) == lock.MiseTool {
+		for _, side := range [][]string{c.Old, c.New} {
+			for _, v := range side {
+				if _, done := c.ResolvedRefs[v]; done {
+					continue
+				}
+				if t := toolResolve(c.Name, v, tags); t != "" && t != v {
+					if c.ResolvedRefs == nil {
+						c.ResolvedRefs = map[string]string{}
+					}
+					c.ResolvedRefs[v] = t
+				}
+			}
+		}
+	}
+
 	// Unlisted: an incoming pin that is neither a tag nor any tag's
 	// commit. Branch-name refs (main, master) are a deliberate choice and
 	// stay quiet; version-shaped refs and SHAs are how releases are
@@ -245,6 +268,13 @@ func annotateChange(c *diffx.Change, rr repoRefs) {
 		if shaOf(v) == "" && !VersionLike(v) {
 			continue
 		}
+		if lock.Ecosystem(c.Ecosystem) == lock.MiseTool &&
+			shaOf(v) == "" && !toolExactShaped(v) {
+			// Fuzzy short pins ("22") and suffixed builds ("3.13t",
+			// "27.0-rc3") are legitimate mise spellings, not fabricated
+			// releases: only concrete dotted numeric pins may flag.
+			continue
+		}
 		c.Unlisted = true
 		c.UnlistedVersions = append(c.UnlistedVersions, v)
 	}
@@ -256,6 +286,15 @@ func annotateChange(c *diffx.Change, rr repoRefs) {
 	// on means nothing between a tag and a commit hash.
 	if len(c.Old) == 1 && len(c.New) == 1 {
 		effOld, effNew := Effective(c, c.Old[0]), Effective(c, c.New[0])
+		// A version-shaped ref resolved to a tag that is NOT version-
+		// shaped (ruby 3.3.4 → v3_3_4) still means the version it spells:
+		// classify from the ref, keep the tag for links.
+		if !VersionLike(effOld) && VersionLike(c.Old[0]) {
+			effOld = c.Old[0]
+		}
+		if !VersionLike(effNew) && VersionLike(c.New[0]) {
+			effNew = c.New[0]
+		}
 		if VersionLike(effOld) && VersionLike(effNew) {
 			switch cmp := vers.Compare(effOld, effNew); {
 			case cmp < 0:

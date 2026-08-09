@@ -132,6 +132,10 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	// CircleCI orb releases come from the orb registry's own GraphQL
 	// API; "latest" is what `volatile` would fetch.
 	lock.CircleCI: orbreg.Latest,
+
+	// mise/asdf tools: the newest stable release tagged in the tool's
+	// own repository (curated tool→repo map, per-tool tag conventions).
+	lock.MiseTool: actreg.ToolLatest,
 }
 
 // helmLatest resolves <repo-url>/<chart> against the chart repository's

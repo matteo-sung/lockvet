@@ -234,7 +234,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 54 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs, Gradle build scripts / wrappers / version catalogs / verification metadata, Maven POMs and sbt build definitions) across the npm, pnpm, yarn, bun, Cargo,
+It understands 56 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs, asdf/mise .tool-versions and mise.toml toolchain pins, Gradle build scripts / wrappers / version catalogs / verification metadata, Maven POMs and sbt build definitions) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam, Scala (sbt),
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and
@@ -273,9 +273,10 @@ retraction / yank status, whether the version is missing from its
 registry's index, and typosquat suspicion. Specs look like
 \fBnpm:left-pad\fR, \fBpypi:requests@2.32.0\fR, \fBcargo:serde\fR,
 \fBgo:\fIgithub.com/owner/repo\fR, \fBmaven:\fIgroup:artifact\fR,
-\fBjsr:@std/http\fR. With no version, the registry's latest is looked up
-(npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, pub.dev, JSR, NuGet,
-Maven, CocoaPods, Terraform).
+\fBjsr:@std/http\fR, \fBtool:node\fR (asdf/mise tools, verified against
+the tool's own repository tags). With no version, the registry's latest
+is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex,
+pub.dev, JSR, NuGet, Maven, CocoaPods, Terraform, tools).
 .TP
 .B lockvet diff
 Vet two files on disk with no git: two lockfiles, or two CycloneDX/SPDX

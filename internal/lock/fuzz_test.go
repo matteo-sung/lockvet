@@ -71,6 +71,8 @@ func FuzzAllParsers(f *testing.F) {
 		"version: 2.1\norbs:\n  node: circleci/node@5.1.0\n  s: circleci/slack@volatile\n  d: ns/t@dev:a\n  i:\n    commands: {}\njobs:\n  b:\n    docker:\n      - image: cimg/node:18.16\n        auth: {username: u}\n    machine:\n      image: ubuntu-2204:2024.01.1\n    steps:\n      - run: |\n          image: fake:1\n",
 		"distributionBase=GRADLE_USER_HOME\ndistributionSha256Sum=31c55713e40233a8303827ceb42ca48a47267a0ad4bab9177123121e71524c26\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.10.2-bin.zip\nlong=a\\\n b\n",
 		"distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip\nwrapperUrl=https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar\ndistributionSha256Sum=7a9cdf674fc1703d6382f5f330b3d110ea1b512b51f1652846d9e4e8a588d766\n",
+		"# tools\nnodejs 22.4.0 # c\nruby 3.3.4\npython 3.12.4 3.11.9\njava temurin-21.0.2+13.0.LTS\nnpm:prettier 3.3.3\nubi:owner/repo[exe=x] 1.2.3\ngo:github.com/a/b 1.1.5\nnode lts\ndirenv system\npython ref:main\n",
+		"[tools]\nnode = \"22\" # c\npython = [\"3.12.4\", \"3.11.9\"]\nerlang = { version = \"26.2.5\", x = 1 }\n\"npm:markdownlint-cli2\" = \"0.13.0\"\ngo = \"latest\"\n\n[tools.\"ubi:sharkdp/fd\"]\nversion = \"10.1.0\"\n\n[tasks.b]\nrun = \"make\"\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

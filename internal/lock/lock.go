@@ -133,6 +133,16 @@ const (
 	// official checksums). Maven's wrapper pins, by contrast, are
 	// ordinary Maven coordinates and use the Maven ecosystem.
 	GradleDist Ecosystem = "Gradle"
+
+	// MiseTool covers asdf/mise toolchain pins (.tool-versions,
+	// mise.toml): each entry pins the exact tool release a project runs.
+	// No OSV ecosystem and no registry — internal/actreg verifies pins
+	// against the tool's own repository tags via a curated tool→repo map
+	// (per-tool tag conventions: go1.23.4, ruby v3_3_4, OTP-27.1).
+	// Backend-prefixed entries (npm:, cargo:, pipx:, gem:, dotnet:, go:)
+	// are real registry packages and are marked per-package via
+	// File.PkgEco; gradle/maven/sbt map onto their existing registries.
+	MiseTool Ecosystem = "mise/asdf"
 )
 
 // HasOSV reports whether the ecosystem can be queried on OSV.dev.
@@ -504,6 +514,17 @@ func ByBasename(p string) *Parser {
 		return &Parser{"flake.lock", Nix, parseFlakeLock}
 	case ".pre-commit-config.yaml", ".pre-commit-config.yml":
 		return &Parser{"pre-commit-config", PreCommit, parsePreCommitConfig}
+	case ".tool-versions":
+		return &Parser{".tool-versions", MiseTool, parseToolVersions}
+	case "mise.toml", ".mise.toml", "mise.local.toml", ".mise.local.toml":
+		return &Parser{"mise.toml", MiseTool, parseMiseToml}
+	case "config.toml":
+		// mise also reads .config/mise/config.toml, .mise/config.toml and
+		// mise/config.toml — only those paths; config.toml is a generic
+		// name (Hugo sites, ...).
+		if isMiseConfigPath(fullPath) {
+			return &Parser{"mise.toml", MiseTool, parseMiseToml}
+		}
 	case "renv.lock":
 		return &Parser{"renv.lock", CRAN, parseRenvLock}
 	case "pixi.lock":
@@ -703,6 +724,7 @@ func KnownBasenames() []string {
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
 		"kustomization.yaml", "values.yaml", "devcontainer.json",
 		".gitlab-ci.yml", ".pre-commit-config.yaml",
+		".tool-versions", "mise.toml",
 		"bom.json", "sbom.json",
 	}
 }
