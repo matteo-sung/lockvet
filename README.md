@@ -24,7 +24,7 @@ quietly added 7 transitive crates — one of them flagged by RUSTSEC.*
 **[Would lockvet have caught it?](docs/case-studies.md)** — event-stream,
 the chalk/debug takeover, the Shai-Hulud worm (and its
 [August 2026 return](docs/case-studies.md#12-the-keyv--cacheable-worm-august-2026--shai-hulud-returns)
-through keyv/Cacheable), the ultralytics miner, the strong_password gem
+through keyv/Cacheable — [replay it in your browser](https://matteo-sung.github.io/lockvet/#pkg=npm%3Akeyv%406.0.0)), the ultralytics miner, the strong_password gem
 hijack, the 2021 dependency-confusion attack, the tj-actions workflow-pin
 attack, and the Codecov poisoned-download shape, replayed against real
 advisories, with reproducible fixtures.

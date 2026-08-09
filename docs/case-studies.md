@@ -758,7 +758,11 @@ whole **major** as a buried transitive, which the via-chain display puts on
 its own line where a human reads it. Today all six flag twice over: the
 `MAL-2026-*` malware advisories, and `▲ not in registry index` because npm
 scrubbed every one of these versions after the attack (that flag needs no
-advisory — it fires from the registry's own 404).
+advisory — it fires from the registry's own 404). You can replay the
+`keyv` lookup itself right now, in your browser, no install:
+[`pkg npm:keyv@6.0.0` in the playground](https://matteo-sung.github.io/lockvet/#pkg=npm%3Akeyv%406.0.0)
+— the malware advisory and the scrubbed-from-the-index flag both render
+from live registry data.
 
 At T+0 the story is the same as [§4](#4-the-shai-hulud-worm-sept-2025):
 every one of these versions was minutes-to-hours old, so the
