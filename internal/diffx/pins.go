@@ -81,12 +81,20 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int)
 			continue
 		}
 		if integrityDiffers(oi, ni) {
-			if lock.Ecosystem(c.Ecosystem) == lock.Docker {
+			eco := lock.Ecosystem(c.Ecosystem)
+			if eco == lock.Docker || eco == lock.Conan {
 				// Image tags move by design: registries rebuild the same
 				// tag for base-image security fixes, and digest-update
 				// PRs re-pin it. Not an integrity alarm — record the
 				// digests so the row renders neutrally and the ocireg
 				// layer can verify the NEW pin against the registry.
+				// Conan recipe revisions are the same shape: the rrev
+				// hashes the recipe (the build script), and ConanCenter
+				// re-exports recipes for old versions routinely — a
+				// same-version rrev change is worth SEEING (silence was
+				// the old behaviour) but not worth an alarm, and the
+				// lockfile never records which remote it came from, so
+				// no registry verification is honest here.
 				c.DigestChanged = true
 				c.OldDigest, c.NewDigest = firstHash(oi), firstHash(ni)
 			} else {

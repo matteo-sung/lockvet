@@ -4,6 +4,22 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.3 — 2026-08-09
+
+- **Conan recipe revisions are pins now.** Every `conan.lock` ref carries
+  a `#recipe-revision` — a hash of the *recipe*, the build script Conan
+  will execute for that version. lockvet now records it as a pin, so a
+  revision change under an **unchanged version** — the build script
+  changing under your feet — renders as a neutral ↻ `recipe revision
+  f52e03ae3d25 → aaaa03ae3d25` row where it used to be complete silence.
+  Neutral on purpose: ConanCenter maintains recipes independently of
+  upstream releases and re-exports them for old versions routinely
+  (rippled's full `conan.lock` history replays to 55 such rows — all
+  legitimate), so this rides the same lane as a container's same-tag
+  digest bump: visible, not loud, and never a `-fail-on integrity` gate.
+  Revisions are accepted only when hash-shaped, in both Conan 2 flat
+  lockfiles and Conan 1 graph locks.
+
 ## v0.6.2 — 2026-08-09
 
 - **vcpkg manifests are format #60, and the registry lineup is 22.**

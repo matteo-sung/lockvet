@@ -45,6 +45,15 @@ func TestConanLockV2(t *testing.T) {
 	if f.RootsKnown {
 		t.Error("v2 flat lockfile records no graph")
 	}
+	if got := f.Pin("zlib", "1.3.1").Integrity; got != "rrev:f52e03ae3d251dec704634230cd806a2" {
+		t.Errorf("zlib rrev pin = %q", got)
+	}
+	if got := f.Pin("mytool", "1.0.0").Integrity; got != "rrev:deadbeef" {
+		t.Errorf("mytool rrev pin = %q", got)
+	}
+	if got := f.Pin("plain", "2.0").Integrity; got != "" {
+		t.Errorf("plain (no rrev) pin = %q", got)
+	}
 }
 
 func TestConanLockV1GraphLock(t *testing.T) {
@@ -82,23 +91,31 @@ func TestConanLockV1GraphLock(t *testing.T) {
 	if !f.NonRegistry["zlib"] {
 		t.Error("zlib@user/channel should be NonRegistry")
 	}
+	if got := f.Pin("openssl", "1.1.1k").Integrity; got != "rrev:deadbeef" {
+		t.Errorf("openssl v1 rrev pin = %q", got)
+	}
+	if got := f.Pin("fmt", "8.0.0").Integrity; got != "" {
+		t.Errorf("fmt (no rrev) pin = %q", got)
+	}
 }
 
 func TestSplitConanRef(t *testing.T) {
 	cases := []struct {
-		in, name, ver string
-		nonReg        bool
+		in, name, ver, rrev string
+		nonReg              bool
 	}{
-		{"zlib/1.3.1#abc%123.4", "zlib", "1.3.1", false},
-		{"pkg/1.0@user/ch#abc", "pkg", "1.0", true},
-		{"pkg/1.0@_/_", "pkg", "1.0", false},
-		{"noslash", "", "", false},
-		{"cci/cci.20210814", "cci", "cci.20210814", false},
+		{"zlib/1.3.1#abc%123.4", "zlib", "1.3.1", "", false}, // "abc" too short to be a revision hash
+		{"pkg/1.0@user/ch#abcd1234", "pkg", "1.0", "abcd1234", true},
+		{"pkg/1.0@_/_", "pkg", "1.0", "", false},
+		{"noslash", "", "", "", false},
+		{"cci/cci.20210814", "cci", "cci.20210814", "", false},
+		{"zlib/1.3.1#F52E03AE3D251DEC704634230CD806A2", "zlib", "1.3.1", "f52e03ae3d251dec704634230cd806a2", false},
+		{"evil/1.0#<script>injected-not-hex-shaped-x", "evil", "1.0", "", false},
 	}
 	for _, c := range cases {
-		n, v, nr := splitConanRef(c.in)
-		if n != c.name || v != c.ver || nr != c.nonReg {
-			t.Errorf("splitConanRef(%q) = %q %q %v", c.in, n, v, nr)
+		n, v, r, nr := splitConanRef(c.in)
+		if n != c.name || v != c.ver || r != c.rrev || nr != c.nonReg {
+			t.Errorf("splitConanRef(%q) = %q %q %q %v", c.in, n, v, r, nr)
 		}
 	}
 }

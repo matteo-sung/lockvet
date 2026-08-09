@@ -19,6 +19,14 @@ import (
 // packages are marked NonRegistry and never checked against ConanCenter.
 // The flat format records no dependency graph.
 //
+// The #recipe-revision is recorded as an integrity pin ("rrev:<hex>"):
+// the revision hashes the RECIPE — the build script Conan will run — so
+// a same-version revision change is the recipe's bytes changing under an
+// unchanged version. Recipes get re-exported legitimately all the time
+// (conan-center-index maintains recipes independently of upstream
+// releases), so diffx renders that change NEUTRALLY like a container
+// same-tag digest bump, not as an integrity alarm — visible, not loud.
+//
 // Conan 1.x lockfiles keep a "graph_lock" object with numbered nodes and
 // per-node requires edges; node "0" is the consumer project, so its
 // requires are the direct dependencies and the edges give via-chains.
@@ -56,12 +64,15 @@ func parseConanLock(path string, data []byte) (*File, error) {
 			if n.Ref == "" {
 				continue // consumer project node
 			}
-			name, ver, nonReg := splitConanRef(n.Ref)
+			name, ver, rrev, nonReg := splitConanRef(n.Ref)
 			if name == "" || ver == "" {
 				continue
 			}
 			f.add(name, ver)
 			nameOf[id] = name
+			if rrev != "" {
+				f.setPin(name, ver, "rrev:"+rrev, "")
+			}
 			if nonReg {
 				f.markNonRegistry(name)
 			}
@@ -87,11 +98,14 @@ func parseConanLock(path string, data []byte) (*File, error) {
 
 	for _, list := range [][]string{v2.Requires, v2.BuildRequires, v2.PythonRequires, v2.ConfigRequires} {
 		for _, ref := range list {
-			name, ver, nonReg := splitConanRef(ref)
+			name, ver, rrev, nonReg := splitConanRef(ref)
 			if name == "" || ver == "" {
 				continue
 			}
 			f.add(name, ver)
+			if rrev != "" {
+				f.setPin(name, ver, "rrev:"+rrev, "")
+			}
 			if nonReg {
 				f.markNonRegistry(name)
 			}
@@ -102,12 +116,19 @@ func parseConanLock(path string, data []byte) (*File, error) {
 
 // splitConanRef splits "name/version[@user/channel][#rrev][%ts]" and
 // reports whether the reference names a user/channel (i.e. does not come
-// from ConanCenter, whose references never carry one).
-func splitConanRef(ref string) (name, version string, nonRegistry bool) {
+// from ConanCenter, whose references never carry one). The recipe
+// revision is returned lowercased when it is hash-shaped (Conan writes
+// an md5 or sha256 hex digest); anything else comes back empty so a
+// hostile file cannot inject arbitrary strings into the pin set.
+func splitConanRef(ref string) (name, version, rrev string, nonRegistry bool) {
 	if i := strings.IndexByte(ref, '%'); i >= 0 {
 		ref = ref[:i]
 	}
 	if i := strings.IndexByte(ref, '#'); i >= 0 {
+		rrev = strings.ToLower(strings.TrimSpace(ref[i+1:]))
+		if !conanRevShaped(rrev) {
+			rrev = ""
+		}
 		ref = ref[:i]
 	}
 	if i := strings.IndexByte(ref, '@'); i >= 0 {
@@ -119,7 +140,23 @@ func splitConanRef(ref string) (name, version string, nonRegistry bool) {
 	}
 	name, version, ok := strings.Cut(ref, "/")
 	if !ok || strings.Contains(version, "/") {
-		return "", "", false
+		return "", "", "", false
 	}
-	return strings.TrimSpace(name), strings.TrimSpace(version), nonRegistry
+	return strings.TrimSpace(name), strings.TrimSpace(version), rrev, nonRegistry
+}
+
+// conanRevShaped reports whether s looks like a Conan recipe revision:
+// a hex digest (md5 = 32, sha1 = 40, sha256 = 64; ≥ 8 tolerated for
+// truncated forms seen in tooling output).
+func conanRevShaped(s string) bool {
+	if len(s) < 8 || len(s) > 64 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }

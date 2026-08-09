@@ -97,7 +97,10 @@ type Change struct {
 	// the registry instead: DigestVerified means the registry serves
 	// exactly this digest for the tag today. A pin the registry does NOT
 	// serve for the tag surfaces via TagMismatch; a digest the registry
-	// has never seen at all surfaces via Unlisted.
+	// has never seen at all surfaces via Unlisted. Conan recipe
+	// revisions ride the same lane ("rrev:" pins): recipes are
+	// re-exported for old versions routinely, so a same-version rrev
+	// change is shown neutrally as a recipe-revision update.
 	DigestChanged  bool   `json:"digest_changed,omitempty"`
 	DigestVerified bool   `json:"digest_verified,omitempty"`
 	OldDigest      string `json:"old_digest,omitempty"`

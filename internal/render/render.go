@@ -291,10 +291,12 @@ func line(s styler, c diffx.Change, nameW, fromW int) string {
 		return fmt.Sprintf("%s %s %s", s.dim("-"), name, s.dim(from+"  (removed)"))
 	case diffx.Repinned:
 		if c.DigestChanged && !c.IntegrityChanged && !c.RegistryMoved {
-			// Container digest update under an unchanged tag: routine by
-			// design (registries rebuild tags); rendered neutrally, the
-			// registry checks below say whether the new pin is real.
-			return fmt.Sprintf("%s %s %s  %s", s.cyan("↻"), name, from, s.dim("digest "+shortHash(c.OldDigest)+" → "+shortHash(c.NewDigest)))
+			// Container digest update under an unchanged tag (or a Conan
+			// recipe re-export under an unchanged version): routine by
+			// design; rendered neutrally, the registry checks below say
+			// whether the new pin is real.
+			noun, oldH, newH := digestUpdateParts(c)
+			return fmt.Sprintf("%s %s %s  %s", s.cyan("↻"), name, from, s.dim(noun+" "+oldH+" → "+newH))
 		}
 		return fmt.Sprintf("%s %s %s  %s", s.bred("‼"), name, from, s.bred("REPINNED")+s.dim(" (version unchanged)"))
 	}
@@ -488,7 +490,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 				icon, lvl = "➖", "removed"
 			case c.Kind == diffx.Repinned:
 				if c.DigestChanged && !c.IntegrityChanged && !c.RegistryMoved {
-					icon, lvl = "\U0001F504", "digest updated ("+esc(shortHash(c.OldDigest))+" → "+esc(shortHash(c.NewDigest))+")"
+					noun, oldH, newH := digestUpdateParts(c)
+					icon, lvl = "\U0001F504", noun+" updated ("+esc(oldH)+" → "+esc(newH)+")"
 				} else {
 					icon, lvl = "‼", "**REPINNED** (version unchanged)"
 				}
@@ -732,6 +735,19 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// digestUpdateParts words the neutral ↻ same-version pin-update row for
+// the ecosystem: container tags move by digest; Conan versions move by
+// recipe revision (the "rrev:" pin label is dropped — the noun says it).
+func digestUpdateParts(c diffx.Change) (noun, oldH, newH string) {
+	oldH, newH = c.OldDigest, c.NewDigest
+	if c.Ecosystem == "ConanCenter" {
+		return "recipe revision",
+			shortHash(strings.TrimPrefix(oldH, "rrev:")),
+			shortHash(strings.TrimPrefix(newH, "rrev:"))
+	}
+	return "digest", shortHash(oldH), shortHash(newH)
 }
 
 // shortHash trims a digest to a readable prefix ("sha256:48b0309ca019").
