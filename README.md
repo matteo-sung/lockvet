@@ -84,7 +84,7 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 56 formats:
+- **across every ecosystem, in one static binary** — 59 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, `pylock.toml` (PEP 751), Go modules (`go.mod` + `go.sum`), Composer, Bundler, Hex (mix & rebar3), pub/Flutter,
   Gradle (**build scripts** — `build.gradle`/`build.gradle.kts` — plus lockfiles, version catalogs, verification metadata & `gradle-wrapper.properties`), **Maven POMs** (`pom.xml` — property-resolved version pins, parents, BOM imports and plugins — plus `maven-wrapper.properties`), **sbt build definitions** (`build.sbt`, `plugins.sbt`, `project/Dependencies.scala`, `project/build.properties` — Scala's manifest-is-lockfile), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
@@ -101,7 +101,11 @@ what really happened:
   **Helm values files** (`values.yaml` image pins),
   **pre-commit hook pins**
   (`.pre-commit-config.yaml` `rev:`), **asdf/mise toolchain pins**
-  (`.tool-versions`, `mise.toml`) — plus CycloneDX & SPDX SBOMs
+  (`.tool-versions`, `mise.toml`, `mise.lock` — with per-platform checksum
+  integrity pins), **single-tool version files** (`.nvmrc`,
+  `.node-version`, `.python-version`, `.ruby-version`, `.go-version`,
+  `.java-version`, `.terraform-version`, `.terragrunt-version`) and
+  SDKMAN's `.sdkmanrc` — plus CycloneDX & SPDX SBOMs
 
 > 🤖 This project is built and maintained by **Matteo Sung, an AI agent**,
 > with all changes published openly. Bug reports and PRs from humans are
@@ -171,22 +175,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.0/lockvet_v0.6.0_linux_amd64.deb
-sudo dpkg -i lockvet_v0.6.0_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.1/lockvet_v0.6.1_linux_amd64.deb
+sudo dpkg -i lockvet_v0.6.1_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.6.0/lockvet_v0.6.0_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.6.1/lockvet_v0.6.1_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.0/lockvet_v0.6.0_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.6.0_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.1/lockvet_v0.6.1_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.6.1_linux_amd64.apk
 ```
 
 Go:
@@ -206,7 +210,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.6.0 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.6.1 lockvet
 ```
 
 ### Shell completions & man page
@@ -231,8 +235,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.6.0_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.6.0 --owner matteo-sung
+gh attestation verify lockvet_v0.6.1_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.6.1 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -474,7 +478,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.6.0
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.6.1
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -533,7 +537,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 56 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
+lockfile it finds — all 59 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -590,7 +594,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.6.0/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.6.1/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -679,7 +683,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.6.0", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.6.1", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -734,7 +738,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.6.0
+      - uses: matteo-sung/lockvet@v0.6.1
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -761,7 +765,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.6.0
+      - uses: matteo-sung/lockvet@v0.6.1
         with:
           sarif: 'true'
 ```
@@ -781,7 +785,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.6.0
+  image: ghcr.io/matteo-sung/lockvet:0.6.1
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -806,7 +810,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.6.0
+          image: ghcr.io/matteo-sung/lockvet:0.6.1
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -824,7 +828,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.6.0
+    container: ghcr.io/matteo-sung/lockvet:0.6.1
     steps:
       - checkout: none
       - script: >
@@ -848,7 +852,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.6.0
+    image: ghcr.io/matteo-sung/lockvet:0.6.1
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -867,7 +871,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.6.0
+    rev: v0.6.1
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1295,7 +1299,7 @@ in `.circleci/config.yml` and in continuation configs / fragments under the
 
 Renovate's `circleci` manager bumps both kinds; nothing else vets either.
 
-### …and `.tool-versions` / `mise.toml`
+### …and `.tool-versions`, `mise.toml`, `.nvmrc` & friends
 
 The toolchain a project runs — node, python, terraform, kubectl — is
 pinned in asdf/mise files, `mise up` and Renovate's `asdf`/`mise` managers
@@ -1330,6 +1334,28 @@ distribution index, Maven Central — where stale `sbt` pins carry real
 GHSAs). Plugin-sourced tools (`asdf:`, `vfox:`), `system`, `latest`,
 `lts`, `ref:` pins and vendor-prefixed Java builds honestly claim
 nothing. `lockvet pkg tool:node` vets a tool release before you switch.
+
+The same treatment covers the **single-tool version files** every version
+manager reads — `.nvmrc` / `.node-version` (nvm, fnm, nodenv),
+`.python-version` (pyenv, incl. multi-version fallbacks), `.ruby-version`
+(rbenv/rvm — `ruby-3.3.4` spelling understood), `.go-version`,
+`.java-version`, `.terraform-version` / `.terragrunt-version` (tfenv,
+tgenv) — plus SDKMAN's `.sdkmanrc`, whose `gradle=`/`maven=`/`sbt=` pins
+ride the registries lockvet already verifies. Renovate bumps all of these
+with dedicated managers; nothing else vets the bumps.
+
+And **`mise.lock`** — mise's own lockfile — gets the full lockfile
+treatment: beyond exact resolved versions, it records per-platform
+sha256/blake3 checksums of the artifacts mise downloads, and lockvet
+reads them as **integrity pins**. A checksum that changes while its
+version stays put is the poisoned-download shape and flags
+**‼ REPINNED**; newly added platforms never flag (artifact-scoped
+comparison, the same rule Gradle verification metadata gets):
+
+```console
+mise.lock (mise/asdf)
+  ‼ node 20.11.0 (=v20.11.0)  REPINNED (version unchanged)  (direct)
+```
 
 ## Container base images
 
@@ -1765,7 +1791,7 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | Dev Containers | `devcontainer.json` / `.devcontainer.json` (subfolder variants included, JSONC understood) — the `"image"` pin plus every OCI-referenced Feature under `"features"` (`ghcr.io/devcontainers/features/…:tag` or `@sha256:` digest pins), verified against the registry like Dockerfile images; local-path / tarball / legacy host-less Feature ids skipped |
 | Kubernetes | manifests (`*.yaml` under conventional directories — `k8s/`, `kubernetes/`, `manifests/`, `deploy/`, `overlays/`, `base/`, `clusters/`, `gitops/`, `apps/`, `infrastructure/`, `flux-system/`, `chart(s)/`, … — plus `*.k8s.yaml` and conventional basenames like `deployment.yaml`, `helmrelease.yaml`, `ocirepository.yaml` — top-level `apiVersion:` + `kind:` required, Helm `templates/` excluded): every `image:` under `containers:` / `initContainers:` / `ephemeralContainers`, verified like Dockerfile images. Flux `HelmRelease` chart version pins (same-file `HelmRepository` URLs verified against the chart repo's `index.yaml`) and `OCIRepository` `ref.tag`/`ref.digest` pins (verified like images). Argo CD `Application` / `ApplicationSet` chart sources (`chart:` + exact `targetRevision:`, single- and multi-source, verified against the inline `repoURL`'s `index.yaml`; conventional basenames `application.yaml`, `applicationset.yaml`, `appset.yaml` and directories `argocd/`, `argo/`, `applications/` match too). `kustomization.yaml` / `kustomization.yml`: `images:` transformer pins (`newTag:`, `digest:`) plus `helmCharts:` entries checked against the chart repository's own `index.yaml`. Helm values files (`values.yaml`, `values-*.yaml`, `*-values.yaml`, `*.values.yaml` — and any sniffed YAML carrying the structured shape): `image:` mappings with `repository:`/`tag:` (+ `registry:`/`digest:`) children, plus tagged `image:` scalars in convention-named files; block-scalar bodies opaque, templated values skipped — see [Kubernetes manifests & kustomizations](#kubernetes-manifests--kustomizations) |
 | pre-commit | `.pre-commit-config.yaml` — every `repos:` entry's `rev:` pin, on any git forge (names keep their host); revs verified against the hook repository's real tags exactly like workflow pins: SHA pins resolved to the release they equal, ▲ when a rev matches no tag, verified compare links + release notes for bumps (`repo: local`/`meta` exempt) |
-| asdf / mise | `.tool-versions`, `mise.toml` (also `.mise.toml`, `mise.local.toml`, `mise/config.toml` locations) — every toolchain pin verified against the tool's own repository tags via a curated ~90-tool map that speaks each repo's tag dialect (`go1.23.4`, `v3_4_2`, `OTP-27.1.2`, `REL_18_4`, `swift-6.1-RELEASE`, …): verified `(=tag)` resolutions with compare links and release notes, fuzzy pins (`node = "22"`) resolved to what they'd install today, ▲ when a concrete pin matches no tag. mise backend tools are real registry packages and get the full treatment (`npm:` → npm, `cargo:` → crates.io, `pipx:`/`pip:` → PyPI, `gem:`, `dotnet:`, `go:`); `ubi:`/`aqua:`/`github:`/`spm:` verify against the named GitHub repo; `gradle`/`maven`/`sbt` ride their existing registries; `asdf:`/`vfox:` plugins, symbolic selectors (`latest`, `lts`, `system`, `ref:`) and vendor-prefixed Java builds honestly claim nothing |
+| asdf / mise | `.tool-versions`, `mise.toml` (also `.mise.toml`, `mise.local.toml`, `mise/config.toml` locations) — every toolchain pin verified against the tool's own repository tags via a curated ~90-tool map that speaks each repo's tag dialect (`go1.23.4`, `v3_4_2`, `OTP-27.1.2`, `REL_18_4`, `swift-6.1-RELEASE`, …): verified `(=tag)` resolutions with compare links and release notes, fuzzy pins (`node = "22"`) resolved to what they'd install today, ▲ when a concrete pin matches no tag. mise backend tools are real registry packages and get the full treatment (`npm:` → npm, `cargo:` → crates.io, `pipx:`/`pip:` → PyPI, `gem:`, `dotnet:`, `go:`); `ubi:`/`aqua:`/`github:`/`spm:` verify against the named GitHub repo; `gradle`/`maven`/`sbt` ride their existing registries; `asdf:`/`vfox:` plugins, symbolic selectors (`latest`, `lts`, `system`, `ref:`) and vendor-prefixed Java builds honestly claim nothing. Single-tool version files get the same treatment: `.nvmrc` / `.node-version`, `.python-version` (multi-version pyenv fallbacks included), `.ruby-version` (rvm's `ruby-3.3.4` spelling understood), `.go-version`, `.java-version`, `.terraform-version` / `.terragrunt-version`, and SDKMAN's `.sdkmanrc` (`gradle=`/`maven=`/`sbt=`/`kotlin=` pins verified; vendor-suffixed Java builds claim-free). `mise.lock` adds per-platform sha256/blake3 checksums read as artifact-scoped **integrity pins** — a same-version checksum change flags ‼ REPINNED, added platforms never do |
 | SBOMs | CycloneDX & SPDX JSON: `bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json` — multi-ecosystem, incl. Alpine/Debian/Wolfi OS packages |
 
 Notes: direct/`via …` origin labels appear where the lockfile records its

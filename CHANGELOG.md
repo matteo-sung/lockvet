@@ -4,6 +4,43 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.1 — 2026-08-09
+
+- **Single-tool version files are format #57.** `.nvmrc` / `.node-version`
+  (nvm, fnm, nodenv), `.python-version` (pyenv — multi-version fallback
+  lists included), `.ruby-version` (rbenv/rvm — the `ruby-3.3.4` spelling
+  is understood), `.go-version`, `.java-version`, `.terraform-version` and
+  `.terragrunt-version` (tfenv/tgenv) each pin one tool for a repository,
+  every version manager in that tool's ecosystem reads them, and Renovate
+  bumps them with dedicated managers. Each pin now rides the asdf/mise
+  pipeline: verified `(=tag)` resolutions against the tool's own
+  repository tags, compare links and release notes, and ▲ when a concrete
+  pin matches no release. Vendor-prefixed values (`corretto-17`,
+  `pypy3.10-7.3.16`, `jruby-9.4.5.0`) and symbolic selectors
+  (`lts/hydrogen`, `latest:^1.5`, pyenv virtualenv names) honestly claim
+  nothing.
+- **SDKMAN's `.sdkmanrc` is format #58.** `sdk env` pins
+  `candidate=version` per line: `gradle=`, `maven=` and `sbt=` map onto
+  the registries lockvet already verifies (the Gradle distribution index
+  at services.gradle.org, Maven Central — with ages and real GHSAs),
+  `kotlin=`/`scala=` verify against their repos' tags, and SDKMAN's
+  vendor-suffixed Java builds (`17.0.9-tem`) render claim-free rows.
+- **`mise.lock` is format #59 — with integrity pins.** mise's own lockfile
+  records the exact resolved version per tool plus per-platform
+  sha256/blake3 checksums of the artifacts mise downloads. lockvet reads
+  the checksums as artifact-scoped integrity pins: a checksum that changes
+  while its version stays put — the poisoned-download shape — flags
+  **‼ REPINNED** (`-fail-on integrity` gates it), while newly added
+  platforms and per-distro artifact variants (disambiguated by `options`)
+  never flag. The `backend` string picks the pipeline: `core:*` and bare
+  names ride the tool map, `npm:`/`cargo:`/`pipx:`/`gem:`/`dotnet:`/`go:`
+  get the full registry treatment, `ubi:`/`aqua:`/`github:`/`spm:` verify
+  against the named repo's tags, `asdf:`/`vfox:`/`http:` plugins honestly
+  claim nothing. Both header shapes in the wild parse (the documented
+  `[tools.x.platforms.linux-x64]` and the quoted
+  `[tools.x."platforms.linux-x64"]` mise actually writes, plus the legacy
+  `[tools.x.checksums]` asset table).
+
 ## v0.6.0 — 2026-08-09
 
 - **asdf/mise toolchain pins are formats #55–56.** `.tool-versions` and

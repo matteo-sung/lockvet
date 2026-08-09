@@ -73,6 +73,9 @@ func FuzzAllParsers(f *testing.F) {
 		"distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip\nwrapperUrl=https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar\ndistributionSha256Sum=7a9cdf674fc1703d6382f5f330b3d110ea1b512b51f1652846d9e4e8a588d766\n",
 		"# tools\nnodejs 22.4.0 # c\nruby 3.3.4\npython 3.12.4 3.11.9\njava temurin-21.0.2+13.0.LTS\nnpm:prettier 3.3.3\nubi:owner/repo[exe=x] 1.2.3\ngo:github.com/a/b 1.1.5\nnode lts\ndirenv system\npython ref:main\n",
 		"[tools]\nnode = \"22\" # c\npython = [\"3.12.4\", \"3.11.9\"]\nerlang = { version = \"26.2.5\", x = 1 }\n\"npm:markdownlint-cli2\" = \"0.13.0\"\ngo = \"latest\"\n\n[tools.\"ubi:sharkdp/fd\"]\nversion = \"10.1.0\"\n\n[tasks.b]\nrun = \"make\"\n",
+		"[[tools.node]]\nversion = \"20.11.0\"\nbackend = \"core:node\"\n\n[tools.node.platforms.linux-x64]\nchecksum = \"sha256:a6c213b7a2c3b8b9c0aaf8d7f5b3a5c8d4e2f4a5b6c7d8e9f0a1b2c3d4e5f6a7\"\nurl = \"https://nodejs.org/dist/x.tar.xz\"\n\n[[tools.ripgrep]]\nversion = \"14.1.1\"\nbackend = \"aqua:BurntSushi/ripgrep\"\noptions = { exe = \"rg\" }\n\n[tools.ripgrep.checksums]\n\"rg.tar.gz\" = \"blake3:ab\"\n",
+		"ruby-3.3.4\n# c\nv18.16.0\nlts/hydrogen\npypy3.10-7.3.16\n",
+		"java=17.0.9-tem\ngradle=8.5 # c\nkotlin=1.9.22\nbroken line\n=\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

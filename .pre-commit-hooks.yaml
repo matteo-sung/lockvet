@@ -22,7 +22,7 @@
     introduced (OSV.dev), release ages, deprecations, versions missing from
     the registry index, newly added install scripts, dropped provenance,
     typosquat lookalikes, integrity/resolution tampering, and the dependency
-    chain pulling each transitive change in. 56 lockfile formats plus SBOMs,
+    chain pulling each transitive change in. 59 lockfile formats plus SBOMs,
     CI workflow pins, container base images (Dockerfile / Compose),
     Kubernetes manifests and kustomizations (Flux and Argo CD CRs
     included), and pre-commit hook rev pins themselves.
@@ -61,7 +61,10 @@
       (helmrelease|helm-release|release|ocirepository|helmrepository)\.ya?ml|
       (application|applicationset|appset)\.ya?ml|
       values\.ya?ml|values[-.][^/]+\.ya?ml|[^/]+[-._]values\.ya?ml|
-      \.tool-versions|\.?mise(\.local)?\.toml
+      \.tool-versions|\.?mise(\.local)?\.toml|mise\.lock|
+      \.nvmrc|\.node-version|\.python-version|\.ruby-version|
+      \.go-version|\.java-version|\.terraform-version|\.terragrunt-version|
+      \.sdkmanrc
     )$
     |^(.*/)?\.?(config/)?mise/config\.toml$
     |^(.*/)?\.(github|gitea|forgejo)/workflows/[^/]+\.ya?ml$

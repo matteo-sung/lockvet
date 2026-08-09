@@ -516,6 +516,15 @@ func ByBasename(p string) *Parser {
 		return &Parser{"pre-commit-config", PreCommit, parsePreCommitConfig}
 	case ".tool-versions":
 		return &Parser{".tool-versions", MiseTool, parseToolVersions}
+	case ".nvmrc", ".node-version", ".python-version", ".ruby-version",
+		".go-version", ".java-version", ".terraform-version",
+		".terragrunt-version":
+		base := path.Base(p)
+		return &Parser{base, MiseTool, parseSingleToolPin(base, singleToolFiles[base])}
+	case ".sdkmanrc":
+		return &Parser{".sdkmanrc", MiseTool, parseSdkmanrc}
+	case "mise.lock":
+		return &Parser{"mise.lock", MiseTool, parseMiseLock}
 	case "mise.toml", ".mise.toml", "mise.local.toml", ".mise.local.toml":
 		return &Parser{"mise.toml", MiseTool, parseMiseToml}
 	case "config.toml":
@@ -724,7 +733,10 @@ func KnownBasenames() []string {
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
 		"kustomization.yaml", "values.yaml", "devcontainer.json",
 		".gitlab-ci.yml", ".pre-commit-config.yaml",
-		".tool-versions", "mise.toml",
+		".tool-versions", "mise.toml", "mise.lock",
+		".nvmrc", ".node-version", ".python-version", ".ruby-version",
+		".go-version", ".java-version", ".terraform-version",
+		".terragrunt-version", ".sdkmanrc",
 		"bom.json", "sbom.json",
 	}
 }
