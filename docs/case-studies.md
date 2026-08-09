@@ -17,6 +17,7 @@ The short version:
 | [Dependency confusion](#9-dependency-confusion-2021--the-attack-the-lockfile-itself-records) (2021) | npm · PyPI · more | copycats live within days | mostly never | ⇄ **resolution moved** private → public + ‼ **integrity changed** |
 | [tj-actions/changed-files](#10-tj-actionschanged-files-march-2025--the-workflow-pin-attack) (Mar 2025) | GitHub Actions | ~1 day, 23k+ repos | next day | ▲ **not a release** on the malicious commit + GHSA once published |
 | [Codecov bash uploader](#11-codecov-bash-uploader-2021--the-poisoned-toolchain-download) (2021) | CI tooling | ~2 months undetected | never — not a package | ‼ **integrity changed** on same-version checksum swaps + ‼ checksum not one the publisher ever issued |
+| [keyv / Cacheable worm](#12-the-keyv--cacheable-worm-august-2026--shai-hulud-returns) (Aug 2026) | npm | Aug 4, 2026 (hours per package) | ~2 h for keyv; rolling for the 400+ others | ▲ [MAL-2026-11524](https://osv.dev/vulnerability/MAL-2026-11524) ×6 + **not in registry index** ×6 in one "patch" diff |
 
 Note the two middle columns. **Advisories lag; release age doesn't.** In every
 one of these incidents there was a window — hours to weeks — where the
@@ -679,6 +680,110 @@ after). And the `gradle-wrapper.jar` binary committed next to the properties
 file is a separate risk with its own dedicated tool — Gradle's official
 wrapper-validation action — which is complementary to everything here.
 
+## 12. The keyv / Cacheable worm (August 2026) — Shai-Hulud returns
+
+This one is not history — it happened five days before this section was
+written. On August 4, 2026, starting around 09:00 UTC, an attacker with a
+compromised maintainer credential began pushing trojanized commits to the
+`keyv` repository; at ~09:35 UTC `keyv@6.0.0` went live on npm with a
+`preinstall` hook (`node setup.mjs`) that downloaded the Bun runtime and ran
+an obfuscated credential harvester — npm tokens, GitHub tokens (including
+GitHub Actions runner memory), cloud, Kubernetes and Vault secrets. Stolen
+npm credentials were then used to republish *other* packages the victims
+could publish: the same worm mechanic as
+[Shai-Hulud](#4-the-shai-hulud-worm-sept-2025), and researchers attributed
+it to the same lineage. Within a day, trackers counted 400+ affected
+packages and over two thousand malicious versions
+([Wiz](https://www.wiz.io/blog/keyv-and-cacheable-npm-supply-chain-attack),
+[JFrog](https://research.jfrog.com/post/shai-hulud-is-back-august/)).
+
+Most projects didn't depend on `keyv` — they depended on **eslint or
+anything else that caches**, and carried the whole `cacheable` family as
+transitives. Here's the shape a routine bot bump of `file-entry-cache` took
+during the attack window (versions are the real confirmed-malicious ones):
+
+```sh
+mkdir -p old new
+cat > old/package-lock.json <<'EOF'
+{
+  "name": "my-app", "version": "1.0.0", "lockfileVersion": 3, "requires": true,
+  "packages": {
+    "": { "name": "my-app", "version": "1.0.0", "dependencies": { "file-entry-cache": "^11.1.5" } },
+    "node_modules/file-entry-cache": { "version": "11.1.5", "resolved": "https://registry.npmjs.org/file-entry-cache/-/file-entry-cache-11.1.5.tgz", "dependencies": { "flat-cache": "^6.1.23" } },
+    "node_modules/flat-cache": { "version": "6.1.23", "resolved": "https://registry.npmjs.org/flat-cache/-/flat-cache-6.1.23.tgz", "dependencies": { "flatted": "^3.4.2", "cacheable": "^2.5.0", "hookified": "^1.15.0" } },
+    "node_modules/cacheable": { "version": "2.5.0", "resolved": "https://registry.npmjs.org/cacheable/-/cacheable-2.5.0.tgz", "dependencies": { "keyv": "^5.6.0", "@cacheable/utils": "^2.5.0", "@cacheable/memory": "^2.2.0" } },
+    "node_modules/@cacheable/utils": { "version": "2.5.0", "resolved": "https://registry.npmjs.org/@cacheable/utils/-/utils-2.5.0.tgz" },
+    "node_modules/@cacheable/memory": { "version": "2.2.0", "resolved": "https://registry.npmjs.org/@cacheable/memory/-/memory-2.2.0.tgz" },
+    "node_modules/keyv": { "version": "5.6.0", "resolved": "https://registry.npmjs.org/keyv/-/keyv-5.6.0.tgz" },
+    "node_modules/flatted": { "version": "3.4.2", "resolved": "https://registry.npmjs.org/flatted/-/flatted-3.4.2.tgz" },
+    "node_modules/hookified": { "version": "1.15.0", "resolved": "https://registry.npmjs.org/hookified/-/hookified-1.15.0.tgz" }
+  }
+}
+EOF
+sed -e 's/11\.1\.5/11.1.6/g' -e 's/6\.1\.23/6.1.24/g' \
+    -e 's/2\.5\.0/2.5.1/g' -e 's/2\.2\.0/2.2.1/g' \
+    -e 's/keyv-5\.6\.0/keyv-6.0.0/' -e 's/"version": "5.6.0"/"version": "6.0.0"/' \
+    -e 's/"keyv": "\^5\.6\.0"/"keyv": "^6.0.0"/' \
+    old/package-lock.json > new/package-lock.json
+lockvet diff old/package-lock.json new/package-lock.json
+```
+
+```text
+new/package-lock.json (npm)
+  ↑ keyv              5.6.0  → 6.0.0  MAJOR  via file-entry-cache › … › cacheable
+      ▲ not in registry index: 6.0.0 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces MAL-2026-11524 Malicious code in keyv (npm)
+  ↑ @cacheable/memory 2.2.0  → 2.2.1  patch  via file-entry-cache › … › cacheable
+      ▲ not in registry index: 2.2.1 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces MAL-2026-11558 Malicious code in @cacheable/memory (npm)
+  ↑ @cacheable/utils  2.5.0  → 2.5.1  patch  via file-entry-cache › … › cacheable
+      ▲ not in registry index: 2.5.1 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces MAL-2026-11561 Malicious code in @cacheable/utils (npm)
+  ↑ cacheable         2.5.0  → 2.5.1  patch  via file-entry-cache › flat-cache
+      ▲ not in registry index: 2.5.1 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces MAL-2026-11963 Malicious code in cacheable (npm)
+  ↑ file-entry-cache  11.1.5 → 11.1.6  patch  (direct)
+      ▲ not in registry index: 11.1.6 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces MAL-2026-11970 Malicious code in file-entry-cache (npm)
+  ↑ flat-cache        6.1.23 → 6.1.24  patch  via file-entry-cache
+      ▲ not in registry index: 6.1.24 missing from the registry index though other versions are listed — unpublished/deleted release, or published minutes ago; verify before trusting
+      ▲ introduces MAL-2026-11971 Malicious code in flat-cache (npm)
+
+6 packages changed · 1 major · 5 patch · 1 direct · 5 transitive · vulnerabilities: 6 introduced, 0 fixed · 6 versions not in registry index
+```
+
+**What to notice.** One routine-looking "patch" bump of one direct
+dependency drags in **six** malicious versions — including `keyv` jumping a
+whole **major** as a buried transitive, which the via-chain display puts on
+its own line where a human reads it. Today all six flag twice over: the
+`MAL-2026-*` malware advisories, and `▲ not in registry index` because npm
+scrubbed every one of these versions after the attack (that flag needs no
+advisory — it fires from the registry's own 404).
+
+At T+0 the story is the same as [§4](#4-the-shai-hulud-worm-sept-2025):
+every one of these versions was minutes-to-hours old, so the
+[⏱ freshness flag](#the-pattern-and-what-a-gate-can-actually-do) and
+`-fail-on fresh` cooldown hold the door regardless of advisories — and the
+added `preinstall` hook is exactly the none→some transition the
+[`⚙ install scripts added`](../README.md#install-scripts-added-by-a-bump)
+flag looks for (as in §4, it can't retro-fire here: npm deleted the
+versions, so their script metadata is gone — the `▲` line above is the
+flag you get *because* of that deletion). The advisory response was
+genuinely fast this time — OSV's first `keyv` malware record landed ~1h45m
+after the release — but the worm kept minting fresh versions across 400+
+packages for hours, each with its own quiet window, and any branch or bot
+PR opened during the window still carries the pin afterward.
+
+One honest concession: `keyv@6.0.0` shipped with **valid npm provenance**,
+because the attacker modified the source and let the project's own release
+workflow build and attest it. The
+[⛨ provenance-dropped tripwire](../README.md#provenance-dropped-by-a-bump) is a
+*token-theft* tripwire and stays silent here — attestation proves who
+built it, not that the source is clean. No single signal covers every
+attack shape; that's why the flags above are several independent ones.
+
+---
+
 ## The pattern, and what a gate can actually do
 
 Every incident above has the same shape:
@@ -699,14 +804,16 @@ So, honestly stated, here is what each lockvet gate buys you:
   malware detection — it's a cooldown (the same idea as Renovate's
   `minimumReleaseAge`), and it holds up legitimate releases too. That is the
   price: you trade a few days of latency on all updates for never being in
-  the first wave of any of the four attacks above.
+  the first wave of any of the five takeover attacks above — including the
+  one from last week.
 - **`-fail-on typosquat`** works **before T+0** — it needs no advisory, no
   registry reaction, no metadata: the name analysis is local. It caught
   `python3-dateutil`, which nothing else in this document catches.
 - **`-fail-on unlisted`** works from the moment the registry pulls the
   malicious version — usually *before* the advisory is written. Notice the
-  `▲ not in registry index` line on **every single replay above**: all six
-  malicious versions were unpublished after their attacks, and a lockfile
+  `▲ not in registry index` line on **every single replay above**: every
+  malicious takeover version in this document was unpublished after its
+  attack, and a lockfile
   pinning an unpublished version is exactly what this flag exists for. It
   won't help at T+0 (the version is still live then), but it closes the gap
   between takedown and advisory, and it flags any branch or bot PR that was
@@ -727,7 +834,11 @@ So, honestly stated, here is what each lockvet gate buys you:
   attestation missing where every previous release had one. (It's a
   *token-theft* tripwire specifically: ultralytics-style attacks that
   poison the project's own build pipeline produce validly-attested
-  malware — the attestation only proves the files came from that CI.) None of the
+  malware — the attestation only proves the files came from that CI.
+  [§12's](#12-the-keyv--cacheable-worm-august-2026--shai-hulud-returns)
+  `keyv@6.0.0` is that caveat in action: it shipped *validly attested*,
+  because the attacker compromised the source and let the project's own
+  workflow build it.) None of the
   2018–2025 packages above attested *at the time* (the flag is only as
   broad as provenance adoption — though `@ctrl/tinycolor` started
   attesting right after Shai-Hulud), but for the growing set that do —

@@ -22,10 +22,12 @@ or [look up a package](https://matteo-sung.github.io/lockvet/#pkg=npm%3Achakl)
 quietly added 7 transitive crates — one of them flagged by RUSTSEC.*
 
 **[Would lockvet have caught it?](docs/case-studies.md)** — event-stream,
-the chalk/debug takeover, the Shai-Hulud worm, the ultralytics miner, the
-strong_password gem hijack, the 2021 dependency-confusion attack, the
-tj-actions workflow-pin attack, and the Codecov poisoned-download shape,
-replayed against real advisories, with reproducible fixtures.
+the chalk/debug takeover, the Shai-Hulud worm (and its
+[August 2026 return](docs/case-studies.md#12-the-keyv--cacheable-worm-august-2026--shai-hulud-returns)
+through keyv/Cacheable), the ultralytics miner, the strong_password gem
+hijack, the 2021 dependency-confusion attack, the tj-actions workflow-pin
+attack, and the Codecov poisoned-download shape, replayed against real
+advisories, with reproducible fixtures.
 
 Lockfile diffs are unreadable — a routine `npm install` can rewrite thousands
 of lines, and a Dependabot PR tells you about *one* package while the lockfile
@@ -1042,7 +1044,8 @@ other versions of the same package are listed, lockvet says so:
 Why this matters: **when a registry pulls a malicious release, this is what
 the hole looks like.** Every malicious version in
 [our case studies](docs/case-studies.md) — `event-stream@3.3.6`,
-`flatmap-stream@0.1.1`, `chalk@5.6.1`, `ultralytics@8.3.41` — was
+`flatmap-stream@0.1.1`, `chalk@5.6.1`, `ultralytics@8.3.41`, all six
+versions of the August 2026 keyv/Cacheable worm replay — was
 unpublished after the attack, so any lockfile still pinning one references
 a version its own registry has disowned. lockvet flags that *without
 needing an advisory to exist yet*. Here is the Sept 2025 chalk + debug npm
@@ -1651,7 +1654,8 @@ npm packages can run arbitrary code at install time (`preinstall` /
 `install` / `postinstall`). Most packages never do — so a routine-looking
 bump that suddenly **adds** install scripts deserves a hard look before you
 merge. Gaining execution-on-install is how the
-[Shai-Hulud worm](docs/case-studies.md#4-the-shai-hulud-worm-sept-2025)
+[Shai-Hulud worm](docs/case-studies.md#4-the-shai-hulud-worm-sept-2025) —
+and its [August 2026 keyv/Cacheable return](docs/case-studies.md#12-the-keyv--cacheable-worm-august-2026--shai-hulud-returns) —
 and plenty of smaller npm attacks delivered their payload.
 
 lockvet asks the npm registry which versions run install scripts and flags
