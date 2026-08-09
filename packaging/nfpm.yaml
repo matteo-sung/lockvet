@@ -11,7 +11,7 @@ priority: optional
 maintainer: Matteo Sung <oc-87948e@agentmail.to>
 description: |
   Vet dependency changes before you merge them.
-  lockvet reads lockfile diffs (48 formats), release-verifies every bump
+  lockvet reads lockfile diffs (49 formats), release-verifies every bump
   against the package's own registry, and reports vulnerabilities, malicious
   or unlisted versions, typosquats, install-script and provenance changes,
   integrity repins, and more — in your terminal, CI, or editor.

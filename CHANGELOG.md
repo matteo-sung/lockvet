@@ -4,6 +4,34 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.28 — 2026-08-09
+
+- **Maven `pom.xml` is format #49.** Maven has no npm-style lockfile —
+  the POM's versions *are* the pins, and Dependabot/Renovate bump them in
+  place — so lockvet now reads the manifest itself: `<dependencies>` and
+  `<dependencyManagement>` entries with explicit versions (BOM imports
+  included — bumping a `junit-bom` or `spring-boot-dependencies` import is
+  the everyday Renovate shape), the `<parent>` coordinate
+  (`spring-boot-starter-parent` bumps are the single most common Java
+  dependency PR), `<build>` plugins and extensions (default groupId
+  `org.apache.maven.plugins`, as Maven itself defaults), and the same
+  blocks inside `<profiles>`. `${property}` references resolve against the
+  POM's own `<properties>` and the `project.*` built-ins — a Log4Shell-era
+  `<log4j.version>` property downgrade surfaces with its advisories even
+  though no `<dependency>` block changed. Honesty rules: versions that
+  reference the project's own version (`${project.version}`, `${revision}`,
+  `${sha1}`, `${changelist}`) mark reactor siblings NonRegistry — no
+  registry claims about internal modules; unresolved properties,
+  version-less (managed) dependencies, ranges and `LATEST`/`RELEASE`
+  dynamics claim nothing; SNAPSHOT and system-scope dependencies stay
+  NonRegistry. Everything else rides the existing Maven pipeline: OSV
+  advisories with "fixed in X", release ages and the ⏱ cooldown from
+  Maven Central/Google, relocation stubs in the deprecation lane,
+  registry-verified unlisted checks, verified compare links and
+  `-changelogs` release notes. ISO-8859-1/windows-1252 POM encodings are
+  decoded tolerantly. `audit` walks find every `pom.xml` in the tree, and
+  the pre-commit hook covers it.
+
 ## v0.5.27 — 2026-08-09
 
 - **CircleCI configs are format #48, and the CircleCI orb registry is

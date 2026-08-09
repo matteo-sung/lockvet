@@ -534,6 +534,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"libs.versions.toml", Maven, parseVersionCatalog}
 	case "verification-metadata.xml", "verification-metadata.dryrun.xml":
 		return &Parser{"verification-metadata.xml", Maven, parseVerificationMetadata}
+	case "pom.xml":
+		return &Parser{"pom.xml", Maven, parsePomXML}
 	case "build.zig.zon":
 		return &Parser{"build.zig.zon", Zig, parseZigZon}
 	case "Dockerfile", "Containerfile":
@@ -659,7 +661,7 @@ func KnownBasenames() []string {
 		"requirements.lock", "Manifest.toml", "manifest.toml",
 		"stack.yaml.lock", "cabal.project.freeze", "cabal.config",
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
-		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
+		"libs.versions.toml", "verification-metadata.xml", "pom.xml", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
 		"kustomization.yaml", "values.yaml", "devcontainer.json",
 		".gitlab-ci.yml", ".pre-commit-config.yaml",

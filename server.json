@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.matteo-sung/lockvet",
   "title": "lockvet",
-  "description": "Explain any lockfile or workflow-pin change: bumps, vulns, ages, deprecations — 48 formats",
+  "description": "Explain any lockfile or workflow-pin change: bumps, vulns, ages, deprecations — 49 formats",
   "repository": {
     "url": "https://github.com/matteo-sung/lockvet",
     "source": "github"
   },
   "websiteUrl": "https://matteo-sung.github.io/lockvet/",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/matteo-sung/lockvet:0.5.27",
+      "identifier": "ghcr.io/matteo-sung/lockvet:0.5.28",
       "transport": {
         "type": "stdio"
       },
