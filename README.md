@@ -396,7 +396,7 @@ lockvet queue mastodon/mastodon        # one repo
 lockvet queue grafana                  # a whole org (or user)
 ```
 
-![lockvet queue triaging every open Renovate PR on mastodon/mastodon](docs/queue-demo.gif)
+![lockvet queue triaging every open Dependabot/Renovate PR on mastodon/mastodon](docs/queue-demo.gif)
 
 Every count comes from actually diffing each PR's lockfiles (one OSV /
 deps.dev batch for the lot, so an org-wide queue takes seconds). `-md`
