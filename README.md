@@ -23,7 +23,8 @@ quietly added 7 transitive crates — one of them flagged by RUSTSEC.*
 
 **[Would lockvet have caught it?](docs/case-studies.md)** — event-stream,
 the chalk/debug takeover, the Shai-Hulud worm, the ultralytics miner, the
-strong_password gem hijack, and the 2021 dependency-confusion attack,
+strong_password gem hijack, the 2021 dependency-confusion attack, the
+tj-actions workflow-pin attack, and the Codecov poisoned-download shape,
 replayed against real advisories, with reproducible fixtures.
 
 Lockfile diffs are unreadable — a routine `npm install` can rewrite thousands
@@ -1356,6 +1357,11 @@ comparison, the same rule Gradle verification metadata gets):
 mise.lock (mise/asdf)
   ‼ node 20.11.0 (=v20.11.0)  REPINNED (version unchanged)  (direct)
 ```
+
+Why this class of pin matters is [case study 11](docs/case-studies.md#11-codecov-bash-uploader-2021--the-poisoned-toolchain-download)
+— the Codecov bash uploader replayed as a toolchain checksum swap,
+including the Gradle-wrapper variant where lockvet cross-checks the pinned
+`distributionSha256Sum` against the checksum Gradle actually publishes.
 
 ## Container base images
 

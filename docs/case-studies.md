@@ -16,6 +16,7 @@ The short version:
 | [strong_password](#5-strong_password-2019--the-one-a-human-caught) (2019) | RubyGems | ~1 week undetected | after discovery | ▲ [CVE-2019-13354](https://osv.dev/vulnerability/GHSA-5h5r-ffc4-c455) + **not in registry index** |
 | [Dependency confusion](#9-dependency-confusion-2021--the-attack-the-lockfile-itself-records) (2021) | npm · PyPI · more | copycats live within days | mostly never | ⇄ **resolution moved** private → public + ‼ **integrity changed** |
 | [tj-actions/changed-files](#10-tj-actionschanged-files-march-2025--the-workflow-pin-attack) (Mar 2025) | GitHub Actions | ~1 day, 23k+ repos | next day | ▲ **not a release** on the malicious commit + GHSA once published |
+| [Codecov bash uploader](#11-codecov-bash-uploader-2021--the-poisoned-toolchain-download) (2021) | CI tooling | ~2 months undetected | never — not a package | ‼ **integrity changed** on same-version checksum swaps + ‼ checksum not one the publisher ever issued |
 
 Note the two middle columns. **Advisories lag; release age doesn't.** In every
 one of these incidents there was a window — hours to weeks — where the
@@ -584,6 +585,99 @@ was published, every affected pin also gets the advisory row: lockvet
 evaluates the affected ranges itself against the release each pin resolves
 to (OSV's API can't do this server-side for actions), so even a SHA pin —
 which no advisory ever names — is matched via the release it stands for.
+
+## 11. Codecov bash uploader (2021) — the poisoned toolchain download
+
+Not every attack ships through a package registry. On April 1, 2021, Codecov
+learned that its Bash Uploader — a script thousands of CI pipelines
+`curl | bash`-ed on every build — had been serving attacker-modified bytes.
+Unauthorized access to a Google Cloud Storage key, beginning January 31,
+2021, let the attacker periodically alter the script on Codecov's CDN to
+exfiltrate CI environment variables (credentials, tokens, keys) to their own
+server. It ran inside customer CI for **two months**. No registry pulled
+anything, no advisory was ever published for a version — there *were* no
+versions.
+
+What finally caught it: one customer compared the SHA-256 of the script they
+downloaded against the checksum Codecov published on GitHub, and the two
+didn't match. The detection mechanism was a *checksum held somewhere the
+attacker didn't control* — applied by exactly one person, manually, two
+months late.
+
+Toolchain pin files are that checksum, made automatic. Two replays.
+
+**mise.lock** records the exact version *and* the artifact checksum of every
+tool mise installs. A PR that changes the checksum without changing the
+version is the poisoned-download shape — the tool's bytes changed while its
+version claims nothing did:
+
+```console
+$ cat > old/mise.lock <<'EOF'
+[[tools.node]]
+version = "22.11.0"
+backend = "core:node"
+
+[tools.node.platforms.linux-x64]
+checksum = "sha256:4f862bab52039835efbe613b532238b6e4dde98d139a34e6923193e073438b13"
+url = "https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-x64.tar.gz"
+EOF
+$ sed 's/4f862bab.*"/9d1e64d84e2b7afafdc6bc9773be8d1b5296ba9c92b0eb0916b979e17a771f00"/' old/mise.lock > new/mise.lock
+$ lockvet diff old/mise.lock new/mise.lock
+
+new/mise.lock (mise/asdf)
+  ‼ node 22.11.0 (=v22.11.0)  REPINNED (version unchanged)  (direct)
+      ‼ integrity changed: 22.11.0 same version, different content hash — registries never change a published artifact, so the tarball this pin expects was replaced; do not trust this without finding out why
+
+1 package changed · 1 direct · 0 transitive · 1 pin changes integrity without a version change
+```
+
+(The old checksum is the real one from nodejs.org's `SHASUMS256.txt`; the
+new one is the tamper.) This comparison is offline — it works air-gapped, in
+the [playground](https://matteo-sung.github.io/lockvet/), and in
+`-offline` CI. `-fail-on integrity` gates it.
+
+**gradle-wrapper.properties** goes one better, because Gradle publishes its
+distribution checksums at a stable URL — a source the person editing your
+repo doesn't control. So lockvet doesn't just compare old against new; it
+checks the pinned `distributionSha256Sum` against the checksum Gradle
+actually publishes for that version:
+
+```console
+$ lockvet diff old/gradle/wrapper/gradle-wrapper.properties new/gradle/wrapper/gradle-wrapper.properties
+
+new/gradle/wrapper/gradle-wrapper.properties (Gradle)
+  ‼ gradle 8.14.2  REPINNED (version unchanged)  (direct)  (14mo old)
+      ‼ integrity changed: 8.14.2 same version, different distributionSha256Sum — a released Gradle distribution never changes, so the checksum the wrapper will enforce no longer matches what every earlier build verified; do not trust this without finding out why
+      ‼ tag mismatch: gradle@8.14.2 (distributionSha256Sum e2b82129ab64…) the pinned distributionSha256Sum is not any checksum Gradle publishes for this version — the wrapper would happily verify a poisoned distribution against a poisoned checksum; do not run this build until you know why
+
+1 package changed · 1 direct · 0 transitive · 1 pin changes integrity without a version change · 1 pin doesn't match the upstream tag
+```
+
+The second finding is the Codecov lesson applied: a checksum only protects
+you if it's compared against one the attacker couldn't edit. An attacker who
+swaps both the wrapper's `distributionUrl` payload *and* its
+`distributionSha256Sum` in the same PR defeats the wrapper's own
+verification completely — the wrapper verifies the poisoned zip against the
+poisoned checksum and reports success. lockvet's cross-check against
+`services.gradle.org` catches it anyway, and because it doesn't need a diff,
+`lockvet audit` flags a poisoned checksum you're *already carrying*:
+
+```console
+$ lockvet audit .
+
+gradle/wrapper/gradle-wrapper.properties (Gradle · 1 package)
+  • gradle 8.14.2  (direct)  (14mo old)
+      ‼ tag mismatch: gradle@8.14.2 (distributionSha256Sum e2b82129ab64…) the pinned distributionSha256Sum is not any checksum Gradle publishes for this version — the wrapper would happily verify a poisoned distribution against a poisoned checksum; do not run this build until you know why
+```
+
+Honest caveats. mise.lock checksums span hundreds of tools with no central
+checksum authority, so there the first pin is trust-on-first-use and the
+*diff* is the check — same trust model as npm's `integrity` field. The
+Gradle cross-check only protects repos that set `distributionSha256Sum` at
+all (most don't; adding it is one line and lockvet will vet it forever
+after). And the `gradle-wrapper.jar` binary committed next to the properties
+file is a separate risk with its own dedicated tool — Gradle's official
+wrapper-validation action — which is complementary to everything here.
 
 ## The pattern, and what a gate can actually do
 
