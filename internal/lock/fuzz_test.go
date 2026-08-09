@@ -62,6 +62,7 @@ func FuzzAllParsers(f *testing.F) {
 		"images:\n- name: nginx\n  newTag: \"1.25\"\n- name: a\n  newName: g/b\n  digest: sha256:ab\nhelmCharts:\n- name: h\n  repo: https://c.example\n  version: 1.0.0\n",
 		"apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  source:\n    chart: c\n    repoURL: https://c.example/x\n    targetRevision: 1.2.3\n---\nkind: ApplicationSet\nspec:\n  template:\n    spec:\n      sources:\n      - chart: d\n        repoURL: https://c.example/y\n        targetRevision: \"2.0.0\"\n      - repoURL: https://g.example/z.git\n        targetRevision: main\n",
 		"apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata:\n  name: r\nspec:\n  url: https://c.example/x\n---\nkind: HelmRelease\nspec:\n  chart:\n    spec:\n      chart: c\n      version: \"1.2.3\" # x\n      sourceRef:\n        kind: HelmRepository\n        name: r\n---\nkind: OCIRepository\nspec:\n  ref:\n    tag: 0.1.0\n    digest: sha256:ab\n  url: oci://g.io/a/b\n",
+		"{\n// c\n\"image\": \"mcr.microsoft.com/devcontainers/go:1\", /* b */\n\"features\": {\n \"ghcr.io/devcontainers/features/node:1\": {\"version\":\"22\"},\n \"ghcr.io/o/f@sha256:ab\": {},\n \"./local\": {},\n \"docker-in-docker\": {},\n},\n}",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

@@ -234,7 +234,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 45 formats (incl. GitHub Actions workflows, Dockerfiles/Compose, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
+It understands 46 formats (incl. GitHub Actions workflows, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and
@@ -452,7 +452,8 @@ and the Maven repositories
 provenance, Go retractions, Maven relocations, and — for Composer, Hex,
 Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell, conda, Helm and Ansible —
 ages and deprecations, which deps.dev does not carry). Container image pins
-(Dockerfile/Compose, Kubernetes manifests, kustomization.yaml, Flux
+(Dockerfile/Compose, devcontainer.json images & features, Kubernetes
+manifests, kustomization.yaml, Flux
 OCIRepository ref pins) are verified against the image registries
 themselves — Docker Hub, ghcr.io, quay.io, mcr.microsoft.com, gcr.io,
 registry.k8s.io (legacy k8s.gcr.io pins included), public.ecr.aws and

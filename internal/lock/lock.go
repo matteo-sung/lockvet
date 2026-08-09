@@ -524,6 +524,11 @@ func ByBasename(p string) *Parser {
 		return &Parser{"docker-compose.yml", Docker, parseComposeFile}
 	case "kustomization.yaml", "kustomization.yml", "Kustomization":
 		return &Parser{"kustomization.yaml", Docker, parseKustomization}
+	case "devcontainer.json", ".devcontainer.json":
+		// Dev Container configs: .devcontainer/devcontainer.json,
+		// .devcontainer.json, .devcontainer/<name>/devcontainer.json —
+		// the basename is reserved by the spec wherever it sits.
+		return &Parser{"devcontainer.json", Docker, parseDevcontainer}
 	}
 	base := path.Base(p)
 	// Variant-named Dockerfiles are everywhere: Dockerfile.alpine,
@@ -618,7 +623,7 @@ func KnownBasenames() []string {
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
 		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
-		"kustomization.yaml", "values.yaml",
+		"kustomization.yaml", "values.yaml", "devcontainer.json",
 		".pre-commit-config.yaml",
 		"bom.json", "sbom.json",
 	}

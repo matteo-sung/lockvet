@@ -4,6 +4,22 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.24 — 2026-08-09
+
+- **Dev Containers are read — format #46.** `devcontainer.json` (and
+  `.devcontainer.json`, subfolder variants) names the container your
+  editor and Codespaces actually build: the `"image"` is verified exactly
+  like a Dockerfile `FROM`, and every OCI-referenced Feature under
+  `"features"` (`ghcr.io/devcontainers/features/go:1`, digest pins
+  included) is verified against the registry through the same
+  distribution API — a Feature tag the registry does not serve flags ▲,
+  digest movements are explained, and Renovate's devcontainer-manager
+  bumps get real version rows. JSONC is understood (comments + trailing
+  commas, as the VS Code templates ship). Compose-/Dockerfile-based
+  configs, local-path Features, tarball URIs and legacy host-less Feature
+  ids honestly pin nothing. Works in every mode: diffs, PR vetting,
+  `audit` (`.devcontainer/` trees are discovered), and the playground.
+
 ## v0.5.23 — 2026-08-09
 
 - **Helm values files are read — format #45.** The standard chart image
