@@ -4,6 +4,28 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.27 — 2026-08-09
+
+- **CircleCI configs are format #48, and the CircleCI orb registry is
+  registry #21.** `.circleci/config.yml` (plus continuation configs and
+  fragments under `.circleci/`, behind a CI-shape gate) pins two kinds of
+  dependencies, and lockvet now reads both. `orbs:` entries
+  (`node: circleci/node@5.1.0`) get the registry treatment from the orb
+  registry's own API — release ages and the ⏱ cooldown flag, floating
+  pins (`volatile`, `5`, `5.1`) resolved to the release they fetch today
+  ("volatile (=5.4.2)"), verified compare links and `-changelogs` release
+  notes from the orb's `display.source_url` repository, and — because
+  published orb versions are immutable — registry-verified **▲ not in
+  registry index** detection for pins the full version list omits, absence
+  re-proven uncached before it is claimed. `dev:*` versions (mutable by
+  design), inline orb definitions and templated references stay
+  claim-free. Docker executor `- image:` refs get the Dockerfile registry
+  treatment; `machine:` VM image labels are skipped, and block scalars are
+  opaque. `lockvet pkg orb:namespace/name` vets an orb before you add it
+  (21st `pkg` ecosystem). An orb the registry answers null for makes no
+  claims — private Server-install namespaces and typos look the same from
+  outside, and silence is the honest read.
+
 ## v0.5.26 — 2026-08-09
 
 - **`$CI_SERVER_FQDN` component pins resolve in URL modes.** A

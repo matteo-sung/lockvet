@@ -660,7 +660,7 @@ func join(vs []string) string { return strings.Join(vs, ", ") }
 // care: full commit SHAs shorten to 7 hex characters, and a ref actreg
 // resolved carries the release it stands for — "8f4b7f8 (=v4.2.2)".
 func dispVers(c diffx.Change, vs []string) string {
-	if c.Ecosystem != "GitHub Actions" && c.Ecosystem != "GitLab CI" {
+	if c.Ecosystem != "GitHub Actions" && c.Ecosystem != "GitLab CI" && c.Ecosystem != "CircleCI" {
 		return join(vs)
 	}
 	out := make([]string, len(vs))

@@ -84,13 +84,14 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 47 formats:
+- **across every ecosystem, in one static binary** — 48 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, `pylock.toml` (PEP 751), Go modules (`go.mod` + `go.sum`), Composer, Bundler, Hex (mix & rebar3), pub/Flutter,
   Gradle (lockfiles, version catalogs & verification metadata), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
   Helm, Ansible Galaxy (`requirements.yml`), Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
   and **GitLab CI configs** (`include: component:` catalog pins, job `image:`/`services:` refs),
+  **CircleCI configs** (`orbs:` registry pins, docker executor `image:` refs),
   (`uses:` pins), **container base images** (Dockerfile / Containerfile /
   Compose `image:` pins), **Dev Containers** (`devcontainer.json` image
   and `features:` OCI pins), **Kubernetes manifests & kustomizations**
@@ -169,22 +170,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.26/lockvet_v0.5.26_linux_amd64.deb
-sudo dpkg -i lockvet_v0.5.26_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.27/lockvet_v0.5.27_linux_amd64.deb
+sudo dpkg -i lockvet_v0.5.27_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.26/lockvet_v0.5.26_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.27/lockvet_v0.5.27_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.26/lockvet_v0.5.26_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.5.26_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.27/lockvet_v0.5.27_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.5.27_linux_amd64.apk
 ```
 
 Go:
@@ -204,7 +205,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.26 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.27 lockvet
 ```
 
 ### Shell completions & man page
@@ -229,8 +230,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.26_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.26 --owner matteo-sung
+gh attestation verify lockvet_v0.5.27_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.27 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -472,7 +473,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.26
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.27
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -531,7 +532,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 47 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
+lockfile it finds — all 48 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -588,7 +589,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.26/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.27/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -674,7 +675,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.26", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.27", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -729,7 +730,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.26
+      - uses: matteo-sung/lockvet@v0.5.27
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -756,7 +757,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.26
+      - uses: matteo-sung/lockvet@v0.5.27
         with:
           sarif: 'true'
 ```
@@ -776,7 +777,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.26
+  image: ghcr.io/matteo-sung/lockvet:0.5.27
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -801,7 +802,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.26
+          image: ghcr.io/matteo-sung/lockvet:0.5.27
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -819,7 +820,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.26
+    container: ghcr.io/matteo-sung/lockvet:0.5.27
     steps:
       - checkout: none
       - script: >
@@ -843,7 +844,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.26
+    image: ghcr.io/matteo-sung/lockvet:0.5.27
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -862,7 +863,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.26
+    rev: v0.5.27
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1255,6 +1256,40 @@ and `queue` modes the URL itself names the instance, so lockvet resolves
 them against that host and they get the full tag-verification treatment.
 Templated refs (`$VARIABLES`) and `include: local:/template:/remote:`
 entries pin nothing.
+
+### …and `.circleci/config.yml`
+
+CircleCI pipelines pin dependencies in two places, and lockvet reads both —
+in `.circleci/config.yml` and in continuation configs / fragments under the
+`.circleci/` directory:
+
+- **`orbs:` pins** — reusable CI packages from the [CircleCI orb
+  registry](https://circleci.com/developer/orbs), whose commands run in
+  every pipeline. There is no OSV ecosystem and no deps.dev system for
+  orbs, so lockvet asks the registry itself: release ages (a bump onto an
+  hours-old orb release is worth a pause), verified compare links and
+  `-changelogs` release notes from the orb's own source repository, and —
+  because published orb versions are immutable, deleting one is a
+  CircleCI-support action reserved for security problems — a
+  registry-verified **▲ not in registry index** check for pins the full
+  version list omits. Floating pins resolve to the release they fetch
+  *today*:
+
+  ```console
+  .circleci/config.yml (Docker)
+    ↑ circleci/aws-cli 4.1.0 → volatile (=5.4.2)  ?      (direct)  (54d old)
+    ↑ circleci/node    5.1.0 → 7.2.1              MAJOR  (direct)  (9mo old)
+  ```
+
+  `dev:*` versions are mutable by design and expire — they stay
+  claim-free, as do inline orb definitions and templated references.
+  `lockvet pkg orb:circleci/node` vets an orb before you add it.
+- **docker executor `- image:` refs** — the containers every job runs in
+  get the same registry verification as Dockerfile `FROM` pins (digest
+  vs. tag, unknown tags, Docker Hub ages). `machine:` executor images are
+  CircleCI VM image labels, not OCI refs, and are skipped.
+
+Renovate's `circleci` manager bumps both kinds; nothing else vets either.
 
 ## Container base images
 
@@ -1683,6 +1718,8 @@ files come off the forge's raw endpoint, which is not rate-limited.
 | Nix | `flake.lock` |
 | Zig | `build.zig.zon` — Zig has no lockfile beyond it and no registry: every dependency pins a source URL + content hash, and lockvet reads both (rev/tag/hash-derived versions, ‼ same-version hash swaps, ⇄ same-version source re-points, verified tag compare links + release notes from the dependency's own repo) |
 | CI / GitHub Actions | `.github/workflows/*.yml`, `action.yml`/`action.yaml` (composite actions), `.gitea/workflows`, `.forgejo/workflows` — every `uses:` pin; SHA and floating-tag pins resolved against the action repo's real tags, advisories from OSV's GitHub Actions ecosystem evaluated client-side |
+| CI / GitLab | `.gitlab-ci.yml` (suffix-named variants like `backend.gitlab-ci.yml` and fragments under `.gitlab/` / `.gitlab-ci/` too) — `include: component:` CI/CD Catalog pins verified against the component project's real tags (floating `@2` / `@2.0` / `@~latest` forms resolved to the release they fetch today), job/default `image:` and `services:` refs verified like Dockerfile images; `include: project:` + `ref:` pins tracked claim-free |
+| CI / CircleCI | `.circleci/config.yml` (continuation configs and fragments under `.circleci/` too) — every `orbs:` registry pin: release ages, floating `volatile` / `5` / `5.1` forms resolved to the version they fetch today, registry-verified unlisted detection and changelog links straight from the CircleCI orb registry (`dev:` versions and inline orbs exempt); docker executor `- image:` refs verified like Dockerfile images (`machine:` VM image labels skipped) |
 | Containers | `Dockerfile` / `Containerfile` (variant names like `Dockerfile.alpine`, `dev.Dockerfile` too) and Compose files (`docker-compose.yml`, `compose.yaml`, overrides) — every `FROM` base image (multi-stage aware: stage references skipped, `ARG` defaults expanded, `--platform` flags ignored), `COPY --from=` images, the `# syntax=` BuildKit directive Renovate bumps, and every `image:` under Compose `services:` (services built from a local `build:` context skipped). Tags and digest pins are verified against the image registry itself — see [Container base images](#container-base-images) |
 | Dev Containers | `devcontainer.json` / `.devcontainer.json` (subfolder variants included, JSONC understood) — the `"image"` pin plus every OCI-referenced Feature under `"features"` (`ghcr.io/devcontainers/features/…:tag` or `@sha256:` digest pins), verified against the registry like Dockerfile images; local-path / tarball / legacy host-less Feature ids skipped |
 | Kubernetes | manifests (`*.yaml` under conventional directories — `k8s/`, `kubernetes/`, `manifests/`, `deploy/`, `overlays/`, `base/`, `clusters/`, `gitops/`, `apps/`, `infrastructure/`, `flux-system/`, `chart(s)/`, … — plus `*.k8s.yaml` and conventional basenames like `deployment.yaml`, `helmrelease.yaml`, `ocirepository.yaml` — top-level `apiVersion:` + `kind:` required, Helm `templates/` excluded): every `image:` under `containers:` / `initContainers:` / `ephemeralContainers`, verified like Dockerfile images. Flux `HelmRelease` chart version pins (same-file `HelmRepository` URLs verified against the chart repo's `index.yaml`) and `OCIRepository` `ref.tag`/`ref.digest` pins (verified like images). Argo CD `Application` / `ApplicationSet` chart sources (`chart:` + exact `targetRevision:`, single- and multi-source, verified against the inline `repoURL`'s `index.yaml`; conventional basenames `application.yaml`, `applicationset.yaml`, `appset.yaml` and directories `argocd/`, `argo/`, `applications/` match too). `kustomization.yaml` / `kustomization.yml`: `images:` transformer pins (`newTag:`, `digest:`) plus `helmCharts:` entries checked against the chart repository's own `index.yaml`. Helm values files (`values.yaml`, `values-*.yaml`, `*-values.yaml`, `*.values.yaml` — and any sniffed YAML carrying the structured shape): `image:` mappings with `repository:`/`tag:` (+ `registry:`/`digest:`) children, plus tagged `image:` scalars in convention-named files; block-scalar bodies opaque, templated values skipped — see [Kubernetes manifests & kustomizations](#kubernetes-manifests--kustomizations) |

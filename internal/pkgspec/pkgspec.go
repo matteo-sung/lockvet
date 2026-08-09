@@ -73,6 +73,8 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"precommit":      lock.PreCommit,
 	"component":      lock.GitLabCI,
 	"gitlab-ci":      lock.GitLabCI,
+	"orb":            lock.CircleCI,
+	"circleci":       lock.CircleCI,
 	"swift":          lock.SwiftURL,
 	"swiftpm":        lock.SwiftURL,
 	"spm":            lock.SwiftURL,
@@ -105,7 +107,7 @@ func Parse(arg string) (Spec, error) {
 		eco, known = lock.NPM, true
 	}
 	if !known {
-		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, ansible, swift", ecoPart)
+		return Spec{}, fmt.Errorf("unknown ecosystem %q — try npm, pypi, cargo, gem, composer, go, hex, pub, jsr, nuget, maven, pod, helm, terraform, conan, conda, cran, julia, hackage, bazel, ansible, swift, orb", ecoPart)
 	}
 	name, version := rest, ""
 	if i := strings.LastIndex(rest, "@"); i > 0 {
@@ -183,6 +185,13 @@ func Parse(arg string) (Spec, error) {
 		}
 		if strings.Count(name, "/") < 3 {
 			return Spec{}, fmt.Errorf("component specs name the project and the component: component:<host>/<project-path>/<component>[@version], e.g. component:gitlab.com/components/opentofu/full-pipeline (got %q)", rest)
+		}
+	case lock.CircleCI:
+		// Orbs are addressed namespace/orb-name, exactly as `orbs:`
+		// entries pin them.
+		if first, second, ok := strings.Cut(name, "/"); !ok || first == "" ||
+			second == "" || strings.Contains(second, "/") {
+			return Spec{}, fmt.Errorf("orb specs look like orb:<namespace>/<orb-name>[@version], e.g. orb:circleci/node or orb:circleci/node@5.1.0 (got %q)", rest)
 		}
 	}
 	channel := helmChannel

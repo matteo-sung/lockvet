@@ -69,6 +69,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/npmreg"
 	"github.com/matteo-sung/lockvet/internal/nugetreg"
 	"github.com/matteo-sung/lockvet/internal/ocireg"
+	"github.com/matteo-sung/lockvet/internal/orbreg"
 	"github.com/matteo-sung/lockvet/internal/osv"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/pkgspec"
@@ -97,6 +98,7 @@ func main() {
 	// center.conan.io sends no CORS headers: the browser cannot query
 	// ConanCenter at all, so conan.lock diffs carry no registry claims.
 	ansreg.Enabled = false // no CORS on galaxy.ansible.com
+	orbreg.Enabled = false // no CORS wildcard on circleci.com
 	conanreg.Enabled = false
 	cranreg.Enabled = false  // no CORS on crandb / cran.r-project.org
 	condareg.Enabled = false // no CORS on api.anaconda.org

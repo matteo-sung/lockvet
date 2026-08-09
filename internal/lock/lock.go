@@ -111,6 +111,16 @@ const (
 	// same file are marked Docker per-package (File.PkgEco).
 	GitLabCI Ecosystem = "GitLab CI"
 
+	// CircleCI covers .circleci/config.yml `orbs:` pins: reusable CI
+	// packages published to the CircleCI orb registry at exact semver
+	// versions (Renovate's circleci manager bumps them like lockfile
+	// entries, and the orb's code runs in every pipeline). No OSV.dev
+	// ecosystem and no deps.dev system; internal/orbreg asks the orb
+	// registry itself for ages, full version lists (unlisted detection)
+	// and source repositories. Docker executor image pulls in the same
+	// file are marked Docker per-package (File.PkgEco).
+	CircleCI Ecosystem = "CircleCI"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -601,6 +611,15 @@ func ByBasename(p string) *Parser {
 	}
 	if isGitLabCIPath(fullPath) {
 		return &Parser{"gitlab-ci", Docker, gitlabCILenient}
+	}
+	// CircleCI configuration lives under .circleci/: config.yml is the
+	// reserved entrypoint, everything else there (continuation configs,
+	// fragments) sits behind a CI-shape gate.
+	if isCircleCIPath(fullPath) {
+		if b := strings.ToLower(base); b == "config.yml" || b == "config.yaml" {
+			return &Parser{"circleci", Docker, parseCircleCI}
+		}
+		return &Parser{"circleci", Docker, circleCILenient}
 	}
 	// Kubernetes manifests: matched by directory (k8s/, kubernetes/,
 	// manifests/) or naming convention (*.k8s.yaml, deployment.yaml, …)

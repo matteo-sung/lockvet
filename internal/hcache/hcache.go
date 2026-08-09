@@ -60,6 +60,7 @@ const (
 var postHosts = map[string]bool{
 	"api.osv.dev":  true, // /v1/querybatch
 	"api.deps.dev": true, // /v3alpha/versionbatch
+	"circleci.com": true, // /graphql-unstable orb-registry queries
 }
 
 var (

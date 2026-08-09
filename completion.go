@@ -234,7 +234,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 47 formats (incl. GitHub Actions workflows, GitLab CI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
+It understands 48 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and
@@ -445,12 +445,12 @@ Data sources:
 (release metadata), plus the npm, PyPI, crates.io, RubyGems, Packagist,
 NuGet, hex.pm, pub.dev and jsr.io registries, the CocoaPods CDN and trunk API,
 the Terraform and OpenTofu registries, ConanCenter, CRAN (via METACRAN),
-Hackage, anaconda.org, the Bazel Central Registry, Ansible Galaxy, Helm chart
+Hackage, anaconda.org, the Bazel Central Registry, Ansible Galaxy, the CircleCI orb registry, Helm chart
 repositories' own index.yaml, the Go module proxy,
 and the Maven repositories
 (Central and Google) themselves (version listings, install scripts,
 provenance, Go retractions, Maven relocations, and — for Composer, Hex,
-Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell, conda, Helm and Ansible —
+Dart, JSR, CocoaPods, Conan, Terraform, R, Haskell, conda, Helm, Ansible and CircleCI orbs —
 ages and deprecations, which deps.dev does not carry). Container image pins
 (Dockerfile/Compose, devcontainer.json images & features, Kubernetes
 manifests, kustomization.yaml, Flux

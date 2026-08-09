@@ -33,6 +33,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/lock"
 	"github.com/matteo-sung/lockvet/internal/mvnreg"
 	"github.com/matteo-sung/lockvet/internal/npmreg"
+	"github.com/matteo-sung/lockvet/internal/orbreg"
 	"github.com/matteo-sung/lockvet/internal/phpreg"
 	"github.com/matteo-sung/lockvet/internal/podreg"
 	"github.com/matteo-sung/lockvet/internal/pubreg"
@@ -121,6 +122,10 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	// stable version-shaped tag (kept as written, v-prefix and all).
 	lock.PreCommit: preCommitLatest,
 	lock.GitLabCI:  componentLatest,
+
+	// CircleCI orb releases come from the orb registry's own GraphQL
+	// API; "latest" is what `volatile` would fetch.
+	lock.CircleCI: orbreg.Latest,
 }
 
 // helmLatest resolves <repo-url>/<chart> against the chart repository's

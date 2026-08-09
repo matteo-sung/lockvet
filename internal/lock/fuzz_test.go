@@ -64,13 +64,14 @@ func FuzzAllParsers(f *testing.F) {
 		"apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata:\n  name: r\nspec:\n  url: https://c.example/x\n---\nkind: HelmRelease\nspec:\n  chart:\n    spec:\n      chart: c\n      version: \"1.2.3\" # x\n      sourceRef:\n        kind: HelmRepository\n        name: r\n---\nkind: OCIRepository\nspec:\n  ref:\n    tag: 0.1.0\n    digest: sha256:ab\n  url: oci://g.io/a/b\n",
 		"stages: [build]\ninclude:\n  - component: gitlab.com/c/p/n@2.0\n    inputs: {x: 1}\n  - project: g/p\n    ref: v1 # c\n    file: /t/x.yml\n  - local: a.yml\ndefault:\n  image: alpine:3.20\nb:\n  services:\n    - postgres:16\n    - name: redis:7\n  script:\n    - |\n      image: fake:1\n",
 		"{\n// c\n\"image\": \"mcr.microsoft.com/devcontainers/go:1\", /* b */\n\"features\": {\n \"ghcr.io/devcontainers/features/node:1\": {\"version\":\"22\"},\n \"ghcr.io/o/f@sha256:ab\": {},\n \"./local\": {},\n \"docker-in-docker\": {},\n},\n}",
+		"version: 2.1\norbs:\n  node: circleci/node@5.1.0\n  s: circleci/slack@volatile\n  d: ns/t@dev:a\n  i:\n    commands: {}\njobs:\n  b:\n    docker:\n      - image: cimg/node:18.16\n        auth: {username: u}\n    machine:\n      image: ubuntu-2204:2024.01.1\n    steps:\n      - run: |\n          image: fake:1\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))
 	}
 
 	names := KnownBasenames()
-	names = append(names, ".github/workflows/ci.yml", "k8s/app.yaml")
+	names = append(names, ".github/workflows/ci.yml", "k8s/app.yaml", ".circleci/config.yml")
 	f.Fuzz(func(t *testing.T, data []byte) {
 		for _, base := range names {
 			p := ByBasename(base)
