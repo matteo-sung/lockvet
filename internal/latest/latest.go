@@ -120,6 +120,7 @@ var resolvers = map[lock.Ecosystem]func(string) (string, error){
 	// pins the hook repository's newest tag, so "latest" is the highest
 	// stable version-shaped tag (kept as written, v-prefix and all).
 	lock.PreCommit: preCommitLatest,
+	lock.GitLabCI:  componentLatest,
 }
 
 // helmLatest resolves <repo-url>/<chart> against the chart repository's
@@ -213,6 +214,38 @@ func preCommitLatest(name string) (string, error) {
 	}
 	if best == "" {
 		return "", fmt.Errorf("no version-shaped tags in https://%s", name)
+	}
+	return best, nil
+}
+
+// componentLatest resolves a GitLab CI/CD component's newest stable
+// release tag — what `@~latest` would fetch. The component name's last
+// segment is the component; everything before it is the project whose
+// tags version every component it ships.
+func componentLatest(name string) (string, error) {
+	i := strings.LastIndexByte(name, '/')
+	if i <= 0 {
+		return "", fmt.Errorf("want host/project-path/component for a CI/CD component, got %q", name)
+	}
+	repo := name[:i]
+	if first, rest, ok := strings.Cut(repo, "/"); !ok || !strings.Contains(first, ".") || rest == "" {
+		return "", fmt.Errorf("want host/project-path/component for a CI/CD component, got %q", name)
+	}
+	tags, err := taglink.Tags("https://" + repo)
+	if err != nil {
+		return "", notFound("the GitLab host", repo)
+	}
+	best := ""
+	for t := range tags {
+		if !actreg.VersionLike(t) || strings.ContainsAny(t, "-+") {
+			continue // ~latest excludes pre-releases
+		}
+		if best == "" || vers.Compare(strings.TrimPrefix(best, "v"), strings.TrimPrefix(t, "v")) < 0 {
+			best = t
+		}
+	}
+	if best == "" {
+		return "", fmt.Errorf("no version-shaped tags in https://%s", repo)
 	}
 	return best, nil
 }

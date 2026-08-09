@@ -403,7 +403,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			c.Level = vers.None
 			c.LevelString = ""
 		}
-		if (eco == lock.GitHubActions || eco == lock.PreCommit) && (c.Kind == Upgraded || c.Kind == Downgraded) &&
+		if (eco == lock.GitHubActions || eco == lock.PreCommit || eco == lock.GitLabCI) && (c.Kind == Upgraded || c.Kind == Downgraded) &&
 			(looksCommit(o) || looksCommit(n)) {
 			// SHA pins order as hex strings, which means nothing: call it
 			// "changed" until actreg resolves the commits to releases.

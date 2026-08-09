@@ -164,6 +164,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned ref matches no tag in the action's repository — release tags are how actions ship, and the tj-actions attack pinned exactly like this; verify the commit"))
 				} else if c.Ecosystem == "pre-commit" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned rev matches no tag in the hook repository — pre-commit clones and RUNS this rev on every commit; verify where it comes from"))
+				} else if c.Ecosystem == "GitLab CI" {
+					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+dispVers(c, c.UnlistedVersions)), s.dim("pinned version matches no tag in the component's project — catalog releases are cut from tags, and the component's code runs in every pipeline; verify what the include fetches"))
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "      %s %s\n", s.bred("▲ not a release: "+join(c.UnlistedVersions)), s.dim("no matching tag in the package's repository — version pins only ever resolve from tags, so this one was deleted or renamed after resolution; verify what the pin fetches"))
 				} else if c.Ecosystem == "Docker" {
@@ -529,6 +531,8 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned ref matches no tag in the action's repository — verify where the commit comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "pre-commit" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned rev matches no tag in the hook repository — pre-commit runs this rev on every commit; verify where it comes from |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
+				} else if c.Ecosystem == "GitLab CI" {
+					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | pinned version matches no tag in the component's project — catalog releases are cut from tags; verify what the include fetches |%s\n", esc(dispVers(c, c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "SwiftURL" {
 					fmt.Fprintf(w, "| ❗ | ↳ not a release | | %s | no matching tag in the package's repository — version pins only resolve from tags; verify what this pin fetches |%s\n", esc(join(c.UnlistedVersions)), padCell)
 				} else if c.Ecosystem == "Docker" {
@@ -656,7 +660,7 @@ func join(vs []string) string { return strings.Join(vs, ", ") }
 // care: full commit SHAs shorten to 7 hex characters, and a ref actreg
 // resolved carries the release it stands for — "8f4b7f8 (=v4.2.2)".
 func dispVers(c diffx.Change, vs []string) string {
-	if c.Ecosystem != "GitHub Actions" {
+	if c.Ecosystem != "GitHub Actions" && c.Ecosystem != "GitLab CI" {
 		return join(vs)
 	}
 	out := make([]string, len(vs))

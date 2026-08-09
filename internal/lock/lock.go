@@ -103,6 +103,14 @@ const (
 	Ansible     Ecosystem = "Ansible Galaxy"
 	AnsibleRole Ecosystem = "Ansible Galaxy role"
 
+	// GitLabCI covers .gitlab-ci.yml `include: component:` pins (CI/CD
+	// Catalog components) and `include: project:` refs. Component pins
+	// are verified against the component project's real tags
+	// (internal/actreg); project includes stay claim-free — the file
+	// never records which GitLab instance hosts them. Image pulls in the
+	// same file are marked Docker per-package (File.PkgEco).
+	GitLabCI Ecosystem = "GitLab CI"
+
 	// SBOMEco is the file-level ecosystem of an SBOM: a single CycloneDX
 	// or SPDX document mixes ecosystems, so each package carries its own
 	// (File.PkgEco) and this value is only a label / fallback.
@@ -524,6 +532,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"docker-compose.yml", Docker, parseComposeFile}
 	case "kustomization.yaml", "kustomization.yml", "Kustomization":
 		return &Parser{"kustomization.yaml", Docker, parseKustomization}
+	case ".gitlab-ci.yml", ".gitlab-ci.yaml":
+		return &Parser{"gitlab-ci", Docker, parseGitLabCI}
 	case "devcontainer.json", ".devcontainer.json":
 		// Dev Container configs: .devcontainer/devcontainer.json,
 		// .devcontainer.json, .devcontainer/<name>/devcontainer.json —
@@ -583,6 +593,15 @@ func ByBasename(p string) *Parser {
 	if isHelmValuesName(base) {
 		return &Parser{"helm-values", Docker, parseHelmValuesFile}
 	}
+	// Suffix-named GitLab CI files (backend.gitlab-ci.yml) and included
+	// CI fragments under a .gitlab/ directory. The fragment route is
+	// lenient: only files shaped like CI configuration produce rows.
+	if strings.HasSuffix(base, ".gitlab-ci.yml") || strings.HasSuffix(base, ".gitlab-ci.yaml") {
+		return &Parser{"gitlab-ci", Docker, parseGitLabCI}
+	}
+	if isGitLabCIPath(fullPath) {
+		return &Parser{"gitlab-ci", Docker, gitlabCILenient}
+	}
 	// Kubernetes manifests: matched by directory (k8s/, kubernetes/,
 	// manifests/) or naming convention (*.k8s.yaml, deployment.yaml, …)
 	// AFTER every reserved basename above, so a pnpm-lock.yaml under k8s/
@@ -624,7 +643,7 @@ func KnownBasenames() []string {
 		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
 		"kustomization.yaml", "values.yaml", "devcontainer.json",
-		".pre-commit-config.yaml",
+		".gitlab-ci.yml", ".pre-commit-config.yaml",
 		"bom.json", "sbom.json",
 	}
 }

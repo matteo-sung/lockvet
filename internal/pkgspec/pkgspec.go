@@ -71,6 +71,8 @@ var ecoAliases = map[string]lock.Ecosystem{
 	"github-actions": lock.GitHubActions,
 	"pre-commit":     lock.PreCommit,
 	"precommit":      lock.PreCommit,
+	"component":      lock.GitLabCI,
+	"gitlab-ci":      lock.GitLabCI,
 	"swift":          lock.SwiftURL,
 	"swiftpm":        lock.SwiftURL,
 	"spm":            lock.SwiftURL,
@@ -166,6 +168,21 @@ func Parse(arg string) (Spec, error) {
 		name = strings.Replace(name, ":", "/", 1)
 		if first, _, ok := strings.Cut(name, "/"); ok && !strings.Contains(first, ".") {
 			name = "github.com/" + name
+		}
+	case lock.GitLabCI:
+		// CI/CD Catalog components are addressed
+		// host/project-path/component-name, exactly as `include:
+		// component:` writes them. gitlab.com is implied when the first
+		// segment has no dot.
+		name = strings.TrimSuffix(name, "/")
+		for _, prefix := range []string{"https://", "http://"} {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		if first, _, ok := strings.Cut(name, "/"); ok && !strings.Contains(first, ".") {
+			name = "gitlab.com/" + name
+		}
+		if strings.Count(name, "/") < 3 {
+			return Spec{}, fmt.Errorf("component specs name the project and the component: component:<host>/<project-path>/<component>[@version], e.g. component:gitlab.com/components/opentofu/full-pipeline (got %q)", rest)
 		}
 	}
 	channel := helmChannel

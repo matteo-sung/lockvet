@@ -93,6 +93,17 @@ func repoURL(c *diffx.Change) string {
 			strings.Contains(host, ".") && path != "" {
 			return "https://" + c.Name
 		}
+	case lock.GitLabCI:
+		// host/project-path/component-name — the component is a file (or
+		// directory) inside the project, so the repository is everything
+		// up to the last segment.
+		if i := strings.LastIndexByte(c.Name, '/'); i > 0 {
+			repo := c.Name[:i]
+			if host, path, ok := strings.Cut(repo, "/"); ok &&
+				strings.Contains(host, ".") && strings.Contains(path, "/") {
+				return "https://" + repo
+			}
+		}
 	}
 	return ""
 }
@@ -195,6 +206,25 @@ func annotateChange(c *diffx.Change, rr repoRefs) {
 		}
 	}
 
+	// GitLab CI components accept `~latest` and semver range shorthands
+	// (`2`, `2.0` → the latest matching release) that are not themselves
+	// tags: resolve them against the project's stable release tags.
+	if lock.Ecosystem(c.Ecosystem) == lock.GitLabCI {
+		for _, side := range [][]string{c.Old, c.New} {
+			for _, v := range side {
+				if _, done := c.ResolvedRefs[v]; done {
+					continue
+				}
+				if t := rangeResolve(tags, v); t != "" {
+					if c.ResolvedRefs == nil {
+						c.ResolvedRefs = map[string]string{}
+					}
+					c.ResolvedRefs[v] = t
+				}
+			}
+		}
+	}
+
 	// Unlisted: an incoming pin that is neither a tag nor any tag's
 	// commit. Branch-name refs (main, master) are a deliberate choice and
 	// stay quiet; version-shaped refs and SHAs are how releases are
@@ -246,6 +276,37 @@ func annotateChange(c *diffx.Change, rr repoRefs) {
 			c.LevelString = c.Level.String()
 		}
 	}
+}
+
+// rangeResolve resolves a GitLab component version range — `~latest`
+// (the latest stable release) or a major/major.minor shorthand — to the
+// highest stable semver tag it matches, or "" when the ref is not
+// range-shaped or nothing matches. Pre-releases never match (GitLab
+// excludes them from ~latest and range resolution).
+func rangeResolve(tags map[string]string, ref string) string {
+	var prefix string
+	switch {
+	case ref == "~latest":
+	case VersionLike(ref) && strings.Count(ref, ".") < 2 &&
+		!strings.ContainsAny(ref, "-+"):
+		prefix = strings.TrimPrefix(ref, "v")
+	default:
+		return ""
+	}
+	best := ""
+	for t := range tags {
+		if !VersionLike(t) || strings.ContainsAny(t, "-+") {
+			continue // not a stable release version
+		}
+		s := strings.TrimPrefix(t, "v")
+		if prefix != "" && s != prefix && !strings.HasPrefix(s, prefix+".") {
+			continue
+		}
+		if best == "" || vers.Compare(strings.TrimPrefix(best, "v"), s) < 0 {
+			best = t
+		}
+	}
+	return best
 }
 
 // vSwap flips the v-prefix: v1.2.3 <-> 1.2.3.

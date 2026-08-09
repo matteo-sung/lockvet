@@ -234,7 +234,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 46 formats (incl. GitHub Actions workflows, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
+It understands 47 formats (incl. GitHub Actions workflows, GitLab CI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and
@@ -460,7 +460,8 @@ registry.k8s.io (legacy k8s.gcr.io pins included), public.ecr.aws and
 registry.gitlab.com; other hosts are never queried. Flux HelmRelease
 chart pins with a same-file HelmRepository — and Argo CD Application
 chart sources with an inline repoURL — are verified against that
-chart repository's own index.yaml. GitHub Actions, SwiftPM
+chart repository's own index.yaml. GitHub Actions, GitLab CI/CD
+component, SwiftPM
 and Zig (build.zig.zon) pins are verified against the upstream
 repositories' real tag lists over anonymous git smart-HTTP (moved-tag
 and not-a-release detection).

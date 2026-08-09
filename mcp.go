@@ -26,7 +26,7 @@ const mcpLatestProtocol = "2025-06-18"
 const mcpInstructions = `lockvet explains lockfile changes: what was bumped, what's a major/breaking
 jump, what became vulnerable (and what a bump fixes), how old each incoming
 version is, what's deprecated, what's missing from the registry index, what looks like a typosquat, what suddenly runs install scripts, what silently drops sigstore provenance, what changes its content hash without a version change, what moves from a private registry to the public one
-(unpublished/pulled releases), and license changes — across 46 lockfile
+(unpublished/pulled releases), and license changes — across 47 lockfile
 formats (npm, pnpm, yarn, bun, Cargo, uv, poetry, go.mod, composer, Gemfile,
 conda, Julia, Haskell, Terraform, Helm, Ansible Galaxy, renv, SBOMs, and more).
 
@@ -237,7 +237,7 @@ func mcpTools() []map[string]any {
 			"title": "Vet a package before installing it",
 			"description": "Vet one or more packages BEFORE they are in any lockfile — the moment you are deciding whether to npm install / pip install / cargo add them. " +
 				"Reports known advisories affecting the version (OSV.dev, including MAL malicious-package records), release age (brand-new releases are higher-risk), deprecation/retraction/yank status with the upstream reason, versions missing from the registry index (what an unpublished or pulled — often malicious — release looks like), and typosquat suspicion (names one edit from a popular package). " +
-				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http, swift:Alamofire/Alamofire. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform, conda, CRAN, Hackage, Bazel, Helm charts (helm:<repo-url>/<chart>), Ansible Galaxy (ansible:namespace.name — collections and classic roles), GitHub Actions, Swift, pre-commit:owner/repo hook repos). " +
+				"Specs look like eco:name[@version] — npm:left-pad, pypi:requests@2.32.0, cargo:serde, go:github.com/gin-gonic/gin, maven:com.google.guava:guava, jsr:@std/http, swift:Alamofire/Alamofire. With no version, the registry's latest is looked up (npm, PyPI, crates.io, RubyGems, Packagist, Go, Hex, Pub, JSR, NuGet, Maven, CocoaPods, Terraform, conda, CRAN, Hackage, Bazel, Helm charts (helm:<repo-url>/<chart>), Ansible Galaxy (ansible:namespace.name — collections and classic roles), GitHub Actions, Swift, pre-commit:owner/repo hook repos, component:host/project/name GitLab CI components). " +
 				"Run this before adding any new dependency.",
 			"inputSchema": map[string]any{
 				"type": "object",

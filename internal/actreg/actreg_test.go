@@ -196,3 +196,83 @@ func TestAnnotatePreCommitPins(t *testing.T) {
 		}
 	}
 }
+
+func TestGitLabComponentResolution(t *testing.T) {
+	old := taglink.Transport
+	taglink.Transport = func(req *http.Request) (*http.Response, error) {
+		if !strings.Contains(req.URL.Path, "comp/proj") {
+			return &http.Response{StatusCode: 404, Body: io.NopCloser(bytes.NewReader(nil))}, nil
+		}
+		body := advertisement(
+			shaV5+" refs/heads/main",
+			shaV421+" refs/tags/1.2.0",
+			shaV5+" refs/tags/1.3.0",
+			"aaaa567890aaaa567890aaaa567890aaaa567890 refs/tags/2.0.0",
+			"bbbb567890bbbb567890bbbb567890bbbb567890 refs/tags/2.1.3",
+			"cccc567890cccc567890cccc567890cccc567890 refs/tags/3.0.0-rc1",
+		)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body))}, nil
+	}
+	defer func() { taglink.Transport = old }()
+
+	mk := func(oldV, newV string) diffx.Change {
+		c := diffx.Change{Name: "gitlab.com/comp/proj/thing", Ecosystem: "GitLab CI", Kind: diffx.Changed}
+		if oldV != "" {
+			c.Old = []string{oldV}
+		}
+		if newV != "" {
+			c.New = []string{newV}
+		}
+		return c
+	}
+	diffs := []diffx.FileDiff{{Path: ".gitlab-ci.yml", Kind: "gitlab-ci", Ecosystem: "Docker", Changes: []diffx.Change{
+		mk("1.2.0", "1.3.0"), // exact tags
+		mk("1", "2"),         // major shorthand -> latest in line
+		mk("2.0", "2.1"),     // minor shorthand
+		mk("", "~latest"),    // -> highest stable, pre-release excluded
+		mk("1.2.0", "9.9.9"), // version that is no tag -> unlisted
+		mk("", "4"),          // range matching nothing -> unlisted
+		mk("", "main"),       // branch: quiet
+	}}}
+	ok, err := Annotate(diffs)
+	if err != nil || !ok {
+		t.Fatalf("Annotate = %v, %v", ok, err)
+	}
+	byNew := map[string]*diffx.Change{}
+	for i := range diffs[0].Changes {
+		c := &diffs[0].Changes[i]
+		if len(c.New) == 1 {
+			byNew[c.New[0]] = c
+		}
+	}
+	c := byNew["2"]
+	if c.ResolvedRefs["1"] != "1.3.0" || c.ResolvedRefs["2"] != "2.1.3" {
+		t.Errorf("major shorthand resolve = %v", c.ResolvedRefs)
+	}
+	if c.Kind != diffx.Upgraded || c.Level != vers.Major {
+		t.Errorf("major shorthand: kind=%s level=%s", c.Kind, c.Level)
+	}
+	c = byNew["2.1"]
+	if c.ResolvedRefs["2.0"] != "2.0.0" || c.ResolvedRefs["2.1"] != "2.1.3" {
+		t.Errorf("minor shorthand resolve = %v", c.ResolvedRefs)
+	}
+	c = byNew["~latest"]
+	if c.ResolvedRefs["~latest"] != "2.1.3" {
+		t.Errorf("~latest resolve = %v (pre-release must not win)", c.ResolvedRefs)
+	}
+	if c.Unlisted {
+		t.Errorf("~latest wrongly unlisted")
+	}
+	if c := byNew["9.9.9"]; !c.Unlisted || c.UnlistedVersions[0] != "9.9.9" {
+		t.Errorf("phantom version not flagged: %+v", c)
+	}
+	if !byNew["4"].Unlisted {
+		t.Errorf("empty range not flagged: %+v", byNew["4"])
+	}
+	if byNew["main"].Unlisted {
+		t.Errorf("branch ref flagged: %+v", byNew["main"])
+	}
+	if byNew["1.3.0"].SourceRepo != "https://gitlab.com/comp/proj" {
+		t.Errorf("source repo = %q", byNew["1.3.0"].SourceRepo)
+	}
+}

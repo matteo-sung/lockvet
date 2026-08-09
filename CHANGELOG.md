@@ -4,6 +4,38 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.25 — 2026-08-09
+
+- **GitLab CI configuration is read — format #47.** `.gitlab-ci.yml`
+  (plus suffix-named variants like `backend.gitlab-ci.yml` and CI
+  fragments under `.gitlab/` or `.gitlab-ci/` directories) pins
+  dependencies in two places, and both now get the full treatment in
+  every mode:
+  - **`include: component:` pins** (CI/CD Catalog components) are
+    verified against the component project's real tags over anonymous
+    git smart-HTTP — the GitHub Actions machinery, pointed at GitLab.
+    GitLab's floating forms resolve to the release they mean today:
+    `@2` / `@2.0` semver range shorthands and `@~latest` all display the
+    concrete version (`2 (=2.3.0)`), jumps are classified from the
+    resolved versions, and a pinned version matching no tag in the
+    project raises **▲ not a release** — the tj-actions attack shape,
+    for GitLab. Compare links point at the project's tags and
+    `-changelogs` renders the component's `CHANGELOG.md` sections for
+    the exact versions a bump pulls in.
+  - **job `image:` and `services:` refs** are container pulls the runner
+    performs — they ride the existing image-registry verification
+    (digest-vs-tag, unknown tags, Docker Hub ages). Block scalars
+    (`script: |`) are opaque, templated values pin nothing, and
+    `variables:` blocks are exempt.
+  - `include: project:` + `ref:` pins become version rows but stay
+    claim-free: the file never records which GitLab instance hosts the
+    project, so lockvet won't guess (same for `$CI_SERVER_FQDN`-prefixed
+    component pins).
+  - `lockvet pkg component:gitlab.com/components/opentofu/full-pipeline`
+    vets a component before you include it (latest = newest stable tag,
+    what `@~latest` would fetch); the MCP `vet_package` tool accepts the
+    same spec.
+
 ## v0.5.24 — 2026-08-09
 
 - **Dev Containers are read — format #46.** `devcontainer.json` (and

@@ -84,12 +84,13 @@ what really happened:
   [MCP](https://modelcontextprotocol.io) server: Claude Code, Cursor, or any
   MCP client can vet a PR URL, a local repo, two files, a package it's
   about to add, or a whole Dependabot queue mid-conversation
-- **across every ecosystem, in one static binary** — 46 formats:
+- **across every ecosystem, in one static binary** — 47 formats:
   npm, pnpm, yarn (classic & berry), bun, Deno, Cargo, uv, poetry, pipenv,
   `requirements.txt`, `pylock.toml` (PEP 751), Go modules (`go.mod` + `go.sum`), Composer, Bundler, Hex (mix & rebar3), pub/Flutter,
   Gradle (lockfiles, version catalogs & verification metadata), NuGet, Swift Package Manager, CocoaPods, Conan, R/renv,
   conda/pixi, Julia, Haskell (stack & cabal), Gleam, Terraform/OpenTofu,
   Helm, Ansible Galaxy (`requirements.yml`), Nix flakes, Zig (`build.zig.zon`), Bazel modules (bzlmod), **GitHub Actions workflows**
+  and **GitLab CI configs** (`include: component:` catalog pins, job `image:`/`services:` refs),
   (`uses:` pins), **container base images** (Dockerfile / Containerfile /
   Compose `image:` pins), **Dev Containers** (`devcontainer.json` image
   and `features:` OCI pins), **Kubernetes manifests & kustomizations**
@@ -168,22 +169,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.24/lockvet_v0.5.24_linux_amd64.deb
-sudo dpkg -i lockvet_v0.5.24_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.25/lockvet_v0.5.25_linux_amd64.deb
+sudo dpkg -i lockvet_v0.5.25_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.24/lockvet_v0.5.24_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.5.25/lockvet_v0.5.25_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.24/lockvet_v0.5.24_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.5.24_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.5.25/lockvet_v0.5.25_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.5.25_linux_amd64.apk
 ```
 
 Go:
@@ -203,7 +204,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.24 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.5.25 lockvet
 ```
 
 ### Shell completions & man page
@@ -228,8 +229,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.5.24_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.24 --owner matteo-sung
+gh attestation verify lockvet_v0.5.25_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.5.25 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -471,7 +472,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.24
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.5.25
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -530,7 +531,7 @@ ask after news of a supply-chain attack, on a codebase you just inherited, or
 as a periodic hygiene check.
 
 It walks the tree (skipping `node_modules`, `vendor`, `.git`, …), reads every
-lockfile it finds — all 46 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
+lockfile it finds — all 47 formats, SBOMs, CI workflows, Dockerfiles and Kubernetes manifests included — and runs the full
 pipeline over the *current* pins. Only findings are shown:
 
 ![lockvet audit sweeping a tree the day an attack breaks: compromised npm and PyPI pins surface with malware advisories and the not-in-registry-index takedown signal](docs/audit-demo.gif)
@@ -587,7 +588,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.24/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.5.25/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -673,7 +674,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.24", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.5.25", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -728,7 +729,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.5.24
+      - uses: matteo-sung/lockvet@v0.5.25
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -755,7 +756,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.5.24
+      - uses: matteo-sung/lockvet@v0.5.25
         with:
           sarif: 'true'
 ```
@@ -775,7 +776,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.5.24
+  image: ghcr.io/matteo-sung/lockvet:0.5.25
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -800,7 +801,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.5.24
+          image: ghcr.io/matteo-sung/lockvet:0.5.25
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -818,7 +819,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.5.24
+    container: ghcr.io/matteo-sung/lockvet:0.5.25
     steps:
       - checkout: none
       - script: >
@@ -842,7 +843,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.5.24
+    image: ghcr.io/matteo-sung/lockvet:0.5.25
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -861,7 +862,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.5.24
+    rev: v0.5.25
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
@@ -1213,6 +1214,44 @@ the same signal that catches the tj-actions attack shape, for the code your
 whole team runs before every commit. `repo: local` and `repo: meta` entries
 are exempt, and `lockvet pkg pre-commit:owner/repo` vets a hook repo before
 you add it.
+
+### …and `.gitlab-ci.yml`
+
+GitLab pipelines pin dependencies in two places, and lockvet reads both —
+in `.gitlab-ci.yml`, suffix-named variants (`backend.gitlab-ci.yml`), and
+CI fragments under `.gitlab/` or `.gitlab-ci/` directories:
+
+- **`include: component:` pins** — [CI/CD Catalog
+  components](https://docs.gitlab.com/ci/components/) whose configuration
+  runs in every pipeline. Each pin is verified against the component
+  project's real tags, and GitLab's floating forms resolve to the release
+  they mean *today*: `@2` and `@2.0` (semver range shorthands) and
+  `@~latest` all show the concrete version, so a bump like `@2 → @~latest`
+  is readable instead of opaque:
+
+  ```console
+  .gitlab-ci.yml (Docker)
+    ↑ gitlab.com/components/opentofu/full-pipeline            2.0.0      → 2.4.0  minor  (direct)
+    ↑ gitlab.com/components/secret-detection/secret-detection 2 (=2.3.0) → ~latest (=2.3.0)    (direct)
+  ```
+
+  A pinned version that matches no tag in the component's project raises
+  **▲ not a release** — the tj-actions attack shape, for GitLab. Compare
+  links use the project's real tags, and `-changelogs` renders the
+  component's `CHANGELOG.md` sections for exactly the versions the bump
+  pulls in (GitLab-hosted repos included). `lockvet pkg
+  component:gitlab.com/components/opentofu/full-pipeline` vets one before
+  you include it.
+- **`image:` and `services:` refs** — the containers every job runs in
+  get the same registry verification as Dockerfile `FROM` pins (digest
+  vs. tag, unknown tags, Docker Hub ages). Renovate bumps both kinds;
+  nothing else vets either.
+
+`include: project:` + `ref:` pins are tracked as version rows but stay
+claim-free: the file never records which GitLab instance hosts the
+project, so lockvet won't guess (and `$CI_SERVER_FQDN`-prefixed component
+pins are treated the same way). Templated refs (`$VARIABLES`) and
+`include: local:/template:/remote:` entries pin nothing.
 
 ## Container base images
 
