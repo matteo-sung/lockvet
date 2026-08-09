@@ -125,6 +125,13 @@ func FallbackParser(name string) *Parser {
 			if kf, kerr := parseK8sManifest(p, data); kerr == nil {
 				return kf, nil
 			}
+			// Helm values shape last: an image: mapping with
+			// repository:/tag: children pins images without any
+			// apiVersion gate (explicit drops get scalar image:
+			// refs too — the file was named on purpose).
+			if vf := scanHelmValues(p, data, true); len(vf.Packages) > 0 {
+				return vf, nil
+			}
 			if err == nil {
 				err = errFallbackNoUses
 			}

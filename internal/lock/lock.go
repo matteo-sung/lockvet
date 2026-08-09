@@ -571,6 +571,13 @@ func ByBasename(p string) *Parser {
 	if isSBOMName(base) {
 		return &Parser{"sbom", SBOMEco, parseSBOM}
 	}
+	// Helm values files: values.yaml at chart roots, values-prod.yaml /
+	// app.values.yaml overlays. Image pins inside them get the
+	// Dockerfile registry treatment; values files without image pins
+	// parse to an empty file, never a warning.
+	if isHelmValuesName(base) {
+		return &Parser{"helm-values", Docker, parseHelmValuesFile}
+	}
 	// Kubernetes manifests: matched by directory (k8s/, kubernetes/,
 	// manifests/) or naming convention (*.k8s.yaml, deployment.yaml, …)
 	// AFTER every reserved basename above, so a pnpm-lock.yaml under k8s/
@@ -611,7 +618,7 @@ func KnownBasenames() []string {
 		"conan.lock", "MODULE.bazel.lock", "MODULE.bazel",
 		"libs.versions.toml", "verification-metadata.xml", "build.zig.zon",
 		"Dockerfile", "Containerfile", "docker-compose.yml", "compose.yaml",
-		"kustomization.yaml",
+		"kustomization.yaml", "values.yaml",
 		".pre-commit-config.yaml",
 		"bom.json", "sbom.json",
 	}

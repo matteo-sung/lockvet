@@ -4,6 +4,32 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.23 — 2026-08-09
+
+- **Helm values files are read — format #45.** The standard chart image
+  convention — an `image:` mapping with `repository:` and `tag:` children
+  (Bitnami-style `registry:` and `digest:` too) — is read straight out of
+  `values.yaml`, `values-prod.yaml` / `app.values.yaml` overlays, and
+  arbitrarily named helmfile/Argo value overlays discovered under GitOps
+  directory conventions or diff-mode content sniffing. That's the exact
+  shape Renovate's `helm-values` manager bumps, and nothing else vets it:
+  the image pins inside get the full registry treatment (digest
+  verification, unknown tags, ages, same-tag digest moves), and a
+  `digest:` child lands as an integrity pin.
+- **Noise design:** convention-named values files also accept bare
+  `image: ghcr.io/owner/app:v1.2.3` scalars — only when a tag or digest
+  is present, so `image: nginx` and asset paths pin nothing; files merely
+  discovered (dir conventions, sniffing, playground drops) require the
+  structured `repository:`/`tag:` shape. Block-scalar bodies (`config: |`
+  — embedded app configuration) are opaque to the scanner, templated
+  values (`{{ … }}`, `$(VAR)`, `${VAR}`) are never pins, and YAML anchors
+  on values (`tag: &img 1.2.3@sha256:…`) resolve like everywhere else.
+- Validated against 133 values-file commit replays across argo-helm,
+  grafana/helm-charts and kdwils/homelab (0 failures, 0 false flags;
+  the only online flags were true ones — Bitnami's 2025 Docker Hub tag
+  purge makes old `docker.io/bitnami/*` pins genuinely unpullable) plus
+  a live end-to-end PR replay of the motivating shape.
+
 ## v0.5.22 — 2026-08-08
 
 - **`go.sum` is now read — as a pins-only ledger (format #44).** Version

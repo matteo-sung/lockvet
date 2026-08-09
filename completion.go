@@ -234,7 +234,7 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 44 formats (incl. GitHub Actions workflows, Dockerfiles/Compose, Kubernetes manifests & kustomizations, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
+It understands 45 formats (incl. GitHub Actions workflows, Dockerfiles/Compose, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs and Gradle version catalogs / verification metadata) across the npm, pnpm, yarn, bun, Cargo,
 uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, Deno, Nix, conda, R, Julia, Haskell, Gleam,
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and

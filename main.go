@@ -135,7 +135,7 @@ USAGE
                                       (unpublished/pulled — often malicious —
                                       releases), deprecated/retracted/yanked
                                       upstream, or published only days ago.
-                                      Walks the tree for all 44 formats
+                                      Walks the tree for all 45 formats
                                       (node_modules/vendor skipped).
 
   lockvet pkg <eco>:<name>[@version]  vet a package BEFORE you install it —

@@ -620,6 +620,14 @@ func cutImageValue(item string) (string, bool) {
 func k8sManifestLenient(p string, data []byte) (*File, error) {
 	f, err := parseK8sManifest(p, data)
 	if errors.Is(err, errNotK8s) {
+		// Not Kubernetes YAML — but GitOps trees keep Helm values
+		// overlays under the same conventions (apps/<name>/<env>.yaml
+		// with an image: {repository:, tag:} block). The structured
+		// values shape is distinctive enough to read without the
+		// apiVersion gate; anything else parses to an empty file.
+		if vf := scanHelmValues(p, data, false); len(vf.Packages) > 0 {
+			return vf, nil
+		}
 		return newFile(p, "kubernetes-manifest", Docker), nil
 	}
 	return f, err
