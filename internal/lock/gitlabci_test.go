@@ -131,3 +131,33 @@ func TestGitLabCIByBasename(t *testing.T) {
 		t.Errorf("CI fragment should produce 1 package, got %v (%v)", f.Packages, err)
 	}
 }
+
+func TestParseGitLabCIInstanceHost(t *testing.T) {
+	CIInstanceHost = "gitlab.example.com"
+	defer func() { CIInstanceHost = "" }()
+	f, err := parseGitLabCI(".gitlab-ci.yml", []byte(gitlabCISample))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// $CI_SERVER_FQDN component now resolves against the named instance:
+	// host-qualified name, registry-eligible, GitLabCI eco.
+	name := "gitlab.example.com/my-org/security/sast"
+	if got := f.Packages[name]; len(got) != 1 || got[0] != "3.1.4" {
+		t.Fatalf("resolved component = %v, want [3.1.4] (packages: %v)", got, f.Packages)
+	}
+	if f.NonRegistry[name] {
+		t.Error("instance-resolved component should not be NonRegistry")
+	}
+	if f.PkgEco[name] != GitLabCI {
+		t.Errorf("resolved component eco = %q, want GitLabCI", f.PkgEco[name])
+	}
+	if _, ok := f.Packages["my-org/security/sast"]; ok {
+		t.Error("bare unresolved name should not remain")
+	}
+	// include:project pins keep their no-claims contract even when the
+	// instance is known — a ref: can be a branch/SHA on a private project;
+	// only component semver pins gain verification.
+	if !f.NonRegistry["my-group/my-deps"] {
+		t.Error("project include should stay NonRegistry")
+	}
+}

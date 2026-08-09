@@ -528,6 +528,8 @@ func main() {
 		for _, w := range res.Warnings {
 			fmt.Fprintf(os.Stderr, "lockvet: warning: %s\n", w)
 		}
+		lock.CIInstanceHost = res.CIHost // GitLab fetches name their instance
+		defer func() { lock.CIInstanceHost = "" }()
 		base, target = res.BaseLabel, res.HeadLabel
 		for _, cf := range res.Files {
 			parser := lock.ByBasename(cf.Path)
@@ -1156,6 +1158,13 @@ func queueRun(scope string, o queueOpts, w io.Writer) (failed bool, err error) {
 		err   error
 	}
 	slots := make([]slot, len(entries))
+	if forge == "gitlab" {
+		// One queue = one instance: every MR's $CI_SERVER_FQDN component
+		// pins resolve against the queue's own host. Set before the
+		// workers start (they only read it), cleared after they finish.
+		lock.CIInstanceHost = host
+		defer func() { lock.CIInstanceHost = "" }()
+	}
 	sem := make(chan struct{}, 4)
 	var wg sync.WaitGroup
 	for i, it := range entries {

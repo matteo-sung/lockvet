@@ -62,6 +62,14 @@ type Result struct {
 	HeadLabel string // e.g. "PR #123 (dependabot/cargo/jiff-0.1.14)"
 	Title     string
 	Warnings  []string
+
+	// CIHost is the CI instance host the fetched files run their
+	// pipelines on, when the fetch context knows it. Only the GitLab
+	// fetchers (internal/glmr) fill it: an MR/compare URL names the
+	// instance, so `$CI_SERVER_FQDN/...` component pins in fetched
+	// .gitlab-ci.yml files can be resolved against that host instead
+	// of staying claim-free. Empty everywhere else.
+	CIHost string
 }
 
 type client struct {

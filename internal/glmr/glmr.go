@@ -211,6 +211,7 @@ func Fetch(ref Ref, isLockfile func(path string) bool) (*ghpr.Result, error) {
 		BaseLabel: fmt.Sprintf("%s@%s", ref.Project, mr.TargetBranch),
 		HeadLabel: fmt.Sprintf("MR !%d (%s)", ref.IID, mr.SourceBranch),
 		Title:     mr.Title,
+		CIHost:    c.host, // the MR names its instance — $CI_SERVER_FQDN is knowable
 	}
 	for _, d := range matched {
 		cf := ghpr.ChangedFile{Path: d.NewPath}
@@ -290,6 +291,7 @@ func FetchCompare(ref CmpRef, isLockfile func(path string) bool) (*ghpr.Result, 
 	res := &ghpr.Result{
 		BaseLabel: fmt.Sprintf("%s@%s", ref.Project, ref.Base),
 		HeadLabel: ref.Head,
+		CIHost:    c.host, // the compare URL names its instance
 	}
 	for _, d := range cmp.Diffs {
 		if !(isLockfile(d.NewPath) || (d.DeletedFile && isLockfile(d.OldPath))) {

@@ -425,6 +425,8 @@ func vetRemote(arg string, o vetOptions) (*vetOutcome, error) {
 	var diffs []diffx.FileDiff
 	var warnings []string
 	warnings = append(warnings, res.Warnings...)
+	lock.CIInstanceHost = res.CIHost // GitLab fetches name their instance
+	defer func() { lock.CIInstanceHost = "" }()
 	for _, cf := range res.Files {
 		parser := lock.ByBasename(cf.Path)
 		if parser == nil {

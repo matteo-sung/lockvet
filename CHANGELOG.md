@@ -4,6 +4,23 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.5.26 — 2026-08-09
+
+- **`$CI_SERVER_FQDN` component pins resolve in URL modes.** A
+  `.gitlab-ci.yml` on disk never says which GitLab instance runs its
+  pipelines, so `$CI_SERVER_FQDN/ns/proj/name@1.2.3` component pins were
+  honestly claim-free everywhere. But an MR URL, a compare URL, or a
+  `queue` scope *names the instance* — so `mr`, `compare`, and `queue`
+  modes (and the playground's URL tab) now resolve those pins against
+  the fetched host and give them the full tag-verification treatment:
+  real-tag verification with **▲ not a release**, floating-form
+  resolution, compare links, and `-changelogs`. This is the dominant way
+  gitlab.com projects pin components (gitlab-org's own repos included),
+  so most real component-bump MRs gain verification. Local/`pr`-on-disk
+  reads stay claim-free, and `include: project:` + `ref:` pins keep
+  their no-claims contract even when the instance is known — a `ref:`
+  can be a branch or SHA on a private project.
+
 ## v0.5.25 — 2026-08-09
 
 - **GitLab CI configuration is read — format #47.** `.gitlab-ci.yml`

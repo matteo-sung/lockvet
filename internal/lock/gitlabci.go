@@ -30,6 +30,16 @@ package lock
 
 import "strings"
 
+// CIInstanceHost is the GitLab instance host the files being parsed run
+// their pipelines on, when the caller knows it. The `mr`/`compare`/`queue`
+// modes set it from the MR or compare URL itself (via ghpr.Result.CIHost)
+// around parsing, and reset it to "" afterwards. When set, component pins
+// written as `$CI_SERVER_FQDN/ns/proj/name@1.2.3` resolve against this
+// host and get the full tag-verification treatment; when empty (local
+// files, other forges) they stay claim-free — a directory on disk does
+// not record which instance runs its pipelines.
+var CIInstanceHost string
+
 // parseGitLabCI parses a reserved-basename GitLab CI file.
 func parseGitLabCI(p string, data []byte) (*File, error) {
 	return scanGitLabCI(p, data, false), nil
@@ -252,7 +262,8 @@ func addGitLabComponent(f *File, ref string) {
 	nonReg := false
 	for _, pre := range []string{"$CI_SERVER_FQDN/", "${CI_SERVER_FQDN}/"} {
 		if strings.HasPrefix(name, pre) {
-			// The instance's own host: real, but unknowable from here.
+			// The instance's own host: real, and knowable when the caller
+			// fetched this file from a named instance (mr/compare modes).
 			name, nonReg = strings.TrimPrefix(name, pre), true
 			break
 		}
@@ -264,6 +275,12 @@ func addGitLabComponent(f *File, ref string) {
 	if nonReg {
 		if len(segs) < 3 { // namespace/project/component at minimum
 			return
+		}
+		if h := CIInstanceHost; h != "" && strings.Contains(h, ".") &&
+			!strings.Contains(h, "/") {
+			// The fetch context named the instance: qualify the pin and
+			// give it the same treatment as a literal host/... reference.
+			name, nonReg = h+"/"+name, false
 		}
 	} else {
 		// host/namespace/project/component at minimum, host has a dot.

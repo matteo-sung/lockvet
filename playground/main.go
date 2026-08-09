@@ -247,6 +247,8 @@ func run(opts js.Value) (js.Value, error) {
 		}
 		warnings = append(warnings, res.Warnings...)
 		base, target, title = res.BaseLabel, res.HeadLabel, res.Title
+		lock.CIInstanceHost = res.CIHost // GitLab fetches name their instance
+		defer func() { lock.CIInstanceHost = "" }()
 		for _, cf := range res.Files {
 			parser := lock.ByBasename(cf.Path)
 			if parser == nil {
