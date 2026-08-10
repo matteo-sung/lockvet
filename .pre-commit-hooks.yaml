@@ -22,7 +22,7 @@
     introduced (OSV.dev), release ages, deprecations, versions missing from
     the registry index, newly added install scripts, dropped provenance,
     typosquat lookalikes, integrity/resolution tampering, and the dependency
-    chain pulling each transitive change in. 60 lockfile formats plus SBOMs,
+    chain pulling each transitive change in. 61 lockfile formats plus SBOMs,
     CI workflow pins, container base images (Dockerfile / Compose),
     Kubernetes manifests and kustomizations (Flux and Argo CD CRs
     included), and pre-commit hook rev pins themselves.
@@ -36,7 +36,7 @@
   files: >-
     (?x)^(.*/)?(
       package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|
-      bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|requirements\.txt|
+      bun\.lock|Cargo\.lock|uv\.lock|poetry\.lock|pdm\.lock|requirements\.txt|
       pylock\.toml|pylock\.[^/]+\.toml|
       go\.mod|go\.sum|composer\.lock|Gemfile\.lock|[^/]*\.gemfile\.lock|Pipfile\.lock|mix\.lock|rebar\.lock|
       pubspec\.lock|gradle\.lockfile|packages\.lock\.json|Package\.resolved|

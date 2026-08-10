@@ -234,8 +234,8 @@ registry no longer lists (what an unpublished malicious release looks
 like); and which bumps change their license.
 Every change is labeled \fB(direct)\fR or \fIvia\fR its pull-in chain.
 .PP
-It understands 60 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs, asdf/mise toolchain pins (.tool-versions, mise.toml, mise.lock with per-platform checksum integrity pins, .nvmrc/.python-version/.ruby-version-style version files, .sdkmanrc), Gradle build scripts / wrappers / version catalogs / verification metadata, Maven POMs and sbt build definitions) across the npm, pnpm, yarn, bun, Cargo,
-uv, poetry, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
+It understands 61 formats (incl. GitHub Actions workflows, GitLab CI and CircleCI configs, Dockerfiles/Compose, devcontainer.json, Kubernetes manifests & kustomizations, Helm values files, pre-commit configs, asdf/mise toolchain pins (.tool-versions, mise.toml, mise.lock with per-platform checksum integrity pins, .nvmrc/.python-version/.ruby-version-style version files, .sdkmanrc), Gradle build scripts / wrappers / version catalogs / verification metadata, Maven POMs and sbt build definitions) across the npm, pnpm, yarn, bun, Cargo,
+uv, poetry, PDM, pipenv, pip, Go, Composer, RubyGems, Hex (Elixir & Erlang), pub, Gradle, NuGet,
 Swift, CocoaPods, Conan, vcpkg, Deno, Nix, conda, R, Julia, Haskell, Gleam, Scala (sbt),
 Terraform/OpenTofu, Helm, Ansible Galaxy, Zig, and Bazel (bzlmod) ecosystems, plus CycloneDX and
 SPDX JSON SBOMs \(em all in one static binary.

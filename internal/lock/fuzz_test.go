@@ -78,6 +78,7 @@ func FuzzAllParsers(f *testing.F) {
 		"java=17.0.9-tem\ngradle=8.5 # c\nkotlin=1.9.22\nbroken line\n=\n",
 		"{\n// c\n\"name\": \"app\",\n\"builtin-baseline\": \"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\",\n\"dependencies\": [\"zlib\", {\"name\": \"fmt\", \"version>=\": \"10.0.0\"}],\n\"overrides\": [{\"name\": \"openssl\", \"version\": \"3.1.4\", \"port-version\": 2}, {\"name\": \"b\", \"version-date\": \"2024-01-01\"}],\n\"vcpkg-configuration\": {\"default-registry\": {\"kind\": \"git\", \"repository\": \"https://github.com/o/reg\", \"baseline\": \"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\"}, \"registries\": [{\"kind\": \"git\", \"repository\": \"git@github.com:o/r2.git\", \"baseline\": \"cafecafecafecafecafecafecafecafecafecafe\", \"packages\": [\"boost*\"]}]}\n}",
 		"{\"default-registry\": {\"kind\": \"builtin\", \"baseline\": \"0123456789abcdef0123456789abcdef01234567\"}, \"registries\": [{\"kind\": \"filesystem\", \"path\": \"/x\", \"packages\": [\"a\"]}]}",
+		"[metadata]\ngroups = [\"default\"]\nlock_version = \"4.5.1\"\ncontent_hash = \"sha256:aa\"\n\n[[package]]\nname = \"anyio\"\nversion = \"4.13.0\"\ndependencies = [\n    \"idna>=2.8\",\n    \"exceptiongroup>=1.0.2; python_version < \\\"3.11\\\"\",\n]\nfiles = [\n    {file = \"anyio-4.13.0-py3-none-any.whl\", hash = \"sha256:08b310f9e24a\"},\n]\n\n[[package]]\nname = \"demo\"\nversion = \"0.0.1\"\ngit = \"https://github.com/example/demo.git\"\nrevision = \"1234abcd\"\n",
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

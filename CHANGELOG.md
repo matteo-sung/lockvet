@@ -4,6 +4,23 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.4 — 2026-08-10
+
+- **pdm.lock support — format #61.** PDM's lockfile completes lockvet's
+  Python lineup (uv, poetry, pipenv, `requirements.txt`, PEP 751
+  `pylock.toml`, and now PDM). Every locked package gets the full PyPI
+  treatment: OSV advisories with `fixed in`, release ages, deprecation
+  and registry-verified unlisted checks, typosquat screening, and
+  via-chains from the lockfile's own PEP 508 `dependencies` arrays.
+  Per-artifact `files` hashes become integrity pins, so a same-version
+  hash edit flags ‼ REPINNED; the lock-wide `content_hash` is never
+  mistaken for one. Multi-target locks (one package locked at several
+  versions for different Python ranges) render all versions honestly.
+  Git/path/URL candidates are exempt from registry claims. Validated
+  against 90 real lockfile-history replays (pdm-project/pdm,
+  datafolklabs/cement, laluka/bypass-url-parser): 0 failures, 0 false
+  alarms, 65 non-vacuous diffs. Works in the playground too.
+
 ## v0.6.3 — 2026-08-09
 
 - **Conan recipe revisions are pins now.** Every `conan.lock` ref carries

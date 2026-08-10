@@ -484,6 +484,8 @@ func ByBasename(p string) *Parser {
 		return &Parser{"uv.lock", PyPI, parseTOMLPackages("uv.lock", PyPI)}
 	case "poetry.lock":
 		return &Parser{"poetry.lock", PyPI, parseTOMLPackages("poetry.lock", PyPI)}
+	case "pdm.lock":
+		return &Parser{"pdm.lock", PyPI, parseTOMLPackages("pdm.lock", PyPI)}
 	case "requirements.txt":
 		return &Parser{"requirements.txt", PyPI, parseRequirementsTxt}
 	case "pylock.toml":
@@ -729,8 +731,8 @@ func isSBOMName(base string) bool {
 func KnownBasenames() []string {
 	return []string{
 		"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
-		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "requirements.txt",
-		"pylock.toml",
+		"bun.lock", "Cargo.lock", "uv.lock", "poetry.lock", "pdm.lock",
+		"requirements.txt", "pylock.toml",
 		"go.mod", "go.sum", "composer.lock", "Gemfile.lock", "Pipfile.lock", "mix.lock",
 		"rebar.lock",
 		"pubspec.lock", "gradle.lockfile", "gradle-wrapper.properties",

@@ -63,6 +63,7 @@ func tomlSourceHost(line string) string {
 //
 //	Cargo: "bar" or "bar 1.0.0 (registry+...)"
 //	uv:    { name = "bar" },
+//	pdm:   "bar>=1.2" / "bar[extra]==1.0; python_version < \"3.11\"" (PEP 508)
 func tomlDepItem(item string) string {
 	item = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(item), ","))
 	if strings.HasPrefix(item, "{") {
@@ -72,8 +73,17 @@ func tomlDepItem(item string) string {
 		return ""
 	}
 	item = strings.Trim(item, `"`)
-	if i := strings.IndexByte(item, ' '); i > 0 { // "bar 1.0.0 (...)"
+	// The name is the leading run of name characters; everything after the
+	// first space (Cargo "bar 1.0.0 (...)"), extras bracket, version
+	// specifier or environment marker (PEP 508) is not part of it.
+	for i := 0; i < len(item); i++ {
+		c := item[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' {
+			continue
+		}
 		item = item[:i]
+		break
 	}
 	return item
 }
@@ -202,6 +212,17 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				if m := tomlTypeRe.FindStringSubmatch(line); m != nil {
 					srcType = m[1]
 				}
+				continue
+			}
+			// pdm.lock records non-registry candidates with package-level
+			// keys: git/hg/svn (VCS), path (local), url (direct URL).
+			// `files = [` entry lines all start with "{", so these
+			// prefixes only match genuine package-level keys.
+			if kind == "pdm.lock" && (strings.HasPrefix(line, "git =") ||
+				strings.HasPrefix(line, "hg =") || strings.HasPrefix(line, "svn =") ||
+				strings.HasPrefix(line, "path =") || strings.HasPrefix(line, "url =") ||
+				strings.HasPrefix(line, "editable =")) {
+				nonRegistry = true
 				continue
 			}
 			if strings.HasPrefix(line, "source =") {
