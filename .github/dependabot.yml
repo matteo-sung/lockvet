@@ -4,6 +4,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # codeql-action init/analyze/upload-sarif must move in lockstep:
+      # a config written by init vX refuses to load under analyze vY.
+      codeql-action:
+        patterns:
+          - github/codeql-action*
   - package-ecosystem: gomod
     directory: /
     schedule:

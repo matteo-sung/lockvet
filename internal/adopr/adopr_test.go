@@ -27,10 +27,10 @@ func TestParse(t *testing.T) {
 		{"https://fabrikam.visualstudio.com/Web/_git/app/pullrequest/7", true, "https://fabrikam.visualstudio.com", "Web", "app", 7},
 		{"https://tfs.corp.example/tfs/DefaultCollection/Web/_git/app/pullrequest/3", true, "https://tfs.corp.example/tfs/DefaultCollection", "Web", "app", 3},
 		{"https://dev.azure.com/o/My%20Project/_git/My%20Repo/pullrequest/5", true, "https://dev.azure.com/o", "My%20Project", "My%20Repo", 5},
-		{"https://dev.azure.com/o/p/_git/r/pullrequest/0", false, "", "", "", 0},   // bad id
-		{"https://github.com/owner/repo/pull/1", false, "", "", "", 0},             // GitHub URL
-		{"https://gitlab.com/g/p/-/merge_requests/3", false, "", "", "", 0},        // GitLab URL
-		{"https://bitbucket.org/x/p/_git/r/pullrequest/1", false, "", "", "", 0},   // wrong host
+		{"https://dev.azure.com/o/p/_git/r/pullrequest/0", false, "", "", "", 0}, // bad id
+		{"https://github.com/owner/repo/pull/1", false, "", "", "", 0},           // GitHub URL
+		{"https://gitlab.com/g/p/-/merge_requests/3", false, "", "", "", 0},      // GitLab URL
+		{"https://bitbucket.org/x/p/_git/r/pullrequest/1", false, "", "", "", 0}, // wrong host
 		{"owner/repo#123", false, "", "", "", 0},                                   // GitHub shorthand
 		{"https://dev.azure.com/o/p/_git/r/pullrequests/12", false, "", "", "", 0}, // wrong path
 	}
