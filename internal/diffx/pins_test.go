@@ -459,3 +459,56 @@ func TestZigHashShapeMigrationNotFlagged(t *testing.T) {
 		t.Fatalf("shape migration should not flag: %+v", fd.Changes)
 	}
 }
+
+// Every integrity notation any parser emits must survive splitHash: a
+// notation it cannot label is silently dropped from integrity diffing,
+// and same-version swaps of that pin compare as "no change" — the bug
+// class TestZigLegacyHashSwapSameVersion regressed on. One entry per
+// (parser, notation), values verbatim from a real-corpus audit
+// (2026-08-25: 29 formats, ~11k hashes). Add a row when a new format's
+// setPin introduces a notation.
+func TestSplitHashRecognizesEveryParserNotation(t *testing.T) {
+	cases := []struct {
+		src, hash, wantAlgo string
+	}{
+		{"npm/pnpm/bun/yarn-berry SRI", "sha512-q8bd8CvnbAxqqhcJ0l7csVSPvcs0hLTRUKrrzM70XvbKw2AHOO9z2rrhZ0mBSuwQvbXwYLLYOh/EJk7EpArKXQ==", "sha512"},
+		{"npm SRI sha1 (legacy)", "sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=", "sha1"},
+		{"yarn berry cache key", "10c0/e5b6a5ee1c9ee4b0b0dcaa4f8db2a2f1a1e5a30d9e1a5c8dbd7a55545cd54e2e2b", "10c0"},
+		{"yarn berry cache key (no compression)", "10/eb77846e506df107208ee6a57aa38c80ce6cdd9ab499ec3518a8e3000334def8", "10"},
+		{"yarn classic resolved fragment (bare sha1)", "9469c3aca9a3f4d635a123e0967a89d4b4a09f4d", "sha1"},
+		{"python sha256: (poetry/uv/pdm/pipfile/pylock/reqs)", "sha256:9c2ea1e62d871267b78307fe511c0838ba0da28698c5732d54e2790bf3ba9899", "sha256"},
+		{"cargo/mix/deno-jsr bare sha256", "42b1e076c9dfb5d27decfd0c2a659d78bec5eef86bbe0be4bc159cec3f4ed1c0", "sha256"},
+		{"rebar bare sha256 (lowercased)", "0efc9a13c53f1aa1a4d3adcbca24c04124528ab6d1b45cd80540367f0e90c33d", "sha256"},
+		{"bare sha512", strings.Repeat("ab", 64), "sha512"},
+		{"go.sum module hash", "h1:1JFLCDsPCbbqKGYIPTa1sm2X/tuw2hxfi9wIyB2a16M=", "h1"},
+		{"go.sum manifest hash (artifact-scoped)", "go.mod#h1:vE6IudEVhrDWotDMn/pxpsJbByyewXWEwT1yyMbqTazA=", "go.mod#h1"},
+		{"terraform h1 scheme", "h1:uS0X6hjrl7GYAzMSW3yUk2vLn+HgdK3vJwLdTQMGDcs=", "h1"},
+		{"terraform zh scheme", "zh:1c1b1bfd89b4fa4a4d4c56d4c6b6cbd0f2b2b6912ad4a24bdb0f6b3f3aca2b6a", "zh"},
+		{"gradle verification-metadata (artifact-scoped)", "core-1.8.0.jar#sha256:9c2ea1e62d871267b78307fe511c0838ba0da28698c5732d54e2790bf3ba9899", "core-1.8.0.jar#sha256"},
+		{"mise.lock platform-scoped sha256", "linux-x64#sha256:9c2ea1e62d871267b78307fe511c0838ba0da28698c5732d54e2790bf3ba9899", "linux-x64#sha256"},
+		{"mise.lock platform-scoped blake3", "macos-arm64#blake3:9c2ea1e62d871267b78307fe511c0838ba0da28698c5732d54e2790bf3ba9899", "macos-arm64#blake3"},
+		{"conan recipe revision", "rrev:f52e03ae3d251dec36c6a60d2ef066db", "rrev"},
+		{"swift/composer tag commit", "commit:c5b1261d6d3e43071626931fc004f70149baeba2", "commit"},
+		{"julia registry git tree", "tree:c5b1261d6d3e43071626931fc004f70149baeba2", "tree"},
+		{"zig pre-0.14 multihash (normalized)", "sha256:9cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147", "sha256"},
+		{"zig 0.14+ package hash (normalized)", "zigpkg:known_folders-1.2.3-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70", "zigpkg"},
+		{"nix narHash / bazel SRI", "sha256-BZyMKM5nAQE1ehlvvpJqPmcbDMOFcq7BSbwc9nQ8AQ8=", "sha256"},
+		{"oci/docker digest", "sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b", "sha256"},
+		{"conda md5 label", "md5:0123456789abcdef0123456789abcdef", "md5"},
+	}
+	for _, c := range cases {
+		algo, val := splitHash(c.hash)
+		if algo != c.wantAlgo || val == "" {
+			t.Errorf("%s: splitHash(%q) = (%q, %q), want algo %q and non-empty value",
+				c.src, c.hash, algo, val, c.wantAlgo)
+		}
+	}
+	// Hostile or meaningless strings must stay droppable: hashesByAlgo
+	// discards anything without both a label and a value — the defensive
+	// behavior for attacker-controlled integrity fields.
+	for _, junk := range []string{"", "notahash", "12345", "xyz!!:abc", "1220", "-leading", "trailing-"} {
+		if algo, val := splitHash(junk); algo != "" && val != "" {
+			t.Errorf("junk %q unexpectedly parsed as (%q, %q)", junk, algo, val)
+		}
+	}
+}
