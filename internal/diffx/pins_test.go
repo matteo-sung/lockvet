@@ -397,3 +397,65 @@ func TestVcpkgSameConfigNoRows(t *testing.T) {
 		t.Fatalf("identical configs must produce no rows, got %+v", fd.Changes)
 	}
 }
+
+const zigZonTmpl = `.{
+    .name = "myapp",
+    .version = "0.1.0",
+    .dependencies = .{
+        .known_folders = .{
+            .url = "https://github.com/ziglibs/known-folders/archive/refs/tags/v1.2.3.tar.gz",
+            .hash = "%s",
+        },
+    },
+    .paths = .{""},
+}`
+
+// A same-version .hash swap in build.zig.zon is the tampered-archive shape
+// the format exists to catch. Regression: Zig hashes match no conventional
+// algorithm label, so before they were normalized (zigIntegrity) both
+// shapes fell out of hashesByAlgo and the swap compared as no change at
+// all — pre-0.14 multihashes always, 0.14+ hashes whenever the leading
+// package name was too long or punctuated to pass for an algo label.
+func TestZigLegacyHashSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"12209cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147"))
+	newF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"1220aaaaaaaa58f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "known_folders" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestZigModernHashSwapSameVersion(t *testing.T) {
+	// "known_folders" leads the 0.14+ hash: '_' and 13 chars — the shape
+	// generic label-splitting drops outright.
+	oldF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"known_folders-1.2.3-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70"))
+	newF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"known_folders-1.2.3-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY71"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestZigHashShapeMigrationNotFlagged(t *testing.T) {
+	// zig 0.14 rewrites the manifest's hashes from multihash to package
+	// hash for the same content: distinct labels = no shared algorithm =
+	// an algo upgrade, never an integrity alarm. (The 0.0.0 placeholder
+	// keeps the version keyed on the URL tag, same as the legacy side.)
+	oldF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"12209cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147"))
+	newF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("shape migration should not flag: %+v", fd.Changes)
+	}
+}

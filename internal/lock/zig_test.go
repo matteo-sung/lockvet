@@ -96,6 +96,33 @@ func TestParseZigZonLegacy(t *testing.T) {
 	if len(got) != 1 || got[0] != "0ad514dcfb75" {
 		t.Fatalf("known_folders = %v", got)
 	}
+	// The pre-0.14 multihash is labeled sha256 (0x12 0x20 prefix) so the
+	// pin-comparison layer can compare it at all: bare 68-char hex matches
+	// no algorithm shape and a swapped hash would silently compare as
+	// nothing (the bug this assertion pins down).
+	if pin := f.Pin("known_folders", "0ad514dcfb75"); pin.Integrity !=
+		"sha256:9cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147" {
+		t.Fatalf("legacy integrity = %q", pin.Integrity)
+	}
+}
+
+func TestZigIntegrityLabels(t *testing.T) {
+	cases := map[string]string{
+		"": "",
+		// pre-0.14 multihash → sha256 with the 2-byte prefix stripped
+		"12209cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147": "sha256:9cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147",
+		// 0.14+ package hash: leading NAME must not be mistaken for an
+		// algorithm label ("zap") nor dropped ("known_folders")
+		"zap-0.8.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70":           "zigpkg:zap-0.8.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
+		"known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70": "zigpkg:known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
+		// wrong-length hex is not a multihash: keep it comparable anyway
+		"deadbeef": "zigpkg:deadbeef",
+	}
+	for in, want := range cases {
+		if got := zigIntegrity(in); got != want {
+			t.Errorf("zigIntegrity(%q) = %q, want %q", in, got, want)
+		}
+	}
 }
 
 func TestParseZigZonGitURL(t *testing.T) {

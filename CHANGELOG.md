@@ -4,6 +4,22 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.5 — 2026-08-25
+
+- **Fix: `build.zig.zon` same-version hash swaps flag again.** Zig's hash
+  shapes match no conventional algorithm label, so the pin-comparison
+  layer was silently dropping them: pre-0.14 multihashes (`1220…`, 68 hex
+  chars) always, and 0.14+ package hashes whenever the leading package
+  name was too long or punctuated to pass for an algorithm label
+  (`known_folders-…`). A same-version `.hash` edit — the tampered-archive
+  shape the format exists to catch — compared as *no change at all*.
+  Hashes are now stored algo-labeled (`sha256:` for multihashes, which is
+  what the `1220` prefix means; `zigpkg:` for 0.14+ package hashes), so
+  the swap renders ‼ integrity changed as documented, and a legacy→0.14
+  hash-shape migration counts as an algorithm upgrade and never flags.
+  Found by routine smoke testing; regression-tested end-to-end for both
+  shapes plus the migration case.
+
 ## v0.6.4 — 2026-08-10
 
 - **pdm.lock support — format #61.** PDM's lockfile completes lockvet's

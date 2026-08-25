@@ -110,7 +110,7 @@ func parseZigZon(p string, data []byte) (*File, error) {
 		f.add(name, version)
 		host := zigHost(u)
 		if h != "" || host != "" {
-			f.setPin(name, version, h, host)
+			f.setPin(name, version, zigIntegrity(h), host)
 		}
 		if repo := zigRepoURL(u); repo != "" {
 			if f.PkgRepo == nil {
@@ -148,6 +148,27 @@ func zigHashVersion(h string) string {
 		return "" // "N-V" placeholder or something else entirely
 	}
 	return ver
+}
+
+// zigIntegrity normalizes a .hash value into an algo-labeled form the
+// pin-comparison layer understands. Zig's hash shapes match none of the
+// conventional labels: the pre-0.14 multihash is bare hex with a "1220"
+// (sha2-256, 32-byte) prefix — 68 hex chars, a width generic splitting
+// recognizes as no known algorithm — and the 0.14+ package hash leads
+// with the package NAME, which short names get mistaken for an algorithm
+// label while longer or punctuated ones ("known_folders") are dropped
+// outright. Unlabeled, a same-version hash swap — the tampered-archive
+// shape this format exists to catch — compares as nothing at all. Two
+// distinct labels keep a legacy→0.14 shape migration an algo upgrade
+// (never flags) rather than a false repin.
+func zigIntegrity(h string) string {
+	if h == "" {
+		return ""
+	}
+	if len(h) == 68 && strings.HasPrefix(h, "1220") && isHex(h[4:]) {
+		return "sha256:" + h[4:] // multihash: 0x12 = sha2-256, 0x20 = 32 bytes
+	}
+	return "zigpkg:" + h
 }
 
 // zigHashDigest returns the digest part of a hash: the fixed-width tail of
