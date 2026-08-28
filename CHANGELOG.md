@@ -4,6 +4,16 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## Unreleased
+
+- **Fix: commented `bun.lock` files parse again.** bun.lock is JSONC —
+  comments are legal, not just trailing commas — but the parser only
+  stripped trailing commas (with a regex that additionally could corrupt
+  `,}` sequences inside string literals). Any bun.lock with a `//` or
+  `/* */` comment failed to parse in every mode. The parser now uses the
+  same string-aware JSONC stripper as devcontainer.json and vcpkg.json.
+  Found by routine smoke testing; regression-tested.
+
 ## v0.6.5 — 2026-08-25
 
 - **Fix: `build.zig.zon` same-version hash swaps flag again.** Zig's hash

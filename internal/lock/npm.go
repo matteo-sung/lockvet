@@ -422,11 +422,13 @@ func appendUnique(s []string, v string) []string {
 
 // ---- bun.lock (JSONC) ----
 
-var trailingCommaRe = regexp.MustCompile(`,(\s*[}\]])`)
-
 func parseBunLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "bun.lock", NPM)
-	clean := trailingCommaRe.ReplaceAll(data, []byte("$1"))
+	// bun.lock is JSONC: trailing commas always, and comments are legal
+	// (hand-edited lockfiles have them). Use the shared string-aware
+	// stripper rather than a trailing-comma regex, which both misses
+	// comments and could corrupt ",}" sequences inside string literals.
+	clean := stripJSONC(data)
 	var doc struct {
 		Packages map[string]json.RawMessage `json:"packages"`
 	}
