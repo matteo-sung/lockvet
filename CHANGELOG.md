@@ -4,7 +4,7 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
-## Unreleased
+## v0.6.6 — 2026-08-28
 
 - **Fix: commented `packages.lock.json` (NuGet) files parse.** NuGet reads
   its lock file with Newtonsoft's `JsonTextReader`, which accepts `//` and
