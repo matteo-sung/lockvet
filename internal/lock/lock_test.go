@@ -160,6 +160,27 @@ func TestBunLockComments(t *testing.T) {
 	wantPkg(t, f, "lodash", "4.17.11")
 }
 
+// NuGet parses packages.lock.json with Newtonsoft's JsonTextReader, which
+// accepts JSONC-style comments and trailing commas by default. Regression:
+// strict json.Unmarshal rejected hand-annotated files that NuGet restores
+// without complaint.
+func TestNuGetLockComments(t *testing.T) {
+	f := parseWith(t, "packages.lock.json", `{
+  // hand-annotated: pinned during incident response
+  "version": 1,
+  "dependencies": {
+    "net6.0": {
+      /* keep below 13.x until serializer migration */
+      "Newtonsoft.Json": {
+        "type": "Direct",
+        "resolved": "12.0.1",
+      },
+    },
+  }
+}`)
+	wantPkg(t, f, "Newtonsoft.Json", "12.0.1")
+}
+
 func TestCargoLock(t *testing.T) {
 	f := parseWith(t, "Cargo.lock", `version = 3
 

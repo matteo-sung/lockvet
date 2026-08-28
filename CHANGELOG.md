@@ -6,6 +6,17 @@ fixes.
 
 ## Unreleased
 
+- **Fix: commented `packages.lock.json` (NuGet) files parse.** NuGet reads
+  its lock file with Newtonsoft's `JsonTextReader`, which accepts `//` and
+  `/* */` comments and trailing commas by default — so a hand-annotated
+  lock file restores fine under `dotnet restore` but failed lockvet's
+  strict JSON parse in every mode. Now routed through the same
+  string-aware JSONC stripper as bun.lock / devcontainer.json /
+  vcpkg.json; strict machine-generated files are unaffected. Found by the
+  sibling audit that followed the bun.lock fix (other JSON formats —
+  composer, deno, Pipfile, flake.lock, Swift, conan, Bazel — keep strict
+  parsing on purpose: their ecosystem readers are strict too).
+
 - **Fix: commented `bun.lock` files parse again.** bun.lock is JSONC —
   comments are legal, not just trailing commas — but the parser only
   stripped trailing commas (with a regex that additionally could corrupt

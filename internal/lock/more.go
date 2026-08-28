@@ -232,7 +232,12 @@ func parseNuGetLock(p string, data []byte) (*File, error) {
 			Resolved string `json:"resolved"`
 		} `json:"dependencies"`
 	}
-	if err := json.Unmarshal(data, &doc); err != nil {
+	// NuGet reads this file with Newtonsoft's JsonTextReader, which accepts
+	// // and /* */ comments (and trailing commas) by default — so a
+	// hand-annotated packages.lock.json restores fine but would fail here
+	// under strict JSON. Same class of bug as the commented-bun.lock fix;
+	// strict machine-generated files pass through stripJSONC unchanged.
+	if err := json.Unmarshal(stripJSONC(data), &doc); err != nil {
 		return nil, err
 	}
 	for _, framework := range doc.Dependencies {
