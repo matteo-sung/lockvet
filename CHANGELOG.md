@@ -4,7 +4,7 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
-## Unreleased
+## v0.6.7 — 2026-08-29
 
 - **Removed packages now note the advisories they were carrying.** Since
   v0.1, a removed package's OSV results were queried and then discarded:
