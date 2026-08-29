@@ -4,6 +4,19 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## Unreleased
+
+- **Removed packages now note the advisories they were carrying.** Since
+  v0.1, a removed package's OSV results were queried and then discarded:
+  `- pyyaml 5.3.1 (removed)` rendered with no hint that the pin carried a
+  critical advisory — exactly the context that separates "good riddance"
+  from "we meant to upgrade that, not drop it." Removed rows now get a
+  neutral note — `○ was carrying 1 known advisory (worst: critical,
+  GHSA-8q59-q68h-6hv4) — removed, not fixed` — in terminal and markdown
+  output, plus a `removed_vulns` field in JSON. Deliberately *not* a fix:
+  the advisories stay out of the fixed count, queue scoring, and
+  `-fail-on` (a dependency that moves to another lockfile fixed nothing).
+
 ## v0.6.6 — 2026-08-28
 
 - **Fix: commented `packages.lock.json` (NuGet) files parse.** NuGet reads

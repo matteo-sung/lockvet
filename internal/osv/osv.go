@@ -130,15 +130,15 @@ func Annotate(diffs []diffx.FileDiff) error {
 	}
 
 	// Partition IDs per change, then fetch details by priority:
-	// introduced first, then fixed, then existing.
-	type part struct{ intro, fixed, exist map[string]bool }
+	// introduced first, then fixed, then existing, then removed.
+	type part struct{ intro, fixed, exist, removed map[string]bool }
 	parts := map[[2]int]part{}
-	var pri1, pri2, pri3 []string
+	var pri1, pri2, pri3, pri4 []string
 	for i := range diffs {
 		for j := range diffs[i].Changes {
 			c := &diffs[i].Changes[j]
 			key := [2]int{i, j}
-			pt := part{map[string]bool{}, map[string]bool{}, map[string]bool{}}
+			pt := part{map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}}
 			for id := range newIDs[key] {
 				if oldIDs[key][id] {
 					pt.exist[id] = true
@@ -149,15 +149,24 @@ func Annotate(diffs []diffx.FileDiff) error {
 				}
 			}
 			for id := range oldIDs[key] {
-				if !newIDs[key][id] && len(c.New) > 0 {
+				switch {
+				case newIDs[key][id]:
+					// already counted as existing
+				case len(c.New) > 0:
 					pt.fixed[id] = true
 					pri2 = append(pri2, id)
+				default:
+					// The whole package was removed. Not a fix — the
+					// dependency may have just moved elsewhere — but
+					// worth a note on the removed row.
+					pt.removed[id] = true
+					pri4 = append(pri4, id)
 				}
 			}
 			parts[key] = pt
 		}
 	}
-	details := db.details(append(append(pri1, pri2...), pri3...))
+	details := db.details(append(append(append(pri1, pri2...), pri3...), pri4...))
 
 	for i := range diffs {
 		for j := range diffs[i].Changes {
@@ -167,6 +176,7 @@ func Annotate(diffs []diffx.FileDiff) error {
 			c.IntroducedVulns = dedupe(pt.intro, details, tgt)
 			c.FixedVulns = dedupe(pt.fixed, details, fixTarget{})
 			c.ExistingVulns = dedupe(pt.exist, details, tgt)
+			c.RemovedVulns = dedupe(pt.removed, details, fixTarget{})
 		}
 	}
 	return nil

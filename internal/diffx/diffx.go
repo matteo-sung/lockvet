@@ -43,6 +43,11 @@ type Change struct {
 	IntroducedVulns []Vuln `json:"introduced_vulns,omitempty"` // affect new, not old
 	FixedVulns      []Vuln `json:"fixed_vulns,omitempty"`      // affected old, not new
 	ExistingVulns   []Vuln `json:"existing_vulns,omitempty"`   // affect both
+	// RemovedVulns lists advisories that affected a removed package's
+	// pin. Informational only: dropping a dependency is not a fix (the
+	// package may simply have moved to another lockfile), so these are
+	// kept out of the fixed count, queue scoring, and -fail-on.
+	RemovedVulns []Vuln `json:"removed_vulns,omitempty"`
 
 	// Filled in by the deps.dev layer (registry metadata for the
 	// version this change introduces).

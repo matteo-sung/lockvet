@@ -254,6 +254,9 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				}
 				fmt.Fprintf(w, "      %s\n", s.yellow(note))
 			}
+			if n := len(c.RemovedVulns); n > 0 {
+				fmt.Fprintf(w, "      %s\n", s.dim(fmt.Sprintf("○ was carrying %s (worst: %s) — removed, not fixed", pluralVerb(n, "known advisory", "known advisories"), worst(c.RemovedVulns))))
+			}
 			for _, nt := range c.ReleaseNotes {
 				head := nt.Tag
 				if nt.Title != "" {
@@ -623,6 +626,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 					note += " — all fixed in ≥ " + esc(fx)
 				}
 				fmt.Fprintf(w, "| 🟡 | ↳ %s both versions | | | %s |%s\n", pluralVerb(n, "known advisory affects", "known advisories affect"), note, padCell)
+			}
+			if n := len(c.RemovedVulns); n > 0 {
+				fmt.Fprintf(w, "| ○ | ↳ was carrying %s | | | worst: %s — removed, not fixed |%s\n", pluralVerb(n, "known advisory", "known advisories"), worst(c.RemovedVulns), padCell)
 			}
 		}
 		for _, c := range fd.Changes {
