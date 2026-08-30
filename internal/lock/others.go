@@ -23,8 +23,13 @@ var tomlNameRe = regexp.MustCompile(`name\s*=\s*"([^"]+)"`)
 var tomlBareKeyRe = regexp.MustCompile(`^["']?([A-Za-z0-9._-]+)["']?\s*=`)
 
 var (
-	// Cargo.lock: checksum = "<64-hex sha256>"
-	tomlChecksumRe = regexp.MustCompile(`^checksum\s*=\s*"([0-9a-f]{16,})"`)
+	// Cargo.lock: checksum = "<sha256 hex>". The field is sha256 by
+	// definition, so the parser captures whatever value is present and
+	// labels it itself — width-validating here (the old [0-9a-f]{16,})
+	// let a malformed replacement fall out of integrity diffing
+	// entirely, so same-version checksum swaps to a bad-width value
+	// compared as "no change" (the build.zig.zon bug class, v0.6.6).
+	tomlChecksumRe = regexp.MustCompile(`^checksum\s*=\s*"([^"\s]+)"`)
 	// artifact hashes inside inline tables (poetry files, uv sdist/wheels);
 	// the boundary keeps poetry's lock-wide content-hash from matching
 	tomlHashRe = regexp.MustCompile(`(?:^|[{,]\s*)hash\s*=\s*"([^"]+)"`)
@@ -197,7 +202,7 @@ func parseTOMLPackages(kind string, eco Ecosystem) func(string, []byte) (*File, 
 				continue
 			}
 			if m := tomlChecksumRe.FindStringSubmatch(line); m != nil { // Cargo
-				pinHash = m[1]
+				pinHash = "sha256:" + strings.ToLower(m[1])
 				continue
 			}
 			// Artifact hashes: poetry files = [{file=…, hash="sha256:…"}],

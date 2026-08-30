@@ -4,6 +4,22 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.8 — 2026-08-30
+
+- **Fix: malformed same-version checksum swaps flag in Cargo.lock,
+  mix.lock, and deno.lock (jsr).** Same bug class as the build.zig.zon
+  fix in v0.6.6, found by auditing every parser whose integrity capture
+  was more lenient than the diff layer's hash labeler: these three
+  formats' checksum fields are bare sha256 hex by definition, and a
+  swap to a *malformed* width (say 63 hex chars — enough to break the
+  pin while dodging review) survived the parser but fell out of
+  integrity diffing entirely, so the tamper rendered as **"no
+  changes"**. The parsers now label the value themselves (`sha256:`),
+  so a bad-width replacement compares within the algorithm and raises
+  the same `‼ REPINNED` alarm a valid-width swap does. Validated
+  against 200 real lockfile history replays (fd, ruff, cargo,
+  plausible/analytics, fresh) — zero false alarms.
+
 ## v0.6.7 — 2026-08-29
 
 - **Removed packages now note the advisories they were carrying.** Since

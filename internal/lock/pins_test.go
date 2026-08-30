@@ -67,9 +67,9 @@ source = "sparse+https://crates.corp.internal/index/"
 checksum = "1111111111111111111111111111111111111111111111111111111111111111"
 `)
 	wantPin(t, f, "serde", "1.0.200",
-		"ddc6f9cc94d67c0e21aaf7eda3a010fd3af78ebf6e096aa6e2e13c79749cce4f", "crates.io")
+		"sha256:ddc6f9cc94d67c0e21aaf7eda3a010fd3af78ebf6e096aa6e2e13c79749cce4f", "crates.io")
 	wantPin(t, f, "internal-crate", "0.1.0",
-		"1111111111111111111111111111111111111111111111111111111111111111", "crates.corp.internal")
+		"sha256:1111111111111111111111111111111111111111111111111111111111111111", "crates.corp.internal")
 }
 
 func TestPoetryPins(t *testing.T) {
@@ -201,9 +201,9 @@ func TestMixPins(t *testing.T) {
   "old_style": {:hex, :old_style, "0.1.0", "AABBCCDD00112233445566778899AABBCCDD00112233445566778899AABBCCDD", [:mix], []},
 }`)
 	wantPin(t, f, "phoenix", "1.7.10",
-		"02d6cf9b6a69b1cb43be2af6d6adf3cba26ac5cc96b9e5bd883c062ac0d0f0dc cf784932e010fd736d656d7fead6a584a4498efefe5b8227e9f383bf15bb79d0", "")
+		"sha256:02d6cf9b6a69b1cb43be2af6d6adf3cba26ac5cc96b9e5bd883c062ac0d0f0dc sha256:cf784932e010fd736d656d7fead6a584a4498efefe5b8227e9f383bf15bb79d0", "")
 	wantPin(t, f, "old_style", "0.1.0",
-		"aabbccdd00112233445566778899aabbccdd00112233445566778899aabbccdd", "")
+		"sha256:aabbccdd00112233445566778899aabbccdd00112233445566778899aabbccdd", "")
 }
 
 func TestPubspecPins(t *testing.T) {
@@ -279,7 +279,7 @@ func TestDenoPins(t *testing.T) {
 	wantPin(t, f, "chalk", "5.3.0",
 		"sha512-dLitG79d+GV1Nb/VYcCDFivJeK1hiukt9QjRNVOsUtTy1rR1YJsmpGGTZ3qJos+uw7WmWF4wUwBd9jxjocFC2w==", "")
 	wantPin(t, f, "jsr:@std/path", "1.0.6",
-		"aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899aa", "")
+		"sha256:aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899aa", "")
 }
 
 func TestBunPins(t *testing.T) {

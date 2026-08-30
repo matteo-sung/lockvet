@@ -79,8 +79,14 @@ func parsePipfileLock(p string, data []byte) (*File, error) {
 // not "hexpm") are NonRegistry — hex.pm knows nothing about them and
 // must not judge their versions.
 
-var mixHexRe = regexp.MustCompile(`^\s*"([^"]+)":\s*\{:hex,\s*:([A-Za-z0-9_]+),\s*"([^"]+)"(?:,\s*"([0-9a-fA-F]*)")?`)
-var mixRepoRe = regexp.MustCompile(`\],\s*"([^"]+)"(?:,\s*"([0-9a-fA-F]+)")?\},?\s*$`)
+// Both checksum elements are sha256 by definition (hex.pm's registry
+// format), so the parser captures whatever value sits in those positions
+// and labels it itself — hex-validating in the regex let a malformed
+// replacement fall out of integrity diffing entirely, so same-version
+// checksum swaps to a bad-width value compared as "no change" (the
+// build.zig.zon bug class, v0.6.6).
+var mixHexRe = regexp.MustCompile(`^\s*"([^"]+)":\s*\{:hex,\s*:([A-Za-z0-9_]+),\s*"([^"]+)"(?:,\s*"([^"\s]*)")?`)
+var mixRepoRe = regexp.MustCompile(`\],\s*"([^"]+)"(?:,\s*"([^"\s]+)")?\},?\s*$`)
 
 func parseMixLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "mix.lock", Hex)
@@ -92,9 +98,12 @@ func parseMixLock(p string, data []byte) (*File, error) {
 			// when present: hex.pm tarballs are immutable per version, so
 			// a same-version checksum change means the artifact moved.
 			hashes := strings.ToLower(strings.TrimSpace(m[4]))
+			if hashes != "" {
+				hashes = "sha256:" + hashes
+			}
 			r := mixRepoRe.FindStringSubmatch(line)
 			if r != nil && r[2] != "" {
-				hashes = strings.TrimSpace(hashes + " " + strings.ToLower(r[2]))
+				hashes = strings.TrimSpace(hashes + " sha256:" + strings.ToLower(r[2]))
 			}
 			f.setPin(m[2], m[3], hashes, "")
 			if r != nil && r[1] != "hexpm" {

@@ -146,24 +146,34 @@ func parseDenoLock(p string, data []byte) (*File, error) {
 	if len(npm) == 0 && len(jsr) == 0 {
 		npm, jsr = doc.Packages.NPM, doc.Packages.JSR
 	}
-	pin := func(name, ver string, raw json.RawMessage) {
+	pin := func(name, ver string, raw json.RawMessage, isJSR bool) {
 		var meta struct {
 			Integrity string `json:"integrity"`
 		}
 		if json.Unmarshal(raw, &meta) == nil && meta.Integrity != "" {
-			f.setPin(name, ver, meta.Integrity, "")
+			integ := meta.Integrity
+			if isJSR {
+				// jsr integrity is bare sha256 hex by convention; npm
+				// entries self-label (SRI). Label the jsr value at the
+				// parser so a same-version swap to a malformed width
+				// still compares (and flags) instead of falling out of
+				// integrity diffing (the build.zig.zon bug class,
+				// v0.6.6).
+				integ = "sha256:" + strings.ToLower(integ)
+			}
+			f.setPin(name, ver, integ, "")
 		}
 	}
 	for key, raw := range npm {
 		if name, ver, ok := denoKey(key); ok {
 			f.add(name, ver)
-			pin(name, ver, raw)
+			pin(name, ver, raw, false)
 		}
 	}
 	for key, raw := range jsr {
 		if name, ver, ok := denoKey(key); ok {
 			f.add("jsr:"+name, ver)
-			pin("jsr:"+name, ver, raw)
+			pin("jsr:"+name, ver, raw, true)
 		}
 	}
 	return f, nil

@@ -460,6 +460,77 @@ func TestZigHashShapeMigrationNotFlagged(t *testing.T) {
 	}
 }
 
+// Siblings of the build.zig.zon bug (v0.6.6): parsers whose checksum
+// field is sha256 by definition used to width-validate the value in
+// their capture regex — a same-version swap to a malformed width (63
+// hex chars here) passed the parser, then fell out of hashesByAlgo,
+// and the tamper compared as "no change". The parsers now label the
+// value themselves, so bad-width swaps compare within sha256 and flag.
+
+const cargoLockTmpl = `version = 3
+
+[[package]]
+name = "serde"
+version = "1.0.210"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "%s"
+`
+
+func TestCargoMalformedChecksumSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "Cargo.lock", sprintf(cargoLockTmpl,
+		"c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"))
+	newF := parseFile(t, "Cargo.lock", sprintf(cargoLockTmpl,
+		"c8e3592472072e6e22e0a54d5904d9febf8552499a1abc7d1078c3a12345678")) // 63 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "serde" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const mixLockTmpl = `%%{
+  "plug": {:hex, :plug, "1.16.1", "%s", [:mix], [], "hexpm", "%s"},
+}`
+
+func TestMixMalformedChecksumSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "mix.lock", sprintf(mixLockTmpl,
+		"40c74619c12f82736d2214557dedec2e9762029b2438d6d175c5074c933edc9d",
+		"a13ff6b9006b03d7e33874945b2755253841b238c34071ed85b0e86057f8cddc"))
+	newF := parseFile(t, "mix.lock", sprintf(mixLockTmpl,
+		"40c74619c12f82736d2214557dedec2e9762029b2438d6d175c5074c933edc9",  // 63 chars
+		"a13ff6b9006b03d7e33874945b2755253841b238c34071ed85b0e86057f8cdd")) // 63 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "plug" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const denoLockTmpl = `{
+  "version": "4",
+  "jsr": {
+    "@std/path@1.0.6": { "integrity": "%s" }
+  }
+}`
+
+func TestDenoJSRMalformedIntegritySwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "deno.lock", sprintf(denoLockTmpl,
+		"aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899aa"))
+	newF := parseFile(t, "deno.lock", sprintf(denoLockTmpl,
+		"aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899a")) // 63 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
 // Every integrity notation any parser emits must survive splitHash: a
 // notation it cannot label is silently dropped from integrity diffing,
 // and same-version swaps of that pin compare as "no change" — the bug
@@ -477,7 +548,7 @@ func TestSplitHashRecognizesEveryParserNotation(t *testing.T) {
 		{"yarn berry cache key (no compression)", "10/eb77846e506df107208ee6a57aa38c80ce6cdd9ab499ec3518a8e3000334def8", "10"},
 		{"yarn classic resolved fragment (bare sha1)", "9469c3aca9a3f4d635a123e0967a89d4b4a09f4d", "sha1"},
 		{"python sha256: (poetry/uv/pdm/pipfile/pylock/reqs)", "sha256:9c2ea1e62d871267b78307fe511c0838ba0da28698c5732d54e2790bf3ba9899", "sha256"},
-		{"cargo/mix/deno-jsr bare sha256", "42b1e076c9dfb5d27decfd0c2a659d78bec5eef86bbe0be4bc159cec3f4ed1c0", "sha256"},
+		{"cargo/mix/deno-jsr checksum (normalized)", "sha256:42b1e076c9dfb5d27decfd0c2a659d78bec5eef86bbe0be4bc159cec3f4ed1c0", "sha256"},
 		{"rebar bare sha256 (lowercased)", "0efc9a13c53f1aa1a4d3adcbca24c04124528ab6d1b45cd80540367f0e90c33d", "sha256"},
 		{"bare sha512", strings.Repeat("ab", 64), "sha512"},
 		{"go.sum module hash", "h1:1JFLCDsPCbbqKGYIPTa1sm2X/tuw2hxfi9wIyB2a16M=", "h1"},
