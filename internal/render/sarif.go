@@ -201,6 +201,23 @@ func sarif(w io.Writer, diffs []diffx.FileDiff, toolVersion string, contents fun
 					},
 				})
 			}
+			if c.IntegrityRemoved {
+				idx := addRule(rule{
+					ID:               "integrity-removed",
+					ShortDescription: map[string]string{"text": "Pinned version lost its content hash without a version change"},
+					HelpURI:          "https://github.com/matteo-sung/lockvet#integrity--resolution-changes",
+					Properties:       map[string]any{"tags": []string{"security", "supply-chain"}},
+				})
+				results = append(results, result{
+					RuleID: "integrity-removed", RuleIndex: idx,
+					Level:     "error",
+					Message:   map[string]string{"text": fmt.Sprintf("%s: version %s carried a content hash before and carries none now. Nothing verifies the artifact anymore — and a hash deleted or replaced with a malformed value parses as exactly this shape. Restore the hash or find out why it vanished.%s", what, strings.Join(c.IntegrityRemovedVersions, ", "), via)},
+					Locations: locs,
+					PartialFingerprints: map[string]string{
+						"lockvetFinding": fingerprint(fd.Path, c.Name, "integrity-removed"),
+					},
+				})
+			}
 			if c.TagMismatch {
 				idx := addRule(rule{
 					ID:               "tag-mismatch",

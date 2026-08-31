@@ -1497,7 +1497,7 @@ func failCode(failOn string, diffs []diffx.FileDiff, sum diffx.Summary) int {
 				return 1
 			}
 		case "integrity":
-			if sum.IntegrityChanged > 0 || sum.TagMismatch > 0 {
+			if sum.IntegrityChanged > 0 || sum.IntegrityRemoved > 0 || sum.TagMismatch > 0 {
 				return 1
 			}
 		case "registry", "resolution":

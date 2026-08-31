@@ -94,6 +94,16 @@ type Change struct {
 	IntegrityChanged  bool     `json:"integrity_changed,omitempty"`
 	IntegrityVersions []string `json:"integrity_changed_versions,omitempty"`
 
+	// IntegrityRemoved: a version pinned on BOTH sides carried a content
+	// hash before and carries none now. Nothing verifies the artifact
+	// anymore — and a hash swapped to a malformed value parses as exactly
+	// this shape, so silence here is how a tampered pin hides. Suppressed
+	// when the package moved off the registry (git/path overrides record
+	// a commit, not a registry hash) and when the whole file lost hashes
+	// (a tooling change, not a per-package attack).
+	IntegrityRemoved         bool     `json:"integrity_removed,omitempty"`
+	IntegrityRemovedVersions []string `json:"integrity_removed_versions,omitempty"`
+
 	// DigestChanged: a container image tag pinned on both sides now pins
 	// a different digest. Unlike registry tarballs, image tags MOVE by
 	// design (base images are rebuilt for security fixes), so a digest
@@ -344,6 +354,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 	}
 
 	hostMoves := countHostMoves(oldF, newF)
+	intLosses := countIntegrityLosses(oldF, newF)
 	// Pins-only files (go.sum) exist to record hashes for a sibling
 	// manifest: their version churn duplicates the manifest's rows, so
 	// only same-version repins — the tampered-hash shape — surface.
@@ -356,7 +367,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			// resolution moved onto the public registry is a finding of
 			// its own (tarball swapped / dependency-confusion shape).
 			c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: o, New: n, Channel: channelOf(name), SourceRepo: repoOf(name), NewPins: newPinsOf(name, n)}
-			if annotatePinChange(&c, oldF, newF, hostMoves) {
+			if annotatePinChange(&c, oldF, newF, hostMoves, intLosses) {
 				if (newF != nil && newF.NonRegistry[name]) || (oldF != nil && oldF.NonRegistry[name]) {
 					c.NonRegistry = true
 				}
@@ -371,7 +382,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 			// swaps an existing version's hash).
 			if common := intersectVersions(o, n); len(common) > 0 {
 				c := Change{Name: name, Ecosystem: string(ecoOf(name)), Kind: Repinned, Old: common, New: common, NewPins: newPinsOf(name, common)}
-				if annotatePinChange(&c, oldF, newF, hostMoves) && c.IntegrityChanged {
+				if annotatePinChange(&c, oldF, newF, hostMoves, intLosses) && (c.IntegrityChanged || c.IntegrityRemoved) {
 					fd.Changes = append(fd.Changes, c)
 				}
 			}
@@ -379,7 +390,7 @@ func Diff(oldF, newF *lock.File) FileDiff {
 		}
 		eco := ecoOf(name)
 		c := Change{Name: name, Ecosystem: string(eco), Old: o, New: n, Channel: channelOf(name), SourceRepo: repoOf(name), NewPins: newPinsOf(name, n)}
-		annotatePinChange(&c, oldF, newF, hostMoves)
+		annotatePinChange(&c, oldF, newF, hostMoves, intLosses)
 		if r := yankedOf(name, n); r != "" {
 			c.Deprecated = true
 			c.DeprecatedReason = r
@@ -770,6 +781,7 @@ type Summary struct {
 	Typosquats                                             int // young additions confusable with a popular package
 	ProvenanceDropped                                      int // npm bumps that silently stop attesting provenance
 	IntegrityChanged                                       int // pins whose recorded content hash changed for an unchanged version
+	IntegrityRemoved                                       int // pins that lost every recorded content hash for an unchanged version
 	TagMismatch                                            int // pins whose commit is not what the upstream tag points at
 	RegistryMoved                                          int // resolutions moved from a private host to the public registry
 	Direct, Transitive                                     int // 0/0 when the formats record no graph
@@ -827,6 +839,9 @@ func Summarize(diffs []FileDiff) Summary {
 			}
 			if c.IntegrityChanged && !c.HasIgnored("integrity") {
 				s.IntegrityChanged++
+			}
+			if c.IntegrityRemoved && !c.HasIgnored("integrity") {
+				s.IntegrityRemoved++
 			}
 			if c.TagMismatch && !c.HasIgnored("integrity") {
 				s.TagMismatch++

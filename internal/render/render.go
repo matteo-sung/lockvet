@@ -191,6 +191,10 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim(integrityWhy))
 			}
+			if c.IntegrityRemoved {
+				removedWhy := "this version carried a content hash before and carries none now — nothing verifies the artifact anymore, and a deleted or mangled hash is how a tampered pin stays quiet; restore the hash or find out why it vanished"
+				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity removed: "+join(c.IntegrityRemovedVersions)), s.dim(removedWhy))
+			}
 			if c.TagMismatch {
 				mismatchWhy := "the pinned commit is not what the upstream tag points at today — released tags are immutable; either the tag has been moved since this was resolved, or the lockfile was edited; verify the commit before trusting it"
 				if c.Ecosystem == "Gradle" {
@@ -378,6 +382,9 @@ func summaryLine(s styler, sum diffx.Summary, vulnsChecked, metaChecked bool, fr
 	if sum.IntegrityChanged > 0 {
 		out += " · " + s.bred(pluralVerb(sum.IntegrityChanged, "pin changes", "pins change")+" integrity without a version change")
 	}
+	if sum.IntegrityRemoved > 0 {
+		out += " · " + s.bred(pluralVerb(sum.IntegrityRemoved, "pin loses", "pins lose")+" integrity without a version change")
+	}
 	if sum.TagMismatch > 0 {
 		out += " · " + s.bred(pluralVerb(sum.TagMismatch, "pin doesn't", "pins don't")+" match the upstream tag")
 	}
@@ -456,6 +463,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 	}
 	if sum.IntegrityChanged > 0 {
 		fmt.Fprintf(w, "\nIntegrity: **%s content hash without a version change** ‼ — registries never change a published artifact; find out why before merging\n", pluralVerb(sum.IntegrityChanged, "pin changes its", "pins change their"))
+	}
+	if sum.IntegrityRemoved > 0 {
+		fmt.Fprintf(w, "\nIntegrity: **%s content hash without a version change** ‼ — nothing verifies the artifact anymore; restore the hash or find out why it vanished\n", pluralVerb(sum.IntegrityRemoved, "pin loses its", "pins lose their"))
 	}
 	if sum.TagMismatch > 0 {
 		fmt.Fprintf(w, "\nIntegrity: **%s not what the upstream tag points at** ‼ — released tags are immutable; the tag was moved since resolution or the lockfile was edited\n", pluralVerb(sum.TagMismatch, "pinned commit is", "pinned commits are"))
@@ -568,6 +578,9 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 			if c.IntegrityChanged {
 				fmt.Fprintf(w, "| ‼ | ↳ integrity changed | | %s | same version, different content hash — the artifact this pin expects was replaced; find out why before merging |%s\n", esc(join(c.IntegrityVersions)), padCell)
 			}
+			if c.IntegrityRemoved {
+				fmt.Fprintf(w, "| ‼ | ↳ integrity removed | | %s | same version, no content hash anymore — nothing verifies the artifact; restore the hash or find out why it vanished |%s\n", esc(join(c.IntegrityRemovedVersions)), padCell)
+			}
 			if c.TagMismatch {
 				mismatchNote := "the pinned commit is not what the upstream tag points at today — the tag was moved since resolution or the lockfile was edited"
 				if c.Ecosystem == "Gradle" {
@@ -666,7 +679,7 @@ func Markdown(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, vulnsCheck
 
 func openAttr(fd diffx.FileDiff) string {
 	for _, c := range fd.Changes {
-		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged || c.IntegrityChanged || c.TagMismatch || c.RegistryMoved {
+		if len(c.IntroducedVulns) > 0 || c.Level == vers.Major || c.Fresh || c.Deprecated || c.LicenseChanged || c.IntegrityChanged || c.IntegrityRemoved || c.TagMismatch || c.RegistryMoved {
 			return " open"
 		}
 	}
