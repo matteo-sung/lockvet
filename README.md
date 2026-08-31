@@ -178,22 +178,22 @@ gh extension install matteo-sung/gh-lockvet
 Debian / Ubuntu (`.deb`, also `.rpm` and `.apk` — amd64 & arm64):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.8/lockvet_v0.6.8_linux_amd64.deb
-sudo dpkg -i lockvet_v0.6.8_linux_amd64.deb
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.9/lockvet_v0.6.9_linux_amd64.deb
+sudo dpkg -i lockvet_v0.6.9_linux_amd64.deb
 ```
 
 Fedora / RHEL:
 
 ```sh
-sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.6.8/lockvet_v0.6.8_linux_amd64.rpm
+sudo rpm -i https://github.com/matteo-sung/lockvet/releases/download/v0.6.9/lockvet_v0.6.9_linux_amd64.rpm
 ```
 
 Alpine (packages are unsigned — they're checksummed and
 [Sigstore-attested](#verifying-a-release) instead, so verify first if you care):
 
 ```sh
-curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.8/lockvet_v0.6.8_linux_amd64.apk
-apk add --allow-untrusted lockvet_v0.6.8_linux_amd64.apk
+curl -fsSLO https://github.com/matteo-sung/lockvet/releases/download/v0.6.9/lockvet_v0.6.9_linux_amd64.apk
+apk add --allow-untrusted lockvet_v0.6.9_linux_amd64.apk
 ```
 
 Go:
@@ -213,7 +213,7 @@ curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh
 Docker (linux/amd64 & arm64, git included — handy in CI):
 
 ```sh
-docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.6.8 lockvet
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/matteo-sung/lockvet:0.6.9 lockvet
 ```
 
 ### Shell completions & man page
@@ -238,8 +238,8 @@ the public Sigstore log at build time. You can prove any download was built
 by this repository's release workflow:
 
 ```sh
-gh attestation verify lockvet_v0.6.8_linux_amd64.tar.gz --owner matteo-sung
-gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.6.8 --owner matteo-sung
+gh attestation verify lockvet_v0.6.9_linux_amd64.tar.gz --owner matteo-sung
+gh attestation verify oci://ghcr.io/matteo-sung/lockvet:0.6.9 --owner matteo-sung
 ```
 
 Each release also ships its Sigstore bundle as an asset
@@ -481,7 +481,7 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.6.8
+      - run: curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/main/install.sh | sh -s -- -b /usr/local/bin -v v0.6.9
       - env: {GITHUB_TOKEN: '${{ github.token }}'}
         run: lockvet queue "$GITHUB_REPOSITORY" -md > queue.md
       - env: {GH_TOKEN: '${{ github.token }}'}
@@ -597,7 +597,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.6.8/install.sh | sh -s -- -b .
+          curl -fsSL https://raw.githubusercontent.com/matteo-sung/lockvet/v0.6.9/install.sh | sh -s -- -b .
           ./lockvet audit -sarif > audit.sarif || true
       - uses: github/codeql-action/upload-sarif@v3
         with: {sarif_file: audit.sarif}
@@ -689,7 +689,7 @@ claude mcp add lockvet -- lockvet mcp
 ```
 
 No install needed with Docker:
-`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.6.8", "lockvet", "mcp"] }`.
+`{ "command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/matteo-sung/lockvet:0.6.9", "lockvet", "mcp"] }`.
 lockvet is also on the official [MCP Registry](https://registry.modelcontextprotocol.io)
 as [`io.github.matteo-sung/lockvet`](https://registry.modelcontextprotocol.io/?search=lockvet),
 so clients that browse the registry can add it from there.
@@ -745,7 +745,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: matteo-sung/lockvet@v0.6.8
+      - uses: matteo-sung/lockvet@v0.6.9
         # optional:
         # with:
         #   fail-on: vuln        # or "major,vuln,downgrade,fresh,deprecated,unlisted,scripts,provenance,license"
@@ -772,7 +772,7 @@ permissions:
   contents: read
   security-events: write
 
-      - uses: matteo-sung/lockvet@v0.6.8
+      - uses: matteo-sung/lockvet@v0.6.9
         with:
           sarif: 'true'
 ```
@@ -792,7 +792,7 @@ reruns update the note in place:
 ```yaml
 # .gitlab-ci.yml
 lockvet:
-  image: ghcr.io/matteo-sung/lockvet:0.6.8
+  image: ghcr.io/matteo-sung/lockvet:0.6.9
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: ["**/*lock*", "**/go.mod", "**/requirements.txt"]
@@ -817,7 +817,7 @@ pipelines:
     '**':
       - step:
           name: lockvet
-          image: ghcr.io/matteo-sung/lockvet:0.6.8
+          image: ghcr.io/matteo-sung/lockvet:0.6.9
           script:
             - lockvet pr "https://bitbucket.org/$BITBUCKET_WORKSPACE/$BITBUCKET_REPO_SLUG/pull-requests/$BITBUCKET_PR_ID" -comment -fail-on vuln
 ```
@@ -835,7 +835,7 @@ jobs:
   - job: lockvet
     condition: eq(variables['Build.Reason'], 'PullRequest')
     pool: { vmImage: ubuntu-latest }
-    container: ghcr.io/matteo-sung/lockvet:0.6.8
+    container: ghcr.io/matteo-sung/lockvet:0.6.9
     steps:
       - checkout: none
       - script: >
@@ -859,7 +859,7 @@ when:
 
 steps:
   - name: lockvet
-    image: ghcr.io/matteo-sung/lockvet:0.6.8
+    image: ghcr.io/matteo-sung/lockvet:0.6.9
     environment:
       GITEA_TOKEN:
         from_secret: gitea_token   # only needed for -comment
@@ -878,7 +878,7 @@ the commit:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/matteo-sung/lockvet
-    rev: v0.6.8
+    rev: v0.6.9
     hooks:
       - id: lockvet
         # optional: also gate on majors and <7d releases
