@@ -1545,7 +1545,9 @@ fully disjoint set flags. Each shared algorithm is judged on its own: the
 same bytes can never hash two ways under one algorithm, so a yarn-classic
 pin whose SRI `sha512` was swapped flags even when the sha1 `resolved`
 fragment was left intact as camouflage (yarn verifies the SRI line at
-install time, not the fragment). The one pooled exception is Terraform's
+install time, not the fragment) — and a conda lock's `md5` swapped under
+an intact `sha256` line flags the same way (conda locks may carry either
+hash or both; each is compared under its own label). The one pooled exception is Terraform's
 `h1`/`zh` pair: `h1` hashes exist only for the platforms the lock was
 built with, so a platform re-lock that replaces the whole `h1` set stays
 quiet while the registry-published `zh` set still vouches for the release.

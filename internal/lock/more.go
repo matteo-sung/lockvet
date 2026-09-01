@@ -206,6 +206,22 @@ func withPrefixIfSet(prefix, s string) string {
 	return prefix + s
 }
 
+// joinHashes space-joins the non-empty hash notations into one integrity
+// set (the comparator's hashesByAlgo splits on whitespace).
+func joinHashes(hs ...string) string {
+	out := ""
+	for _, h := range hs {
+		if h == "" {
+			continue
+		}
+		if out != "" {
+			out += " "
+		}
+		out += h
+	}
+	return out
+}
+
 // ---- gradle.lockfile (Gradle dependency locking) ----
 //
 //	org.example:artifact:1.2.3=compileClasspath,runtimeClasspath

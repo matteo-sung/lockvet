@@ -4,6 +4,24 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.13 — 2026-09-01
+
+- **Conda locks' `md5` hashes now count.** `conda-lock.yml` requires
+  only *one* of `md5`/`sha256` per entry — and older channel packages
+  carry `md5` alone — but both parsers (`conda-lock.yml`, `pixi.lock`)
+  captured only `sha256`. Two same-version tamper shapes rendered as
+  **"no changes"**: an md5-only entry with its hash swapped (full
+  poisoned-checksum, nothing else to compare), and an `md5` swapped
+  under an intact `sha256` line — the conda mirror of the yarn-classic
+  sha1-fragment camouflage v0.6.11 closed. Both hashes are now captured
+  under their own algorithm labels, so the per-algo rule applies: each
+  shape flags ‼ REPINNED (`-fail-on integrity` exits 1), while re-locks
+  that *add* `sha256` alongside the same `md5` or *drop* `md5` keeping
+  the same `sha256` are algorithm migrations and stay quiet.
+- Validated against 54 real lockfile history replays (prefix-dev/pixi
+  `pixi.lock`, tomas-gajarsky/facetorch `conda-lock.yml`) — zero
+  failures, zero false alarms.
+
 ## v0.6.12 — 2026-09-01
 
 - **Conda artifact hashes now anchor the REPINNED lane.** `pixi.lock`

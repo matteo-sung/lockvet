@@ -160,6 +160,7 @@ type condaEntry struct {
 	name    string
 	version string
 	sha     string   // sha256 of the artifact, when the lockfile records it
+	md5     string   // md5 of the artifact (conda-lock requires only ONE of md5/sha256)
 	deps    []string // conda depends entries / conda-lock dependencies keys
 	reqs    []string // pypi requires_dist entries
 }
@@ -190,14 +191,28 @@ func flushCondaEntry(f *File, e *condaEntry, pypiEdges *[]pypiEdge) {
 	// checkouts) get a fresh hash on every rebuild at the same version —
 	// only artifacts fetched from a URL carry a content hash that is
 	// meaningful to compare across lockfile revisions.
+	// Both recorded hashes are captured, each under its own label — the
+	// comparator judges every shared algorithm on its own (per-algo
+	// rule), so an md5 swapped under an intact sha256 flags exactly like
+	// the mirrored yarn sha1-fragment camouflage, and an md5-only entry
+	// still has comparable integrity. A re-lock that ADDS sha256 or
+	// DROPS md5 is an algo change and never flags.
 	fetched := strings.HasPrefix(e.url, "https://") || strings.HasPrefix(e.url, "http://")
 	integ := ""
 	switch {
 	case e.kind == "pypi" && fetched:
-		integ = withPrefixIfSet("sha256:", strings.ToLower(e.sha))
+		integ = joinHashes(
+			withPrefixIfSet("sha256:", strings.ToLower(e.sha)),
+			withPrefixIfSet("md5:", strings.ToLower(e.md5)))
 	case e.kind == "conda" && fetched:
-		if base := condaArtifact(e.url); base != "" && e.sha != "" {
-			integ = base + "#sha256:" + strings.ToLower(e.sha)
+		if base := condaArtifact(e.url); base != "" {
+			scoped := func(label, hex string) string {
+				if hex == "" {
+					return ""
+				}
+				return base + "#" + label + ":" + strings.ToLower(hex)
+			}
+			integ = joinHashes(scoped("sha256", e.sha), scoped("md5", e.md5))
 		}
 	}
 	f.setPin(name, version, integ, HostOf(e.url))
@@ -313,6 +328,8 @@ func parsePixiLock(p string, data []byte) (*File, error) {
 				cur.url = val
 			case "sha256":
 				cur.sha = val
+			case "md5":
+				cur.md5 = val
 			case "depends":
 				curList = "deps"
 				continue
@@ -362,6 +379,8 @@ func parseCondaLock(p string, data []byte) (*File, error) {
 			cur.url = val
 		case "sha256":
 			cur.sha = val
+		case "md5":
+			cur.md5 = val
 		case "manager":
 			if val == "pip" {
 				cur.kind = "pypi"
@@ -403,8 +422,13 @@ func parseCondaLock(p string, data []byte) (*File, error) {
 			}
 			field(key, yamlVal(val))
 		case cur != nil && subMap == "hash" && strings.HasPrefix(line, "    ") && len(line) > 4 && line[4] != ' ':
-			if key, val, ok := strings.Cut(strings.TrimSpace(line), ":"); ok && yamlVal(key) == "sha256" {
-				cur.sha = yamlVal(val)
+			if key, val, ok := strings.Cut(strings.TrimSpace(line), ":"); ok {
+				switch yamlVal(key) {
+				case "sha256":
+					cur.sha = yamlVal(val)
+				case "md5":
+					cur.md5 = yamlVal(val)
+				}
 			}
 		case cur != nil && subMap == "dependencies" && strings.HasPrefix(line, "    ") && len(line) > 4 && line[4] != ' ':
 			if key, _, ok := strings.Cut(strings.TrimSpace(line), ":"); ok {

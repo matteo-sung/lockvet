@@ -874,3 +874,100 @@ func TestPixiLocalPathRebuildStaysQuiet(t *testing.T) {
 		t.Fatalf("local-path rebuild must stay quiet, got %+v", fd.Changes)
 	}
 }
+
+const condaLockHashTmpl = `version: 1
+package:
+- name: numpy
+  version: 1.26.4
+  manager: conda
+  platform: linux-64
+  url: https://conda.anaconda.org/conda-forge/linux-64/numpy-1.26.4-py312heda63a1_0.conda
+  hash:
+%s`
+
+func TestCondaLockMd5SwapUnderIntactSha256Flags(t *testing.T) {
+	// The mirror of the yarn-classic camouflage: md5 swapped while the
+	// sha256 line is left intact. Each shared algorithm is judged on its
+	// own — two md5 values can never describe the same bytes, so overlap
+	// on sha256 must not suppress the disjoint md5. (Pre-v0.6.13 the
+	// parser dropped md5 entirely, so this shape compared as no change.)
+	oldF := parseFile(t, "conda-lock.yml", sprintf(condaLockHashTmpl,
+		"    md5: 11111111111111111111111111111111\n"+
+			"    sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8\n"))
+	newF := parseFile(t, "conda-lock.yml", sprintf(condaLockHashTmpl,
+		"    md5: 22222222222222222222222222222222\n"+
+			"    sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8\n"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "numpy" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestCondaLockMd5OnlyHashSwapFlags(t *testing.T) {
+	// conda-lock's schema requires only ONE of md5/sha256, and older
+	// channel packages carry md5 alone. A same-version md5 swap on such
+	// an entry is the full poisoned-checksum shape and must flag.
+	oldF := parseFile(t, "conda-lock.yml", sprintf(condaLockHashTmpl,
+		"    md5: 11111111111111111111111111111111\n"))
+	newF := parseFile(t, "conda-lock.yml", sprintf(condaLockHashTmpl,
+		"    md5: 22222222222222222222222222222222\n"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "numpy" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestCondaLockHashAlgoMigrationStaysQuiet(t *testing.T) {
+	// Re-locks that ADD sha256 to an md5-only entry (same md5), or DROP
+	// md5 keeping the same sha256, are algorithm migrations — no shared
+	// algorithm disagrees, so neither direction may flag.
+	md5Only := sprintf(condaLockHashTmpl,
+		"    md5: 11111111111111111111111111111111\n")
+	both := sprintf(condaLockHashTmpl,
+		"    md5: 11111111111111111111111111111111\n"+
+			"    sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8\n")
+	shaOnly := sprintf(condaLockHashTmpl,
+		"    sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8\n")
+	if fd := Diff(parseFile(t, "conda-lock.yml", md5Only), parseFile(t, "conda-lock.yml", both)); len(fd.Changes) != 0 {
+		t.Fatalf("adding sha256 alongside the same md5 must stay quiet, got %+v", fd.Changes)
+	}
+	if fd := Diff(parseFile(t, "conda-lock.yml", both), parseFile(t, "conda-lock.yml", shaOnly)); len(fd.Changes) != 0 {
+		t.Fatalf("dropping md5 with the same sha256 must stay quiet, got %+v", fd.Changes)
+	}
+}
+
+func TestPixiCondaMd5SwapUnderIntactSha256Flags(t *testing.T) {
+	// Same camouflage shape through the pixi.lock parser (flat md5/sha256
+	// keys rather than conda-lock's hash sub-map).
+	mk := func(md5 string) string {
+		return `version: 7
+environments:
+  default:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.3.1-h4bc722e_2.conda
+packages:
+- conda: https://prefix.dev/conda-forge/linux-64/openssl-3.3.1-h4bc722e_2.conda
+  sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8
+  md5: ` + md5 + `
+  license: Apache-2.0
+`
+	}
+	oldF := parseFile(t, "pixi.lock", mk("11111111111111111111111111111111"))
+	newF := parseFile(t, "pixi.lock", mk("22222222222222222222222222222222"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "openssl" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
