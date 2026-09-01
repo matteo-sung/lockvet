@@ -4,6 +4,30 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.12 — 2026-09-01
+
+- **Conda artifact hashes now anchor the REPINNED lane.** `pixi.lock`
+  and `conda-lock.yml` recorded no integrity for conda packages at
+  all — conda-forge rebuilds the same version under new build numbers
+  routinely, so a bare (name, version) hash anchor would have flagged
+  every re-lock. Consequence: swapping a conda entry's `sha256:` while
+  leaving its URL untouched rendered as **"no changes"**. The hash is
+  now scoped to the artifact filename, gradle-style
+  (`openssl-3.3.1-h4bc722e_2.conda#sha256:…`): a rebuild changes the
+  filename (different scope — never flags), while a same-artifact
+  hash swap compares within its scope and flags ‼ REPINNED.
+- **Fix: locally-built pypi entries inside conda locks no longer
+  masquerade as repins.** Path installs (`- pypi: ./rerun_py`) and git
+  checkouts get a fresh sha256 on every local rebuild at the same
+  version; their hashes were compared like registry wheels and flagged
+  ‼ REPINNED with registry wording (seen live in rerun-io/rerun's
+  history). Integrity is now recorded only for URL-fetched artifacts.
+- Validated against 120 real lockfile history replays
+  (prefix-dev/pixi + rerun-io/rerun pixi.lock,
+  pangeo-data/pangeo-docker-images conda-lock.yml) — zero failures,
+  zero false alarms, and the two rerun false-alarm shapes above are
+  gone.
+
 ## v0.6.11 — 2026-09-01
 
 - **Fix: a multi-algorithm pin with ONE poisoned hash compared as

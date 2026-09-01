@@ -772,3 +772,105 @@ func TestIntegrityRemovedSuppressedForWholeFileMigration(t *testing.T) {
 		}
 	}
 }
+
+const pixiCondaTmpl = `version: 7
+environments:
+  default:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - conda: https://prefix.dev/conda-forge/linux-64/openssl-3.3.1-%s.conda
+packages:
+- conda: https://prefix.dev/conda-forge/linux-64/openssl-3.3.1-%s.conda
+  sha256: %s
+  license: Apache-2.0
+`
+
+func TestPixiCondaShaSwapFlagsRepinned(t *testing.T) {
+	// Same version, same artifact filename, swapped sha256 → REPINNED.
+	// Conda hashes are scoped to the artifact filename precisely so this
+	// tamper shape compares instead of vanishing (the pre-v0.6.12 parser
+	// recorded no integrity for conda entries at all).
+	oldF := parseFile(t, "pixi.lock", sprintf(pixiCondaTmpl, "h4bc722e_2", "h4bc722e_2",
+		"1111111111111111111111111111111111111111111111111111111111111111"))
+	newF := parseFile(t, "pixi.lock", sprintf(pixiCondaTmpl, "h4bc722e_2", "h4bc722e_2",
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "openssl" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestPixiCondaBuildBumpStaysQuiet(t *testing.T) {
+	// Same version rebuilt under a new build number: filename changes, so
+	// the scoped algo differs on each side — an algo migration, never a
+	// repin. This is the routine conda-forge rebuild churn that made bare
+	// (name, version) hash anchoring impossible.
+	oldF := parseFile(t, "pixi.lock", sprintf(pixiCondaTmpl, "h4bc722e_2", "h4bc722e_2",
+		"1111111111111111111111111111111111111111111111111111111111111111"))
+	newF := parseFile(t, "pixi.lock", sprintf(pixiCondaTmpl, "hb9d3cd8_3", "hb9d3cd8_3",
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("build-number rebuild must stay quiet, got %+v", fd.Changes)
+	}
+}
+
+const condaLockTmpl = `version: 1
+package:
+- name: numpy
+  version: 1.26.4
+  manager: conda
+  platform: linux-64
+  url: https://conda.anaconda.org/conda-forge/linux-64/numpy-1.26.4-py312heda63a1_0.conda
+  hash:
+    md5: d8285bea2a350f63fab23bf460221f3f
+    sha256: %s
+`
+
+func TestCondaLockShaSwapFlagsRepinned(t *testing.T) {
+	oldF := parseFile(t, "conda-lock.yml", sprintf(condaLockTmpl,
+		"1111111111111111111111111111111111111111111111111111111111111111"))
+	newF := parseFile(t, "conda-lock.yml", sprintf(condaLockTmpl,
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "numpy" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const pixiLocalPathTmpl = `version: 7
+environments:
+  default:
+    channels:
+    - url: https://prefix.dev/conda-forge/
+    packages:
+      linux-64:
+      - pypi: ./rerun_py
+packages:
+- pypi: ./rerun_py
+  name: rerun-sdk
+  version: 0.28.0a1+dev
+  sha256: %s
+  editable: true
+`
+
+func TestPixiLocalPathRebuildStaysQuiet(t *testing.T) {
+	// A path install ("./rerun_py") is rebuilt locally — its hash changes
+	// at the same version on every rebuild. No integrity is recorded for
+	// non-URL sources, so the churn never masquerades as a repin (seen
+	// live in rerun-io/rerun's pixi.lock history).
+	oldF := parseFile(t, "pixi.lock", sprintf(pixiLocalPathTmpl,
+		"5e197009d39ead8f8c4a038325965dca25981224b9551062d6a05ccb727c5ba7"))
+	newF := parseFile(t, "pixi.lock", sprintf(pixiLocalPathTmpl,
+		"80c390cc45bf88b0116c68f5e38604f06c38073bc18b713de29f340d732c0a3f"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("local-path rebuild must stay quiet, got %+v", fd.Changes)
+	}
+}

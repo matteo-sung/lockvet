@@ -412,9 +412,12 @@ packages:
   version: 2.31.0
   sha256: 58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f
 `)
-	// conda entries: host only — same-version build-number rebuilds are
-	// routine, so artifact hashes cannot anchor to (name, version).
-	wantPin(t, f, "numpy", "1.26.4", "", "conda.anaconda.org")
+	// conda entries: hash scoped to the artifact filename — rebuilds
+	// under a new build number change the filename (never flag) while a
+	// same-artifact hash swap still compares within its scope.
+	wantPin(t, f, "numpy", "1.26.4",
+		"numpy-1.26.4-py312heda63a1_0.conda#sha256:fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8",
+		"conda.anaconda.org")
 	wantPin(t, f, "requests", "2.31.0",
 		"sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f", "files.pythonhosted.org")
 }
@@ -433,7 +436,9 @@ package:
     md5: d8285bea2a350f63fab23bf460221f3f
     sha256: fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8
 `)
-	wantPin(t, f, "numpy", "1.26.4", "", "conda.anaconda.org")
+	wantPin(t, f, "numpy", "1.26.4",
+		"numpy-1.26.4-py312heda63a1_0.conda#sha256:fe3459c75cf84dcef6ef14efcc4adb0ade66038ddd27cadb894f34f4797687d8",
+		"conda.anaconda.org")
 }
 
 func TestGemfileChecksumPins(t *testing.T) {

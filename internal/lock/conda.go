@@ -56,6 +56,29 @@ func condaNV(url string) (name, version string) {
 	return "", ""
 }
 
+// condaArtifact returns the artifact filename a conda URL resolves to,
+// used to scope its hash ("openssl-3.3.1-h4bc722e_2.conda"). Only the
+// two real conda artifact suffixes qualify, and the name must be clean
+// enough to survive as a space-separated hash-set token with a '#'
+// scope separator — anything else scopes nothing.
+func condaArtifact(url string) string {
+	base := path.Base(url)
+	if i := strings.IndexAny(base, "?#"); i >= 0 {
+		base = base[:i]
+	}
+	if !strings.HasSuffix(base, ".conda") && !strings.HasSuffix(base, ".tar.bz2") {
+		return ""
+	}
+	for i := 0; i < len(base); i++ {
+		c := base[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+			c == '.' || c == '_' || c == '-' || c == '+') {
+			return ""
+		}
+	}
+	return base
+}
+
 // condaChannel extracts the anaconda.org channel from an artifact URL:
 // "https://conda.anaconda.org/conda-forge/linux-64/x.conda" → "conda-forge",
 // tokened URLs (…/t/<token>/<channel>/…) included. prefix.dev URLs count
@@ -157,11 +180,25 @@ func flushCondaEntry(f *File, e *condaEntry, pypiEdges *[]pypiEdge) {
 	f.add(name, version)
 	// Conda rebuilds the SAME version under new build numbers routinely
 	// (py312h..._0 -> _1), so artifact hashes can't anchor to (name,
-	// version) — only the resolution host is recorded for conda entries.
-	// PyPI wheels inside conda/pixi locks are immutable per file.
+	// version) bare. The artifact filename embeds the build string, so
+	// the hash is scoped to it gradle-style ("file.conda#sha256:hex"):
+	// a rebuild changes the filename (no shared algo, never flags)
+	// while a same-artifact hash swap compares within its scope and
+	// flags ‼ REPINNED. PyPI wheels inside conda/pixi locks are
+	// immutable per file and keep the bare sha256 label.
+	// Locally-built artifacts (path installs like "./rerun_py", git
+	// checkouts) get a fresh hash on every rebuild at the same version —
+	// only artifacts fetched from a URL carry a content hash that is
+	// meaningful to compare across lockfile revisions.
+	fetched := strings.HasPrefix(e.url, "https://") || strings.HasPrefix(e.url, "http://")
 	integ := ""
-	if e.kind == "pypi" {
+	switch {
+	case e.kind == "pypi" && fetched:
 		integ = withPrefixIfSet("sha256:", strings.ToLower(e.sha))
+	case e.kind == "conda" && fetched:
+		if base := condaArtifact(e.url); base != "" && e.sha != "" {
+			integ = base + "#sha256:" + strings.ToLower(e.sha)
+		}
 	}
 	f.setPin(name, version, integ, HostOf(e.url))
 	if e.kind == "conda" {
