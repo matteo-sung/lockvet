@@ -181,7 +181,7 @@ var (
 	// hashes = { sha256 = "…", … } inline tables (uv, pipenv)
 	pylockHashesRe = regexp.MustCompile(`hashes\s*=\s*\{([^}]*)\}`)
 	// one algo/hex pair, inline or as a [….hashes] sub-table line
-	pylockHashKVRe = regexp.MustCompile(`(?:^|[{,])\s*([a-z0-9_]+)\s*=\s*"([0-9a-fA-F]{16,})"`)
+	pylockHashKVRe = regexp.MustCompile(`(?:^|[{,])\s*([a-z0-9_]+)\s*=\s*"([^"]+)"`)
 	// url anywhere in an inline artifact table, or a sub-table url line
 	pylockURLRe = regexp.MustCompile(`(?:^|[{,]\s*)url\s*=\s*"([^"]+)"`)
 	// path = "…" → artifact stored next to the lock, not on an index

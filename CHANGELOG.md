@@ -4,6 +4,40 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.14 — 2026-09-01
+
+- **The last strict-width captures join the per-algorithm rule.** Five
+  parsers width-validated the checksum value inside their capture regex
+  — `pubspec.lock` (`sha256:` 64-hex), `Podfile.lock` (40-hex podspec
+  checksum), `rebar.lock` (`pkg_hash`/`pkg_hash_ext` 64-hex), Julia
+  `Manifest.toml` (`git-tree-sha1` 40-hex), Gleam `manifest.toml`
+  (`outer_checksum` 64-hex) — and `pylock.toml` required 16+ hex while
+  `Gemfile.lock` `CHECKSUMS` restricted the value charset. A
+  same-version swap to a *malformed* value parsed as **no integrity at
+  all**: at best the softer informational "integrity removed" note, and
+  for `pylock.toml`/`Gemfile.lock` shapes complete silence. Every field
+  above is a single spec-mandated algorithm, so the parsers now capture
+  loosely and label the value themselves (`sha256:`/`sha1:`/`tree:`) —
+  a mangled swap compares *within* its algorithm and flags alarm-grade
+  ‼ REPINNED "integrity changed" (`-fail-on integrity` exits 1).
+- **Long hash-algorithm names label properly.** PEP 751 permits any
+  hashlib/PyPI digest name; `blake2b_256`, `sha3_256`, `shake_128`
+  (underscores, up to 12 chars) failed the algorithm-label check, so a
+  `pylock.toml` entry hashed only with one of them carried no comparable
+  integrity — same-version swaps were silent. They now group under their
+  own labels.
+- **Fix: a Julia package switched from the registry to a git checkout no
+  longer alarms.** `repo-url` entries are now marked non-registry (as
+  `pubspec.lock` git overrides always were), so the routine fork-pin
+  flow at the same version stays quiet instead of surfacing the
+  integrity-removed note — three such false alarms showed up in the
+  MIT 18.S191 course-repo history replay.
+- Validated against 564 real lockfile history replays (AppFlowy
+  `pubspec.lock`, Signal-iOS `Podfile.lock`, erlang/rebar3 + emqx
+  `rebar.lock`, MIT 18.S191 + Pluto.jl Julia manifests, lustre
+  `manifest.toml`, plus the standing 360-replay regression battery) —
+  zero failures, zero false alarms.
+
 ## v0.6.13 — 2026-09-01
 
 - **Conda locks' `md5` hashes now count.** `conda-lock.yml` requires

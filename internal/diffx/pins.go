@@ -350,7 +350,7 @@ func splitHash(h string) (algo, val string) {
 			// require a plausible algorithm label, not a hash that merely
 			// contains the separator (npm SRI base64 contains '-')
 			label := strings.ToLower(h[:i])
-			if len(label) <= 8 && isAlgoLabel(label) {
+			if len(label) <= 12 && isAlgoLabel(label) {
 				return label, h[i+1:]
 			}
 		}
@@ -368,13 +368,19 @@ func splitHash(h string) (algo, val string) {
 	return "", ""
 }
 
+// isAlgoLabel accepts lowercase alphanumerics plus underscore so hashlib/
+// PyPI algorithm names (sha3_256, shake_128, blake2b_256) label properly;
+// without this a pylock entry hashed only with such an algorithm carried
+// no comparable integrity at all. The 12-char cap (at the call site) keeps
+// base64 hash values that merely contain a separator from masquerading as
+// labels.
 func isAlgoLabel(s string) bool {
 	if s == "" {
 		return false
 	}
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9') {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
 			return false
 		}
 	}

@@ -588,7 +588,7 @@ var (
 	// Bundler ≥ 2.6 CHECKSUMS entries: "  name (version) sha256=hex".
 	// Entries recorded without a checksum ("  name (version)") stay
 	// unmatched on purpose — an absent hash proves nothing.
-	gemChecksumRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+) \(([0-9][^)]*)\) ([a-z0-9]{1,8})=([A-Za-z0-9+/=_-]+)\s*$`)
+	gemChecksumRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+) \(([0-9][^)]*)\) ([a-z0-9]{1,8})=(\S+?)\s*$`)
 )
 
 func parseGemfileLock(p string, data []byte) (*File, error) {

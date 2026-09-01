@@ -339,7 +339,7 @@ PODFILE CHECKSUM: 2fc1856dcbbec54f57c5b3e900e56556b41c64f8
 
 COCOAPODS: 1.15.2
 `)
-	wantPin(t, f, "Alamofire", "5.8.1", "3ca45e7fe10ddff8e1f91a0f58c9a906eac8a4f9", "")
+	wantPin(t, f, "Alamofire", "5.8.1", "sha1:3ca45e7fe10ddff8e1f91a0f58c9a906eac8a4f9", "")
 }
 
 func TestPodfileLocalPodNoPin(t *testing.T) {

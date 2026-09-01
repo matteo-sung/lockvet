@@ -612,7 +612,10 @@ func TestSplitHashRecognizesEveryParserNotation(t *testing.T) {
 		{"yarn classic resolved fragment (bare sha1)", "9469c3aca9a3f4d635a123e0967a89d4b4a09f4d", "sha1"},
 		{"python sha256: (poetry/uv/pdm/pipfile/pylock/reqs)", "sha256:9c2ea1e62d871267b78307fe511c0838ba0da28698c5732d54e2790bf3ba9899", "sha256"},
 		{"cargo/mix/deno-jsr checksum (normalized)", "sha256:42b1e076c9dfb5d27decfd0c2a659d78bec5eef86bbe0be4bc159cec3f4ed1c0", "sha256"},
-		{"rebar bare sha256 (lowercased)", "0efc9a13c53f1aa1a4d3adcbca24c04124528ab6d1b45cd80540367f0e90c33d", "sha256"},
+		{"bare sha256 (width-detected)", "0efc9a13c53f1aa1a4d3adcbca24c04124528ab6d1b45cd80540367f0e90c33d", "sha256"},
+		{"rebar/pod checksum (normalized)", "sha1:3ca45e7fe10ddff8e1f91a0f58c9a906eac8a4f9", "sha1"},
+		{"pylock long hashlib/PyPI digest name", "blake2b_256:6ab8e11c1d4c390276943b57e145054000398601c34c319881bf4a3fcaea77d1", "blake2b_256"},
+		{"pylock sha3 family", "sha3_256:6ab8e11c1d4c390276943b57e145054000398601c34c319881bf4a3fcaea77d1", "sha3_256"},
 		{"bare sha512", strings.Repeat("ab", 64), "sha512"},
 		{"go.sum module hash", "h1:1JFLCDsPCbbqKGYIPTa1sm2X/tuw2hxfi9wIyB2a16M=", "h1"},
 		{"go.sum manifest hash (artifact-scoped)", "go.mod#h1:vE6IudEVhrDWotDMn/pxpsJbByyewXWEwT1yyMbqTazA=", "go.mod#h1"},
@@ -681,10 +684,12 @@ func TestIntegrityRemovedSameVersion(t *testing.T) {
 	}
 }
 
-func TestIntegrityRemovedViaMalformedStrictWidthSwap(t *testing.T) {
-	// pubspec.lock's sha256 capture is strict-width: a hash swapped to a
-	// malformed value (63 hex chars) parses as NO integrity. That must
-	// surface as removal, not silence.
+func TestRepinnedViaMalformedWidthSwap(t *testing.T) {
+	// pubspec.lock's sha256 field is captured loosely and labeled at the
+	// parser: a hash swapped to a malformed value (63 hex chars) compares
+	// WITHIN the sha256 algorithm and flags as a repin — alarm-grade, not
+	// the softer informational removal it used to surface as when the
+	// strict-width capture dropped the value entirely.
 	const pubTmpl = `packages:
   http:
     dependency: "direct main"
@@ -702,8 +707,11 @@ sdks:
 	oldF := parseFile(t, "pubspec.lock", sprintf(pubTmpl, good))
 	newF := parseFile(t, "pubspec.lock", sprintf(pubTmpl, bad))
 	fd := Diff(oldF, newF)
-	if len(fd.Changes) != 1 || !fd.Changes[0].IntegrityRemoved {
-		t.Fatalf("malformed swap should surface as removal: %+v", fd.Changes)
+	if len(fd.Changes) != 1 || !fd.Changes[0].IntegrityChanged {
+		t.Fatalf("malformed swap should flag as repin: %+v", fd.Changes)
+	}
+	if fd.Changes[0].IntegrityRemoved {
+		t.Fatalf("malformed swap must not read as removal: %+v", fd.Changes)
 	}
 }
 
@@ -969,5 +977,202 @@ packages:
 	}
 	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "openssl" {
 		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+// Siblings of the strict-width class, second sweep (the parsers that
+// width-validated the value in the capture regex itself, so a malformed
+// swap parsed as NO integrity and surfaced only as the softer
+// informational removal — or, for bare-hash formats, as nothing at all
+// once the width detector dropped the value). All now capture loosely
+// and label at the parser; a malformed swap flags alarm-grade REPINNED.
+
+const podLockTmpl = `PODS:
+  - Alamofire (5.8.1)
+
+DEPENDENCIES:
+  - Alamofire
+
+SPEC REPOS:
+  trunk:
+    - Alamofire
+
+SPEC CHECKSUMS:
+  Alamofire: %s
+
+COCOAPODS: 1.15.2
+`
+
+func TestPodMalformedChecksumSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "Podfile.lock", sprintf(podLockTmpl,
+		"3ca45e7fe10ddff8e1f91a0f58c9a906eac8a4f9"))
+	newF := parseFile(t, "Podfile.lock", sprintf(podLockTmpl,
+		"3ca45e7fe10ddff8e1f91a0f58c9a906eac8a4f")) // 39 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "Alamofire" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const rebarLockTmpl = `{"1.2.0",
+[{<<"redbug">>,{pkg,<<"redbug">>,<<"2.0.6">>},0}]}.
+[
+{pkg_hash,[
+ {<<"redbug">>, <<"%s">>}]}
+].
+`
+
+func TestRebarMalformedChecksumSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "rebar.lock", sprintf(rebarLockTmpl,
+		"63c8977a2f71f84a2acd7e7cfab74a5eaa787c110105379a34d63c562739b3cf"))
+	newF := parseFile(t, "rebar.lock", sprintf(rebarLockTmpl,
+		"63c8977a2f71f84a2acd7e7cfab74a5eaa787c110105379a34d63c562739b3c")) // 63 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "redbug" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const juliaManifestTmpl = `manifest_format = "2.0"
+
+[[deps.Example]]
+git-tree-sha1 = "%s"
+uuid = "7876af07-990d-54b4-ab0e-23690620f79a"
+version = "0.5.3"
+`
+
+func TestJuliaMalformedTreeSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "Manifest.toml", sprintf(juliaManifestTmpl,
+		"46e2578e2d095e8f823874f118cf01f9d4a3dee3"))
+	newF := parseFile(t, "Manifest.toml", sprintf(juliaManifestTmpl,
+		"46e2578e2d095e8f823874f118cf01f9d4a3dee")) // 39 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "Example" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const gleamManifestTmpl = `packages = [
+  { name = "gleam_stdlib", version = "0.34.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "%s" },
+]
+`
+
+func TestGleamMalformedChecksumSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "manifest.toml", sprintf(gleamManifestTmpl,
+		"1B6DAB9DCB11F5A0AACD4EAF34E5A15CBA51284D1FF81DC1BE976DDE6C6D6806"))
+	newF := parseFile(t, "manifest.toml", sprintf(gleamManifestTmpl,
+		"1B6DAB9DCB11F5A0AACD4EAF34E5A15CBA51284D1FF81DC1BE976DDE6C6D680")) // 63 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "gleam_stdlib" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const pylockTmpl = `lock-version = "1.0"
+
+[[packages]]
+name = "urllib3"
+version = "2.2.2"
+sdist = { url = "https://files.pythonhosted.org/packages/aa/urllib3-2.2.2.tar.gz", hashes = { %s } }
+`
+
+func TestPylockMalformedHashSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "pylock.toml", sprintf(pylockTmpl,
+		`sha256 = "dd505485549a7a552833da5e6063639d0d177c04f23bc3864e41e5dc5f612168"`))
+	newF := parseFile(t, "pylock.toml", sprintf(pylockTmpl,
+		`sha256 = "dd505485549a7a552833da5e6063639d0d177c04f23bc3864e41e5dc5f61216"`)) // 63 chars
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestPylockLongAlgoNameSwapSameVersion(t *testing.T) {
+	// PEP 751 allows any hashlib/PyPI digest name. blake2b_256 (11 chars,
+	// underscore) used to fail isAlgoLabel, so an entry hashed only with
+	// it carried no comparable integrity and swaps were silent.
+	oldF := parseFile(t, "pylock.toml", sprintf(pylockTmpl,
+		`blake2b_256 = "6ab8e11c1d4c390276943b57e145054000398601c34c319881bf4a3fcaea77d1"`))
+	newF := parseFile(t, "pylock.toml", sprintf(pylockTmpl,
+		`blake2b_256 = "aaaae11c1d4c390276943b57e145054000398601c34c319881bf4a3fcaea77d1"`))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const gemChecksumLockTmpl = `GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (2.2.8)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rack
+
+CHECKSUMS
+  rack (2.2.8) sha256=%s
+
+BUNDLED WITH
+   2.6.0
+`
+
+func TestGemMalformedChecksumSwapSameVersion(t *testing.T) {
+	// The old value class ([A-Za-z0-9+/=_-]+) silently rejected values
+	// containing other bytes, so a swap to one erased the checksum line.
+	oldF := parseFile(t, "Gemfile.lock", sprintf(gemChecksumLockTmpl,
+		"7b6df24b5a11c05b31de6a0f2913227b8d5a7fc50a1485e3d0aa1eae57cee7d3"))
+	newF := parseFile(t, "Gemfile.lock", sprintf(gemChecksumLockTmpl,
+		"7b6df24b5a11c05b31de6a0f2913227b8d5a7fc50a1485e3d0aa1eae57cee7!!"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "rack" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+const juliaGitManifest = `manifest_format = "2.0"
+
+[[deps.Example]]
+git-tree-sha1 = "25b0218c72dead9e5e446599b4d15229a472f09a"
+repo-rev = "ec3e722"
+repo-url = "https://github.com/fonsp/Example.jl.git"
+uuid = "7876af07-990d-54b4-ab0e-23690620f79a"
+version = "0.5.3"
+`
+
+func TestJuliaIntegrityRemovedSuppressedForGitSwitch(t *testing.T) {
+	// Registry pin → git checkout at the same version (repo-url appears):
+	// the routine fork-pin flow, same suppression pubspec.lock gets — the
+	// tree hash now tracks a repo, not an immutable registry version.
+	oldF := parseFile(t, "Manifest.toml", sprintf(juliaManifestTmpl,
+		"46e2578e2d095e8f823874f118cf01f9d4a3dee3"))
+	newF := parseFile(t, "Manifest.toml", juliaGitManifest)
+	for _, c := range Diff(oldF, newF).Changes {
+		if c.IntegrityRemoved || c.IntegrityChanged {
+			t.Fatalf("git switch should be quiet: %+v", c)
+		}
 	}
 }

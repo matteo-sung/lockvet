@@ -25,7 +25,7 @@ import (
 // live in Project.toml, which is not a lockfile, so RootsKnown is false.
 
 var juliaHeadRe = regexp.MustCompile(`^\[\[(?:deps\.)?"?([A-Za-z0-9_]+)"?\]\]$`)
-var juliaTreeRe = regexp.MustCompile(`^git-tree-sha1\s*=\s*"([0-9a-fA-F]{40})"\s*$`)
+var juliaTreeRe = regexp.MustCompile(`^git-tree-sha1\s*=\s*"([^"]+)"\s*$`)
 
 func parseJuliaManifest(p string, data []byte) (*File, error) {
 	f := newFile(p, "Manifest.toml", Julia)
@@ -102,7 +102,13 @@ func parseJuliaManifest(p string, data []byte) (*File, error) {
 		locked[e.name] = true
 		// git-tree-sha1 identifies the exact source tree the registry
 		// maps to this version; registered versions are immutable. Pins
-		// tracking a git repo (repo-url) legitimately move — skipped.
+		// tracking a git repo (repo-url) legitimately move — skipped,
+		// and marked non-registry so a registry→git switch at the same
+		// version reads as the routine fork-pin flow it is (matching
+		// pubspec.lock) rather than an integrity-removed alarm.
+		if e.repoURL {
+			f.markNonRegistry(e.name)
+		}
 		if e.treeSHA != "" && !e.repoURL {
 			f.setPin(e.name, e.version, "tree:"+e.treeSHA, "")
 		}
@@ -282,7 +288,7 @@ func parseGleamManifest(p string, data []byte) (*File, error) {
 
 var gleamVersionRe = regexp.MustCompile(`version\s*=\s*"([^"]+)"`)
 var gleamSourceRe = regexp.MustCompile(`source\s*=\s*"([^"]+)"`)
-var gleamChecksumRe = regexp.MustCompile(`outer_checksum\s*=\s*"([0-9a-fA-F]{64})"`)
+var gleamChecksumRe = regexp.MustCompile(`outer_checksum\s*=\s*"([^"]+)"`)
 
 // sniffManifestTOML routes the ambiguous basename: Julia writes
 // Manifest.toml (and historically some tooling lowercases it), Gleam

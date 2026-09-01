@@ -132,7 +132,11 @@ var pubNameRe = regexp.MustCompile(`^  ([A-Za-z0-9._-]+):\s*$`)
 var pubVersionRe = regexp.MustCompile(`^    version:\s*"?([^"\s]+)"?\s*$`)
 var pubSourceRe = regexp.MustCompile(`^    source:\s*"?([^"\s]+)"?\s*$`)
 var pubHostedURLRe = regexp.MustCompile(`^      url:\s*"?([^"\s]+)"?\s*$`)
-var pubSha256Re = regexp.MustCompile(`^      sha256:\s*"?([0-9a-fA-F]{64})"?\s*$`)
+
+// Any value on the sha256 line is captured — the field is sha256 by
+// spec, so a malformed-width swap must compare (and flag) within the
+// algorithm instead of silently vanishing from the hash set.
+var pubSha256Re = regexp.MustCompile(`^      sha256:\s*"?([^"\s]+)"?\s*$`)
 
 func parsePubspecLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "pubspec.lock", Pub)

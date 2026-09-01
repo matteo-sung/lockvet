@@ -35,7 +35,11 @@ import (
 
 var rebarPkgRe = regexp.MustCompile(
 	`\{<<"([^"]+)">>,\s*\{pkg,\s*<<"([^"]+)">>,\s*<<"([^"]+)">>[^{}]*\},\s*(\d+)\}`)
-var rebarHashRe = regexp.MustCompile(`\{<<"([^"]+)">>,\s*<<"([0-9a-fA-F]{64})">>\}`)
+
+// The hash value is captured loosely and labeled sha256 (both rebar3
+// checksum fields are sha256 by spec) so malformed-width swaps compare
+// within the algorithm instead of dropping out of the hash set.
+var rebarHashRe = regexp.MustCompile(`\{<<"([^"]+)">>,\s*<<"([^"]+)">>\}`)
 
 func parseRebarLock(p string, data []byte) (*File, error) {
 	f := newFile(p, "rebar.lock", Hex)
@@ -55,7 +59,7 @@ func parseRebarLock(p string, data []byte) (*File, error) {
 			rest = rest[:end]
 		}
 		for _, m := range rebarHashRe.FindAllStringSubmatch(rest, -1) {
-			into[m[1]] = strings.ToLower(m[2])
+			into[m[1]] = "sha256:" + strings.ToLower(m[2])
 		}
 	}
 	hashBlock("{pkg_hash,", inner)

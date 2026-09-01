@@ -38,7 +38,7 @@ var (
 	podDepRe      = regexp.MustCompile(`^ {4,}- "?([^" (]+)"?`)
 	podEntryRe    = regexp.MustCompile(`^  - "?([^" (]+)"?`)
 	podSrcKeyRe   = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
-	podChecksumRe = regexp.MustCompile(`^  "?([^":]+?)"?:\s*([0-9a-fA-F]{40})\s*$`)
+	podChecksumRe = regexp.MustCompile(`^  "?([^":]+?)"?:\s*(\S+?)\s*$`)
 	podSrcPodRe   = regexp.MustCompile(`^ {4}- "?([^" (]+)"?`)
 	podExtKeyRe   = regexp.MustCompile(`^  "?([^"]+?)"?:\s*$`)
 	podPublicSrc  = regexp.MustCompile(`(?i)^(trunk|.*github\.com[:/]cocoapods/specs.*)$`)
@@ -112,7 +112,7 @@ func parsePodfileLock(p string, data []byte) (*File, error) {
 					continue
 				}
 				for _, v := range f.Packages[name] {
-					f.setPin(name, v, strings.ToLower(m[2]), "")
+					f.setPin(name, v, "sha1:"+strings.ToLower(m[2]), "")
 				}
 			}
 		}
