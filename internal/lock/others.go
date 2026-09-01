@@ -343,9 +343,38 @@ func normalizePyPI(name string) string {
 
 // ---- go.mod ----
 
+// goReplace is one parsed replace directive: "oldMod [oldVer] => newMod
+// [newVer]". A filesystem target has no version; a module target must
+// carry one (go rejects the file otherwise).
+type goReplace struct {
+	oldMod, oldVer, newMod, newVer string
+}
+
 func parseGoMod(p string, data []byte) (*File, error) {
 	f := newFile(p, "go.mod", Go)
 	f.RootsKnown = true // go.mod annotates transitive deps with "// indirect"
+	var replaces []goReplace
+	addReplace := func(fields []string) {
+		sep := -1
+		for i, tok := range fields {
+			if tok == "=>" {
+				sep = i
+				break
+			}
+		}
+		if sep < 1 || sep >= len(fields)-1 {
+			return
+		}
+		lhs, rhs := fields[:sep], fields[sep+1:]
+		r := goReplace{oldMod: lhs[0], newMod: rhs[0]}
+		if len(lhs) >= 2 {
+			r.oldVer = strings.TrimPrefix(lhs[1], "v")
+		}
+		if len(rhs) >= 2 {
+			r.newVer = strings.TrimPrefix(rhs[1], "v")
+		}
+		replaces = append(replaces, r)
+	}
 	inRequire, inReplace := false, false
 	for _, line := range strings.Split(string(data), "\n") {
 		indirect := false
@@ -369,16 +398,12 @@ func parseGoMod(p string, data []byte) (*File, error) {
 			continue
 		}
 		fields := strings.Fields(line)
-		// A replaced module doesn't build from the registry: the required
-		// version is overridden by a local path or another module, so
-		// registry- and advisory-derived claims about it would be wrong
-		// (monorepos require workspace siblings at v0.0.0 + replace).
 		if inReplace && len(fields) >= 3 {
-			f.markNonRegistry(fields[0])
+			addReplace(fields)
 			continue
 		}
 		if len(fields) >= 4 && fields[0] == "replace" {
-			f.markNonRegistry(fields[1])
+			addReplace(fields[1:])
 			continue
 		}
 		if inRequire && len(fields) == 2 {
@@ -391,6 +416,75 @@ func parseGoMod(p string, data []byte) (*File, error) {
 			if !indirect {
 				f.addRoot(fields[1])
 			}
+		}
+	}
+	// Replace directives change what the build ACTUALLY fetches, so they
+	// change what an honest diff must claim:
+	//
+	//   - A filesystem target ("=> ../local", no version) doesn't build
+	//     from the registry at all: registry- and advisory-derived claims
+	//     about the module would be wrong, so it is marked NonRegistry
+	//     (monorepos require workspace siblings at v0.0.0 + replace).
+	//   - A module target WITH a version builds from the registry like any
+	//     other pin — "replace m => m v1.2.3" makes v1.2.3 the effective
+	//     version no matter what require says, and "replace a => b v1.2.3"
+	//     swaps in b's code where a's was. Ignoring these is how a
+	//     replace-directive downgrade to a vulnerable version — or a
+	//     redirect to a lookalike module — renders as "no changes".
+	//     So the effective pin is recorded: same-module replaces override
+	//     the version (a downgrade renders as a downgrade, advisories and
+	//     all); cross-module replaces drop the old pin and add the new one
+	//     (the diff shows a removed and an introduced, the resolution-
+	//     hijack shape); a replace forcing a version of a module that
+	//     require never mentions adds that pin (transitive, but forced
+	//     here).
+	//   - A version-scoped replace ("replace m v1.0.0 => …") only fires
+	//     when module selection picks exactly that version. That is
+	//     knowable here only when require pins it; otherwise the honest
+	//     move is the old conservative one — mark NonRegistry and make no
+	//     registry claims either way.
+	for _, r := range replaces {
+		if r.newVer == "" || strings.HasPrefix(r.newMod, "./") ||
+			strings.HasPrefix(r.newMod, "../") || strings.HasPrefix(r.newMod, "/") {
+			f.markNonRegistry(r.oldMod)
+			continue
+		}
+		old := Sanitize(r.oldMod)
+		if r.oldVer != "" {
+			matched := false
+			for _, v := range f.Packages[old] {
+				if v == Sanitize(r.oldVer) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				f.markNonRegistry(r.oldMod)
+				continue
+			}
+		}
+		if r.newMod == r.oldMod {
+			if _, ok := f.Packages[old]; ok {
+				f.Packages[old] = []string{Sanitize(r.newVer)}
+			} else {
+				f.add(r.oldMod, r.newVer) // forced transitive pin
+			}
+			continue
+		}
+		wasRoot := false
+		if _, ok := f.Packages[old]; ok {
+			delete(f.Packages, old)
+			for i, n := range f.Roots {
+				if n == old {
+					wasRoot = true
+					f.Roots = append(f.Roots[:i], f.Roots[i+1:]...)
+					break
+				}
+			}
+		}
+		f.add(r.newMod, r.newVer)
+		if wasRoot {
+			f.addRoot(r.newMod)
 		}
 	}
 	return f, nil
