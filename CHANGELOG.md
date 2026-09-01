@@ -4,6 +4,42 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.11 — 2026-09-01
+
+- **Fix: a multi-algorithm pin with ONE poisoned hash compared as
+  unchanged.** Hash-set comparison pooled overlap across algorithms:
+  a yarn-classic pin whose SRI `sha512` was swapped rendered as
+  **"no changes"** because the untouched sha1 `resolved` fragment
+  still overlapped — exactly the poisoned-checksum camouflage the
+  REPINNED lane exists to catch, since yarn verifies the SRI line at
+  install time, not the fragment. The same shape covered old-style
+  `package-lock.json` (sha1 + SRI side by side). Each shared
+  algorithm is now judged on its own — the same bytes can never hash
+  two ways under one algorithm, so a fully disjoint shared algorithm
+  flags no matter what any other algorithm says, and contradictory
+  hash sets no longer count as "same bytes proven" for the
+  resolution-moved lane. Deliberate exception: Terraform's `h1`/`zh`
+  pair stays pooled — `h1` hashes exist only for the platforms the
+  lock was built with, so a platform re-lock replaces the whole `h1`
+  set while the registry-published `zh` set still vouches for the
+  release. Validated against 360 real lockfile history replays
+  (prettier yarn.lock, axios package-lock.json, vite + pnpm
+  pnpm-lock.yaml, fd + ruff Cargo.lock, plausible/analytics mix.lock,
+  fresh deno.lock, hugo go.mod) — zero failures, zero false alarms.
+
+## v0.6.10 — 2026-09-01
+
+- **go.mod `replace` directives resolve to the effective pin.** A
+  version-carrying `replace` (same module or a fork swap) changes what
+  `go build` actually fetches; both previously rendered as "no
+  changes". Same-module replaces render as real version changes with
+  advisories; cross-module replaces render as the removed + introduced
+  resolution-hijack shape; filesystem replaces stay non-registry
+  (exempt from registry claims); version-scoped replaces apply only
+  when `require` pins exactly that version. Validated against 117
+  real go.mod history replays (kubernetes, grafana, etcd) — zero
+  failures, zero false alarms.
+
 ## v0.6.9 — 2026-08-31
 
 - **New alarm: `‼ integrity removed` — a same-version pin that loses its

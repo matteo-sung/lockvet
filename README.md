@@ -1541,7 +1541,14 @@ tampering, a hijacked mirror, or a hand-edited lockfile. All of them are
 Hashes are compared per algorithm, so a lockfile-format upgrade that
 switches `sha1` → `sha512` (or a yarn berry cache-key bump) never flags,
 and Python hash *sets* may legitimately grow as wheels are added — only a
-fully disjoint set flags.
+fully disjoint set flags. Each shared algorithm is judged on its own: the
+same bytes can never hash two ways under one algorithm, so a yarn-classic
+pin whose SRI `sha512` was swapped flags even when the sha1 `resolved`
+fragment was left intact as camouflage (yarn verifies the SRI line at
+install time, not the fragment). The one pooled exception is Terraform's
+`h1`/`zh` pair: `h1` hashes exist only for the platforms the lock was
+built with, so a platform re-lock that replaces the whole `h1` set stays
+quiet while the registry-published `zh` set still vouches for the release.
 
 **Integrity removed, version didn't** ‼ — a pin that carried a content
 hash and now carries *none* is just as loud. Nothing verifies the

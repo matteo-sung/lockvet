@@ -242,54 +242,78 @@ func intersectVersions(a, b []string) []string {
 // never flags. Within a shared algorithm, any overlapping hash means the
 // same artifact is still acceptable — Python lockfiles legitimately GROW
 // the hash set when new wheels are added for an existing release.
+// integrityDiffers reports whether the two hash sets disagree about the
+// pinned artifact. Each shared algorithm is judged on its own: a hash
+// function is deterministic, so the same artifact can never carry two
+// different values under one algorithm — a shared algorithm whose sets
+// are fully disjoint proves the integrity claim changed, no matter what
+// any OTHER algorithm says. (The logic this replaces pooled overlap
+// across algorithms: a yarn-classic pin whose SRI sha512 was swapped
+// compared as "no changes" because the untouched sha1 `resolved`
+// fragment still overlapped — exactly the poisoned-checksum camouflage
+// this lane exists to catch, since yarn verifies the SRI line at
+// install time, not the fragment.)
+//
+// Two shapes keep pooled/scoped semantics:
+//   - artifact-scoped sets ("file.jar#sha256:…", Gradle verification
+//     metadata): already per-file, disjoint-per-scope flags as before.
+//   - Terraform h1/zh: h1 hashes exist only for the platforms the lock
+//     was built with — re-locking for a different platform legitimately
+//     replaces the whole h1 set while the registry-published zh set
+//     (every release file) still overlaps. zh overlap vouches for the
+//     release; h1 disjointness there is platform selection, not tamper.
 func integrityDiffers(oldSet, newSet string) bool {
 	oldBy := hashesByAlgo(oldSet)
 	newBy := hashesByAlgo(newSet)
-	sharedAlgo, overlap := false, false
+	pooledShared, pooledOverlap := false, false
 	for algo, oldHashes := range oldBy {
 		newHashes, ok := newBy[algo]
 		if !ok {
 			continue // algo upgrades / added artifacts never flag
 		}
-		if strings.Contains(algo, "#") {
-			// Artifact-scoped (Gradle verification metadata): the SAME
-			// file losing every previously accepted hash means its bytes
-			// changed — regardless of the component's other artifacts.
-			shared := false
-			for h := range oldHashes {
-				if newHashes[h] {
-					shared = true
-					break
-				}
-			}
-			if !shared {
-				return true
-			}
-			continue
-		}
-		sharedAlgo = true
+		overlap := false
 		for h := range oldHashes {
 			if newHashes[h] {
 				overlap = true
+				break
 			}
 		}
+		if platformScopedAlgo(algo) {
+			pooledShared = true
+			if overlap {
+				pooledOverlap = true
+			}
+			continue
+		}
+		if !overlap {
+			return true // fully disjoint under a shared algorithm → changed
+		}
 	}
-	return sharedAlgo && !overlap // comparable and fully disjoint → changed
+	return pooledShared && !pooledOverlap
 }
 
-// integritySame reports whether the two hash sets share at least one
-// (algorithm, hash) pair — proof the same artifact is referenced.
+// platformScopedAlgo marks hash families whose membership depends on
+// which platforms the lock was generated for (Terraform), so a wholesale
+// set replacement under ONE family is explained by the other family's
+// overlap rather than contradicted by it.
+func platformScopedAlgo(algo string) bool { return algo == "h1" || algo == "zh" }
+
+// integritySame reports whether the two hash sets prove the same artifact
+// is referenced: at least one (algorithm, hash) pair is shared AND no
+// shared algorithm contradicts it — a shared-yet-disjoint algorithm means
+// one side's claim is wrong, and overlap elsewhere proves nothing then.
 func integritySame(oldSet, newSet string) bool {
 	oldBy := hashesByAlgo(oldSet)
 	newBy := hashesByAlgo(newSet)
+	found := false
 	for algo, oldHashes := range oldBy {
 		for h := range oldHashes {
 			if newBy[algo][h] {
-				return true
+				found = true
 			}
 		}
 	}
-	return false
+	return found && !integrityDiffers(oldSet, newSet)
 }
 
 // hashesByAlgo groups a space-joined hash set by algorithm label.
