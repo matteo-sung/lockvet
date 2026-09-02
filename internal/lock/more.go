@@ -97,13 +97,20 @@ func parseMixLock(p string, data []byte) (*File, error) {
 			// plus the outer checksum (last element, sha256 of the tarball)
 			// when present: hex.pm tarballs are immutable per version, so
 			// a same-version checksum change means the artifact moved.
+			// The two hashes digest DIFFERENT byte streams, so each gets
+			// its own scope (gradle/conda precedent) — pooling both under
+			// one "sha256" label let a one-sided swap hide behind the
+			// untouched sibling hash (the v0.6.11 camouflage shape, within
+			// a single algorithm). Old-format lockfiles carry only the
+			// inner checksum; the migration that adds the outer one is an
+			// added scope and stays quiet.
 			hashes := strings.ToLower(strings.TrimSpace(m[4]))
 			if hashes != "" {
-				hashes = "sha256:" + hashes
+				hashes = "contents#sha256:" + hashes
 			}
 			r := mixRepoRe.FindStringSubmatch(line)
 			if r != nil && r[2] != "" {
-				hashes = strings.TrimSpace(hashes + " sha256:" + strings.ToLower(r[2]))
+				hashes = strings.TrimSpace(hashes + " tarball#sha256:" + strings.ToLower(r[2]))
 			}
 			f.setPin(m[2], m[3], hashes, "")
 			if r != nil && r[1] != "hexpm" {

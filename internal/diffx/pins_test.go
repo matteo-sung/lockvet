@@ -1176,3 +1176,93 @@ func TestJuliaIntegrityRemovedSuppressedForGitSwitch(t *testing.T) {
 		}
 	}
 }
+
+// Dual-sha256 scoping (mix.lock / rebar.lock). Hex records TWO sha256
+// values per package — the tarball contents (inner) and the tarball file
+// (outer). They digest different byte streams, so the parsers scope them
+// ("contents#sha256:", "tarball#sha256:") gradle-style: pooled under one
+// "sha256" label, a one-sided swap overlapped on the untouched sibling
+// and compared as no change — the v0.6.11 camouflage shape, hiding
+// within a single algorithm instead of across two.
+
+const mixLockDualTmpl = `%%{
+  "plug": {:hex, :plug, "1.16.1", "%s", [:mix], [], "hexpm", "%s"},
+}`
+
+func TestMixLockOneSidedChecksumSwapFlags(t *testing.T) {
+	inner := "40c74619c12f82736d2214557dedec2e9762029b2438d6d175c5074c933edc9d"
+	outer := "9419a8a09bf9459b035b50e937c1a1275ab541c599e62b8748a7e4b4760f9c87"
+	swapped := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	oldF := parseFile(t, "mix.lock", sprintf(mixLockDualTmpl, inner, outer))
+	for name, newContent := range map[string]string{
+		"inner swap under intact outer": sprintf(mixLockDualTmpl, swapped, outer),
+		"outer swap under intact inner": sprintf(mixLockDualTmpl, inner, swapped),
+	} {
+		fd := Diff(oldF, parseFile(t, "mix.lock", newContent))
+		if len(fd.Changes) != 1 {
+			t.Fatalf("%s: want 1 repinned change, got %+v", name, fd.Changes)
+		}
+		if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "plug" {
+			t.Fatalf("%s: bad change: %+v", name, c)
+		}
+	}
+}
+
+func TestMixLockOuterChecksumMigrationStaysQuiet(t *testing.T) {
+	// Old-format mix.lock entries carry only the inner checksum; the
+	// re-lock that adds the outer one (same inner) is an added scope.
+	oldF := parseFile(t, "mix.lock", `%{
+  "plug": {:hex, :plug, "1.16.1", "40c74619c12f82736d2214557dedec2e9762029b2438d6d175c5074c933edc9d", [:mix], []},
+}`)
+	newF := parseFile(t, "mix.lock", sprintf(mixLockDualTmpl,
+		"40c74619c12f82736d2214557dedec2e9762029b2438d6d175c5074c933edc9d",
+		"9419a8a09bf9459b035b50e937c1a1275ab541c599e62b8748a7e4b4760f9c87"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("adding the outer checksum must stay quiet, got %+v", fd.Changes)
+	}
+}
+
+const rebarLockDualTmpl = `{"1.2.0",
+[{<<"hackney">>,{pkg,<<"hackney">>,<<"1.20.1">>},0}]}.
+[
+{pkg_hash,[
+ {<<"hackney">>, <<"%s">>}]},
+{pkg_hash_ext,[
+ {<<"hackney">>, <<"%s">>}]}].
+`
+
+func TestRebarLockOneSidedChecksumSwapFlags(t *testing.T) {
+	inner := "8D97AEC62DDDDD757D128BFD1DF6C5861093419F8F7A4223823537BAD5D064E2"
+	outer := "FE9094E5F1A2A2C0A7D10918FEE36BFEC0EC2A979994CFF8CFE8058CD9AF38E3"
+	swapped := "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	oldF := parseFile(t, "rebar.lock", sprintf(rebarLockDualTmpl, inner, outer))
+	for name, newContent := range map[string]string{
+		"pkg_hash swap under intact pkg_hash_ext": sprintf(rebarLockDualTmpl, swapped, outer),
+		"pkg_hash_ext swap under intact pkg_hash": sprintf(rebarLockDualTmpl, inner, swapped),
+	} {
+		fd := Diff(oldF, parseFile(t, "rebar.lock", newContent))
+		if len(fd.Changes) != 1 {
+			t.Fatalf("%s: want 1 repinned change, got %+v", name, fd.Changes)
+		}
+		if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "hackney" {
+			t.Fatalf("%s: bad change: %+v", name, c)
+		}
+	}
+}
+
+func TestRebarLockHashExtMigrationStaysQuiet(t *testing.T) {
+	// Format 1.1.0 locks carry pkg_hash only; the 1.2.0 re-lock adds
+	// pkg_hash_ext (same pkg_hash) — an added scope, never an alarm.
+	oldF := parseFile(t, "rebar.lock", `{"1.1.0",
+[{<<"hackney">>,{pkg,<<"hackney">>,<<"1.20.1">>},0}]}.
+[
+{pkg_hash,[
+ {<<"hackney">>, <<"8D97AEC62DDDDD757D128BFD1DF6C5861093419F8F7A4223823537BAD5D064E2">>}]}].
+`)
+	newF := parseFile(t, "rebar.lock", sprintf(rebarLockDualTmpl,
+		"8D97AEC62DDDDD757D128BFD1DF6C5861093419F8F7A4223823537BAD5D064E2",
+		"FE9094E5F1A2A2C0A7D10918FEE36BFEC0EC2A979994CFF8CFE8058CD9AF38E3"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("adding pkg_hash_ext must stay quiet, got %+v", fd.Changes)
+	}
+}

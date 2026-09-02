@@ -4,6 +4,25 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.15 — 2026-09-02
+
+- **Hex's dual checksums are scoped, closing the last pooled-overlap
+  camouflage.** `mix.lock` and `rebar.lock` record TWO sha256 values per
+  package — the tarball contents (inner; mix's 4th element, rebar's
+  `pkg_hash`) and the tarball file (outer; mix's last element, rebar's
+  `pkg_hash_ext`). Both were labeled plain `sha256:` and pooled into one
+  hash set, so a same-version swap of *one* checksum overlapped on its
+  untouched sibling and compared as **"no changes"** — the exact
+  camouflage shape v0.6.11 closed *across* algorithms, alive *within* a
+  single algorithm. The two hashes digest different byte streams, so the
+  parsers now scope them (`contents#sha256:`/`tarball#sha256:`, the
+  Gradle/conda artifact-scope notation) and each is judged on its own: a
+  one-sided swap flags alarm-grade ‼ REPINNED (`-fail-on integrity`
+  exits 1). Format migrations stay quiet — an old-format `mix.lock`
+  entry gaining the outer checksum, or a rebar.lock 1.1.0 → 1.2.0
+  re-lock adding `pkg_hash_ext`, is an added scope and never alarms
+  (verified against rebar3's real migration commit).
+
 ## v0.6.14 — 2026-09-01
 
 - **The last strict-width captures join the per-algorithm rule.** Five

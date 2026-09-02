@@ -47,9 +47,16 @@ func parseRebarLock(p string, data []byte) (*File, error) {
 
 	// Hash attr blocks sit after the main entry list; scope each regex
 	// sweep to its own block so app-name/hash pairs never cross over.
+	// pkg_hash digests the tarball CONTENTS and pkg_hash_ext the tarball
+	// FILE — different byte streams, so each gets its own scope
+	// (gradle/conda precedent): pooling both under one "sha256" label let
+	// a one-sided swap hide behind the untouched sibling hash (the
+	// v0.6.11 camouflage shape, within a single algorithm). Format 1.1.0
+	// locks carry only pkg_hash; the 1.2.0 migration that adds
+	// pkg_hash_ext is an added scope and stays quiet.
 	inner := map[string]string{}
 	outer := map[string]string{}
-	hashBlock := func(marker string, into map[string]string) {
+	hashBlock := func(marker, label string, into map[string]string) {
 		i := strings.Index(s, marker)
 		if i < 0 {
 			return
@@ -59,11 +66,11 @@ func parseRebarLock(p string, data []byte) (*File, error) {
 			rest = rest[:end]
 		}
 		for _, m := range rebarHashRe.FindAllStringSubmatch(rest, -1) {
-			into[m[1]] = "sha256:" + strings.ToLower(m[2])
+			into[m[1]] = label + strings.ToLower(m[2])
 		}
 	}
-	hashBlock("{pkg_hash,", inner)
-	hashBlock("{pkg_hash_ext,", outer)
+	hashBlock("{pkg_hash,", "contents#sha256:", inner)
+	hashBlock("{pkg_hash_ext,", "tarball#sha256:", outer)
 
 	// Entries only up to the first attr block, so hash pairs (which the
 	// entry regex cannot match anyway) stay out of scope on principle.

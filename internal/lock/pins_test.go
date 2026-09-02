@@ -201,9 +201,9 @@ func TestMixPins(t *testing.T) {
   "old_style": {:hex, :old_style, "0.1.0", "AABBCCDD00112233445566778899AABBCCDD00112233445566778899AABBCCDD", [:mix], []},
 }`)
 	wantPin(t, f, "phoenix", "1.7.10",
-		"sha256:02d6cf9b6a69b1cb43be2af6d6adf3cba26ac5cc96b9e5bd883c062ac0d0f0dc sha256:cf784932e010fd736d656d7fead6a584a4498efefe5b8227e9f383bf15bb79d0", "")
+		"contents#sha256:02d6cf9b6a69b1cb43be2af6d6adf3cba26ac5cc96b9e5bd883c062ac0d0f0dc tarball#sha256:cf784932e010fd736d656d7fead6a584a4498efefe5b8227e9f383bf15bb79d0", "")
 	wantPin(t, f, "old_style", "0.1.0",
-		"sha256:aabbccdd00112233445566778899aabbccdd00112233445566778899aabbccdd", "")
+		"contents#sha256:aabbccdd00112233445566778899aabbccdd00112233445566778899aabbccdd", "")
 }
 
 func TestPubspecPins(t *testing.T) {
