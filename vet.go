@@ -33,6 +33,7 @@ import (
 	"github.com/matteo-sung/lockvet/internal/goreg"
 	"github.com/matteo-sung/lockvet/internal/gradlereg"
 	"github.com/matteo-sung/lockvet/internal/gtpr"
+	"github.com/matteo-sung/lockvet/internal/hcache"
 	"github.com/matteo-sung/lockvet/internal/helmreg"
 	"github.com/matteo-sung/lockvet/internal/hexreg"
 	"github.com/matteo-sung/lockvet/internal/hkgreg"
@@ -340,6 +341,9 @@ func finishVet(diffs []diffx.FileDiff, o vetOptions, base, target, noChangesIn s
 	// the metadata layers did run.
 	flakereg.Annotate(diffs, o.freshDays) // fully local, like squat
 	squat.Annotate(diffs)
+	if w := hcache.StaleNote(); w != "" {
+		v.warnings = append(v.warnings, w)
+	}
 	ign, err := ignore.Resolve(o.ignoreFile, o.noIgnore, o.ignoreDir)
 	if err != nil {
 		return nil, err

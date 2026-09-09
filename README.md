@@ -2019,6 +2019,13 @@ immediately. `-no-cache` bypasses it; `-cache-ttl 15m` tunes it
 (`-cache-ttl 0` disables). Nothing from *your* repository is ever written
 to the cache.
 
+When the network is unreachable — DNS, TCP, TLS, timeout — lockvet serves
+expired cache entries (up to 24 hours old) rather than dropping advisory
+and registry coverage for the whole outage, and warns once about the
+fallback and the data's age. A server that *answers*, with any status,
+is always respected: the fallback covers "couldn't ask", never "didn't
+like the answer". With the cache disabled there is no fallback.
+
 **Dependencies:** none. Pure Go standard library.
 
 ## How it compares

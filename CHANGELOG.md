@@ -4,6 +4,24 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## Unreleased
+
+- **Stale-if-error: a network outage no longer silently drops advisory
+  coverage.** The HTTP cache expired entries after one hour and deleted
+  them on sight, so any outage longer than the TTL turned every
+  advisory and registry check into a "check skipped" warning even
+  though yesterday's answers were still on disk (the sweep keeps them
+  24 hours). Now, when the live fetch fails with a *transport* error —
+  DNS, TCP, TLS, timeout — lockvet serves the expired entry within the
+  sweep horizon and warns once: `network unreachable: N cached answers
+  served up to Xh past normal expiry — advisory and registry data may
+  be stale`. A server that answers, with any HTTP status, is always
+  respected — the fallback covers "couldn't ask", never "didn't like
+  the answer" — and with `-no-cache`/`-cache-ttl 0` there is no
+  fallback. Found the honest way: an egress outage during a routine
+  smoke test rendered a jackson-databind downgrade with zero of its 27
+  advisories.
+
 ## v0.6.15 — 2026-09-02
 
 - **Hex's dual checksums are scoped, closing the last pooled-overlap

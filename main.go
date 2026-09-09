@@ -850,6 +850,10 @@ func main() {
 	flakereg.Annotate(diffs, *freshDays)
 	squat.Annotate(diffs)
 
+	if w := hcache.StaleNote(); w != "" {
+		fmt.Fprintf(os.Stderr, "lockvet: warning: %s\n", w)
+	}
+
 	ignSet, err := ignore.Resolve(*ignoreFile, *noIgnore, *dir)
 	check(err)
 	if _, warns := ignSet.Apply(diffs, time.Now()); len(warns) > 0 {

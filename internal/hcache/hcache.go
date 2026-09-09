@@ -28,6 +28,14 @@
 // os.UserCacheDir()/lockvet/http (override: LOCKVET_CACHE_DIR), are
 // user-private (0700/0600), and a best-effort background sweep removes
 // entries older than max(24h, 2×TTL).
+//
+// Stale-if-error: when the live fetch fails with a transport error (the
+// network is unreachable — DNS, TCP, TLS, timeout), an expired entry
+// within the sweep horizon is served instead of nothing, and the run is
+// told via StaleNote so it can warn once about the fallback and the data's
+// age. A server that ANSWERS — any HTTP status, including 5xx — is always
+// respected: the fallback covers "couldn't ask", never "didn't like the
+// answer". With the cache disabled there is no fallback.
 package hcache
 
 import (
@@ -69,6 +77,9 @@ var (
 	ttl      = DefaultTTL
 	dirOnce  sync.Once
 	cacheDir string // "" = unusable → pass-through
+
+	staleN      int           // answers served past TTL because the network was unreachable
+	staleOldest time.Duration // age of the oldest such answer
 )
 
 // Configure sets cache behaviour; the CLI calls it once after flag
@@ -93,6 +104,58 @@ func currentTTL() time.Duration {
 	mu.Lock()
 	defer mu.Unlock()
 	return ttl
+}
+
+// staleHorizon is how far past TTL an entry may be served under
+// stale-if-error — the same bound the background sweep enforces, so the
+// fallback can only use what the sweep would still have on disk.
+func staleHorizon() time.Duration {
+	h := 24 * time.Hour
+	if t := 2 * currentTTL(); t > h {
+		h = t
+	}
+	return h
+}
+
+func noteStale(age time.Duration) {
+	mu.Lock()
+	defer mu.Unlock()
+	staleN++
+	if age > staleOldest {
+		staleOldest = age
+	}
+}
+
+// StaleNote reports — and resets — whether any answers this run were
+// served from cache past their TTL because the network was unreachable.
+// It returns "" when everything was fresh, otherwise a one-line warning
+// the CLI prints once per run.
+func StaleNote() string {
+	mu.Lock()
+	defer mu.Unlock()
+	n, oldest := staleN, staleOldest
+	staleN, staleOldest = 0, 0
+	if n == 0 {
+		return ""
+	}
+	noun := "answers"
+	if n == 1 {
+		noun = "answer"
+	}
+	return fmt.Sprintf("network unreachable: %d cached %s served up to %s past normal expiry — advisory and registry data may be stale", n, noun, fmtAge(oldest))
+}
+
+// fmtAge renders a duration the way a human reads cache staleness: whole
+// hours once past one, otherwise whole minutes (never "0m" — round up).
+func fmtAge(d time.Duration) string {
+	if d >= time.Hour {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	m := int(d.Minutes())
+	if m < 1 {
+		m = 1
+	}
+	return fmt.Sprintf("%dm", m)
 }
 
 // dir resolves (once) the cache directory, creating it. Empty = unusable.
@@ -187,13 +250,22 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	path := filepath.Join(d, key(req, body, anonAuth))
-	if resp := load(path, req, currentTTL()); resp != nil {
+	if resp, _ := load(path, req, currentTTL()); resp != nil {
 		return resp, nil
 	}
 
 	resp, err := t.base.RoundTrip(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return resp, err // negative answers are evidence; never cached
+	if err != nil {
+		// Couldn't ask: fall back to an expired entry within the sweep
+		// horizon rather than losing coverage for the whole outage.
+		if stale, age := load(path, req, staleHorizon()); stale != nil {
+			noteStale(age)
+			return stale, nil
+		}
+		return resp, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return resp, nil // negative answers are evidence; never cached
 	}
 	full, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
 	if err != nil {
@@ -231,30 +303,36 @@ func key(req *http.Request, body []byte, anonAuth bool) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// load returns a cached response, or nil on miss/expiry/corruption.
-func load(path string, req *http.Request, ttl time.Duration) *http.Response {
+// load returns a cached response no older than maxAge plus its age, or
+// nil on miss/expiry/corruption. Entries merely past TTL are left on disk
+// for the stale-if-error fallback; only ones past the sweep horizon (or
+// corrupt) are removed here.
+func load(path string, req *http.Request, maxAge time.Duration) (*http.Response, time.Duration) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	defer f.Close()
 	r := bufio.NewReader(f)
 	line, err := r.ReadBytes('\n')
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	var m meta
 	if json.Unmarshal(line, &m) != nil || m.Status != http.StatusOK {
 		os.Remove(path)
-		return nil
+		return nil, 0
 	}
-	if time.Since(m.Stored) > ttl {
-		os.Remove(path)
-		return nil
+	age := time.Since(m.Stored)
+	if age > maxAge {
+		if age > staleHorizon() {
+			os.Remove(path)
+		}
+		return nil, 0
 	}
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	h := m.Header.Clone()
 	if h == nil {
@@ -270,7 +348,7 @@ func load(path string, req *http.Request, ttl time.Duration) *http.Response {
 		Body:          io.NopCloser(bytes.NewReader(b)),
 		ContentLength: int64(len(b)),
 		Request:       req,
-	}
+	}, age
 }
 
 // store writes meta line + body atomically (temp file + rename).
