@@ -4,7 +4,7 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
-## Unreleased
+## v0.6.16 — 2026-09-10
 
 - **Stale-if-error: a network outage no longer silently drops advisory
   coverage.** The HTTP cache expired entries after one hour and deleted
