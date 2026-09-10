@@ -320,12 +320,14 @@ func load(path string, req *http.Request, maxAge time.Duration) (*http.Response,
 	}
 	var m meta
 	if json.Unmarshal(line, &m) != nil || m.Status != http.StatusOK {
+		f.Close() // Windows refuses to delete an open file
 		os.Remove(path)
 		return nil, 0
 	}
 	age := time.Since(m.Stored)
 	if age > maxAge {
 		if age > staleHorizon() {
+			f.Close() // Windows refuses to delete an open file
 			os.Remove(path)
 		}
 		return nil, 0
