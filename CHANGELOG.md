@@ -4,6 +4,30 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.17 — 2026-09-13
+
+- **A flake input's full git revision is now comparable — closing the
+  short-rev-collision blind spot.** A flake pin renders as
+  `date.rev[:8]`, and pin comparison keyed off that string. Both the
+  date (`lastModified`) and the 8 hex chars are attacker-copyable: a
+  ground-out 2^32 short-rev collision (commit-metadata tweaks leave the
+  tree — and therefore the narHash — unchanged) let `rev` and `owner`
+  be rewritten under an "unchanged" version, with the same-bytes-proven
+  rule then suppressing the resolution-moved alarm. The exact same swap
+  with a non-colliding prefix alarms loudly — behavior differed on a
+  32-bit grind. The parser now records the full revision as a pointer
+  hash (`gitrev:`), so a same-version rev swap is a disjoint shared
+  algorithm: it flags `‼ REPINNED`, breaks the same-bytes proof, and
+  lets the owner swap surface as `⇄ resolution moved`. Pointer labels
+  are excluded from integrity-removed accounting on both sides — a
+  revision names where content lives, it cannot verify bytes, so its
+  presence never masks a deleted narHash. Deliberately unchanged: a
+  same-rev same-narHash owner swap stays quiet (nix hash-verifies
+  content; future updates re-resolve from flake.nix). Validated against
+  180 real flake.lock history commits (home-manager, Hyprland, nixvim):
+  zero failures, zero false alarms. Found by routine fixture rotation:
+  a smoke fixture's swapped rev happened to share its first 8 chars.
+
 ## v0.6.16 — 2026-09-10
 
 - **Stale-if-error: a network outage no longer silently drops advisory

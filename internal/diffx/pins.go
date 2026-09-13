@@ -89,8 +89,20 @@ func countIntegrityLosses(oldF, newF *lock.File) int {
 // integrityLost reports whether a pin that carried at least one
 // recognized content hash before carries none now — either the hash was
 // deleted outright or replaced with a value no algorithm claims.
+// Pointer labels (a flake input's full git revision) are excluded on
+// both sides: a pointer names WHERE the content lives, it cannot verify
+// bytes — so its presence must not mask a deleted content hash, and its
+// deletion alone is not a lost hash.
 func integrityLost(oi, ni string) bool {
-	return len(hashesByAlgo(oi)) > 0 && len(hashesByAlgo(ni)) == 0
+	return len(contentHashes(oi)) > 0 && len(contentHashes(ni)) == 0
+}
+
+// contentHashes is hashesByAlgo minus pointer labels — the set of hashes
+// that actually verify artifact bytes.
+func contentHashes(set string) map[string]map[string]bool {
+	by := hashesByAlgo(set)
+	delete(by, "gitrev")
+	return by
 }
 
 // annotatePinChange fills integrity/host findings on one change. Returns

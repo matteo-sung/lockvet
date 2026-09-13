@@ -506,7 +506,7 @@ func lineOf(data []byte, name string, versions []string) int {
 // registry artifacts are immutable by contract, git revisions by definition.
 func integrityMessage(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "Nix" {
-		return fmt.Sprintf("%s, but the lockfile now records a different narHash for %s. A git revision's content never changes, so the tree this pin expects was replaced (upstream rewritten, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
+		return fmt.Sprintf("%s, but the pin for %s changed while its version did not — either a different narHash for the same revision (a git revision's content never changes, so the tree this pin expects was replaced) or a different revision hiding behind the same date and short-rev (a look-alike commit). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
 	}
 	if c.Ecosystem == "Zig" {
 		return fmt.Sprintf("%s, but build.zig.zon now records a different hash for %s. Zig verifies this hash against the fetched archive, so the source this pin expects was replaced (a moved tag, a re-cut tarball, a hijacked mirror, or a hand-edited manifest). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)

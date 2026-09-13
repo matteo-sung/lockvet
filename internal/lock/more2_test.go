@@ -175,7 +175,7 @@ func TestFlakeLock(t *testing.T) {
 		t.Error("tarball input should record no repo")
 	}
 	pin := f.Pin("nixpkgs", "2024-07-03.deadbeef")
-	if pin.Integrity != "sha256-abcdef" {
+	if pin.Integrity != "sha256-abcdef gitrev:deadbeefcafe1234567890" {
 		t.Errorf("nixpkgs pin integrity = %q", pin.Integrity)
 	}
 	if pin.Host != "github.com/nixos/nixpkgs" {

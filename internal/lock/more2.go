@@ -268,6 +268,19 @@ func parseFlakeLock(p string, data []byte) (*File, error) {
 		} else if l.NarHash != "" {
 			f.setPin(name, ver, l.NarHash, "")
 		}
+		// The rendered version truncates the revision to 8 hex chars, and
+		// pin comparison keys off that string — a ground-out short-rev
+		// collision (2^32 commit-metadata tweaks, tree unchanged so the
+		// narHash comes along for free) would let rev+owner be rewritten
+		// under an "unchanged" version. Record the FULL revision as a
+		// pointer hash so a same-version rev swap stays comparable: a git
+		// revision is content-addressed, so within the "gitrev" label
+		// equality proves the same commit and disjointness proves the pin
+		// moved. (diffx excludes pointer labels from integrity-REMOVED
+		// accounting — a pointer can't verify bytes.)
+		if l.Rev != "" {
+			f.setPin(name, ver, "gitrev:"+strings.ToLower(l.Rev), "")
+		}
 	}
 	return f, nil
 }

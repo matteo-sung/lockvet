@@ -1634,7 +1634,10 @@ stays quiet), and `flake.lock` (Nix: a
 same-revision `narHash` change means the pinned tree was replaced — a
 git revision's content never changes — and an input re-pointed at a
 different repository flags the ⇄ lane; a re-point whose narHash proves
-the content identical, like a plain repo rename, stays quiet). Two deliberate omissions,
+the content identical, like a plain repo rename, stays quiet — but the
+*full* locked revision is compared, not the rendered 8-char short form,
+so a look-alike commit ground out to collide the short rev flags as a
+repin instead of hiding behind an "unchanged" version). Two deliberate omissions,
 because real history proved them noisy: NuGet's `contentHash` (NuGet's
 2018 repository-resigning changed every older package's hash) and conda
 artifact hashes (conda rebuilds the same version under new build

@@ -279,6 +279,63 @@ func TestFlakeRepointProvenSameBytesQuiet(t *testing.T) {
 	}
 }
 
+func TestFlakeShortRevCollisionRepoint(t *testing.T) {
+	// The rendered version is date.rev[:8] — a ground-out 8-hex-char
+	// collision (same tree, so same narHash for free) plus a copied
+	// lastModified makes the version string identical while the full
+	// rev AND the owner change. Must flag: the full rev is recorded as
+	// a pointer hash, so the swap is a disjoint shared algo (repinned)
+	// and breaks the same-bytes proof (resolution moved).
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newLock := sprintf(flakeLockTmpl, "sha256-aaaa", "evilfork")
+	newLock = strings.Replace(newLock, "deadbeefcafe1234567890", "deadbeef0000000000ffee", 1)
+	newF := parseFile(t, "flake.lock", newLock)
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged {
+		t.Errorf("want Repinned+IntegrityChanged, got kind=%s integrity=%v", c.Kind, c.IntegrityChanged)
+	}
+	if !c.RegistryMoved {
+		t.Error("owner swap under a collided short rev must flag resolution moved")
+	}
+}
+
+func TestFlakeShortRevCollisionSameOwner(t *testing.T) {
+	// Same shape without the owner swap: still row-worthy as a repin —
+	// the lock points at a different commit than it claims to.
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newLock := sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS")
+	newLock = strings.Replace(newLock, "deadbeefcafe1234567890", "deadbeef0000000000ffee", 1)
+	newF := parseFile(t, "flake.lock", newLock)
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged {
+		t.Errorf("want Repinned+IntegrityChanged, got kind=%s integrity=%v", c.Kind, c.IntegrityChanged)
+	}
+}
+
+func TestFlakeNarHashRemovedStillFlags(t *testing.T) {
+	// The gitrev pointer must not mask a deleted content hash: same rev,
+	// narHash stripped → integrity removed (a pointer can't verify bytes).
+	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
+	newLock := sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS")
+	newLock = strings.Replace(newLock, "\"narHash\": \"sha256-aaaa\",\n", "", 1)
+	newF := parseFile(t, "flake.lock", newLock)
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; !c.IntegrityRemoved {
+		t.Errorf("want IntegrityRemoved, got %+v", c)
+	}
+}
+
 func TestFlakeSameLockNoRows(t *testing.T) {
 	oldF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
 	newF := parseFile(t, "flake.lock", sprintf(flakeLockTmpl, "sha256-aaaa", "NixOS"))
