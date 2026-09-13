@@ -105,6 +105,25 @@ func contentHashes(set string) map[string]map[string]bool {
 	return by
 }
 
+// contentHashMatch reports whether the two sets share at least one
+// matching CONTENT hash — pointer equality alone must not prove bytes.
+// A matching gitrev pointer does name the same commit, but for pins
+// whose ONLY hash is the pointer (a vcpkg registry baseline) the row is
+// about where FUTURE resolutions come from, so a same-commit host swap
+// must stay row-worthy; a flake owner swap keeps its quiet path through
+// the narHash, which does verify bytes.
+func contentHashMatch(oldSet, newSet string) bool {
+	newBy := contentHashes(newSet)
+	for algo, hashes := range contentHashes(oldSet) {
+		for h := range hashes {
+			if newBy[algo][h] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // annotatePinChange fills integrity/host findings on one change. Returns
 // true when it found something row-worthy (used to surface same-version
 // repins that would otherwise not be diff rows).
@@ -165,7 +184,7 @@ func annotatePinChange(c *Change, oldF, newF *lock.File, moves map[hostPair]int,
 				c.IntegrityVersions = append(c.IntegrityVersions, v)
 			}
 		}
-		if !integritySame(oi, ni) {
+		if !integritySame(oi, ni) || !contentHashMatch(oi, ni) {
 			sameBytesProven = false
 		}
 	}

@@ -4,6 +4,32 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.18 — 2026-09-13
+
+- **A vcpkg baseline's full commit is now comparable — the vcpkg sibling
+  of v0.6.17's flake short-rev blind spot.** `builtin-baseline`,
+  `vcpkg-configuration` default-registry baselines, and named git
+  registry baselines all rendered (and compared) as `sha[:12]`, with
+  the full 40-hex commit never recorded: a ground-out 12-hex collision
+  (2^48 commit-metadata tweaks — and the baseline repo controls every
+  future version resolution, the highest-leverage pin in the file)
+  rendered as **no changes**. The one inspection pass promised in the
+  v0.6.17 notes found it: parsers now record the full commit as a
+  `gitrev:` pointer hash, so the collision shape flags `‼ REPINNED`
+  with vcpkg-specific wording (terminal + SARIF), and `-fail-on
+  integrity` gates it.
+- **Pointer equality alone no longer proves same-bytes.** With baselines
+  now carrying a pointer hash, a same-commit registry *repository* swap
+  would have matched pointers and suppressed the deliberate
+  `⇄ resolution moved` alarm (today's content is sha-identical, but
+  every future baseline bump comes from the new repository — the setup
+  step of the attack). The same-bytes-proven rule now requires at least
+  one matching *content* hash; a flake owner swap keeps its quiet path
+  through the narHash, which does verify bytes. Validated against 201
+  real history commits (VowpalWabbit + MEGA sdk vcpkg.json, Hyprland +
+  nixvim + home-manager flake.lock, ghostty build.zig.zon): zero
+  failures, zero false alarms.
+
 ## v0.6.17 — 2026-09-13
 
 - **A flake input's full git revision is now comparable — closing the

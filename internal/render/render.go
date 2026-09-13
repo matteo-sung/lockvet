@@ -188,6 +188,8 @@ func Terminal(w io.Writer, diffs []diffx.FileDiff, sum diffx.Summary, color bool
 					integrityWhy = "same version, different hash — the source archive this pin expects was replaced (moved tag, re-cut tarball, hijacked mirror, or hand-edited manifest); do not trust this without finding out why"
 				} else if c.Ecosystem == "Gradle" {
 					integrityWhy = "same version, different distributionSha256Sum — a released Gradle distribution never changes, so the checksum the wrapper will enforce no longer matches what every earlier build verified; do not trust this without finding out why"
+				} else if c.Ecosystem == "vcpkg" {
+					integrityWhy = "the pin changed under an unchanged version — a different full baseline commit hiding behind the same short sha (the look-alike-commit shape); every future version this registry resolves comes from that commit, so do not trust this without finding out why"
 				}
 				fmt.Fprintf(w, "      %s %s\n", s.bred("‼ integrity changed: "+join(c.IntegrityVersions)), s.dim(integrityWhy))
 			}

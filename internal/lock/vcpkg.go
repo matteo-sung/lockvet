@@ -65,6 +65,15 @@ func parseVcpkgManifest(p string, data []byte) (*File, error) {
 
 	if sha := strings.ToLower(strings.TrimSpace(doc.BuiltinBaseline)); isCommitSha(sha) {
 		f.add("builtin-baseline", shortSha(sha))
+		// The rendered version truncates the baseline commit to 12 hex
+		// chars, and pin comparison keys off that string — a ground-out
+		// short-sha collision (2^48 commit-metadata tweaks; the baseline
+		// repo controls every future version resolution) would let the
+		// baseline be rewritten under an "unchanged" version. Record the
+		// FULL commit as a pointer hash so a same-version sha swap stays
+		// comparable (same rule as flake.lock revs; diffx excludes
+		// pointer labels from integrity-REMOVED accounting).
+		f.setPin("builtin-baseline", shortSha(sha), "gitrev:"+sha, "")
 		f.setPkgRepo("builtin-baseline", vcpkgOfficialRepo)
 	}
 
@@ -159,7 +168,8 @@ func addVcpkgConfig(f *File, raw json.RawMessage) vcpkgCustom {
 		}
 		if isCommitSha(sha) && host != "" {
 			f.add("default-registry", shortSha(sha))
-			f.setPin("default-registry", shortSha(sha), "", host)
+			// Full commit as pointer hash — see builtin-baseline above.
+			f.setPin("default-registry", shortSha(sha), "gitrev:"+sha, host)
 			if repo != "" {
 				f.setPkgRepo("default-registry", repo)
 			}
@@ -183,6 +193,8 @@ func addVcpkgConfig(f *File, raw json.RawMessage) vcpkgCustom {
 		}
 		name := "registry " + host
 		f.add(name, shortSha(sha))
+		// Full commit as pointer hash — see builtin-baseline above.
+		f.setPin(name, shortSha(sha), "gitrev:"+sha, "")
 		if repo := vcpkgBrowsableRepo(r.Repository); repo != "" {
 			f.setPkgRepo(name, repo)
 		}

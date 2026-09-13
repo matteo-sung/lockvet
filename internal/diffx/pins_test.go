@@ -518,6 +518,70 @@ func TestVcpkgSameConfigNoRows(t *testing.T) {
 	}
 }
 
+// Two distinct full commit shas sharing their first 12 hex chars — the
+// rendered version (shortSha) is identical, so only the recorded full-sha
+// pointer can tell them apart.
+const (
+	vcpkgShaA = "aaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	vcpkgShaB = "aaaaaaaaaaaacccccccccccccccccccccccccccc"
+)
+
+const vcpkgManifestTmpl = `{"name": "app", "builtin-baseline": "%s"}`
+
+func TestVcpkgBaselineShortShaCollisionRepins(t *testing.T) {
+	// The rendered version is sha[:12] — a ground-out 12-hex collision
+	// (2^48 commit-metadata tweaks; the baseline repo controls every
+	// future version resolution) makes the version string identical
+	// while the full commit changes. Must flag: the full sha is recorded
+	// as a pointer hash, so the swap is a disjoint shared algo.
+	oldF := parseFile(t, "vcpkg.json", sprintf(vcpkgManifestTmpl, vcpkgShaA))
+	newF := parseFile(t, "vcpkg.json", sprintf(vcpkgManifestTmpl, vcpkgShaB))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged || c.Name != "builtin-baseline" {
+		t.Errorf("want builtin-baseline Repinned+IntegrityChanged, got %+v", c)
+	}
+}
+
+func TestVcpkgDefaultRegistryShortShaCollisionRepins(t *testing.T) {
+	// Same collision shape on a vcpkg-configuration default-registry
+	// baseline: same repository, so no host move — the pointer swap
+	// alone must carry the row.
+	oldF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "microsoft/vcpkg", vcpkgShaA))
+	newF := parseFile(t, "vcpkg-configuration.json", sprintf(vcpkgCfgTmpl, "microsoft/vcpkg", vcpkgShaB))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged {
+		t.Errorf("want Repinned+IntegrityChanged, got kind=%s integrity=%v", c.Kind, c.IntegrityChanged)
+	}
+	if c.RegistryMoved {
+		t.Error("same-repository collision must not claim a host move")
+	}
+}
+
+const vcpkgNamedRegTmpl = `{"vcpkg-configuration": {"registries": [
+  {"kind": "git", "repository": "https://github.com/acme/registry", "baseline": "%s", "packages": ["beicode"]}
+]}, "name": "app"}`
+
+func TestVcpkgNamedRegistryShortShaCollisionRepins(t *testing.T) {
+	oldF := parseFile(t, "vcpkg.json", sprintf(vcpkgNamedRegTmpl, vcpkgShaA))
+	newF := parseFile(t, "vcpkg.json", sprintf(vcpkgNamedRegTmpl, vcpkgShaB))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 change, got %+v", fd.Changes)
+	}
+	c := fd.Changes[0]
+	if c.Kind != Repinned || !c.IntegrityChanged || c.Name != "registry github.com/acme/registry" {
+		t.Errorf("want named-registry Repinned+IntegrityChanged, got %+v", c)
+	}
+}
+
 const zigZonTmpl = `.{
     .name = "myapp",
     .version = "0.1.0",

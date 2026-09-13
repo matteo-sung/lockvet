@@ -52,6 +52,15 @@ func TestParseVcpkgManifest(t *testing.T) {
 	if f.PkgRepo["builtin-baseline"] != vcpkgOfficialRepo {
 		t.Errorf("baseline PkgRepo = %q", f.PkgRepo["builtin-baseline"])
 	}
+	// The full commit must survive as a pointer hash — the rendered
+	// version keeps only 12 hex chars, and a collision there must not
+	// make two different baselines compare equal.
+	if pin := f.Pin("builtin-baseline", "927f62e4b883"); pin.Integrity != "gitrev:927f62e4b8838bd7e441e9c45103a16ffd75007e" {
+		t.Errorf("baseline pointer hash = %q", pin.Integrity)
+	}
+	if pin := f.Pin("registry github.com/northwindtraders/vcpkg-registry", "dacf4de48809"); pin.Integrity != "gitrev:dacf4de488094a384ca2c202b923ccc097956e0c" {
+		t.Errorf("named-registry pointer hash = %q", pin.Integrity)
+	}
 	if !f.NonRegistry["beicode"] {
 		t.Error("beicode is claimed by a custom registry: want NonRegistry")
 	}

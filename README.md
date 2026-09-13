@@ -1559,6 +1559,18 @@ migration that adds the outer checksum stays quiet. The one pooled exception is 
 built with, so a platform re-lock that replaces the whole `h1` set stays
 quiet while the registry-published `zh` set still vouches for the release.
 
+Pins whose rendered version truncates a git commit (a flake input's
+`date.rev[:8]`, a vcpkg baseline's `sha[:12]`) also record the **full**
+revision as a pointer hash, so a ground-out short-sha collision can't
+rewrite the pin under an "unchanged" version — the swap flags `‼
+REPINNED`. Pointer hashes name *where* content lives without verifying
+bytes, so they are excluded from integrity-removed accounting, and a
+matching pointer alone never proves same-bytes: a vcpkg registry swapped
+to a different repository at the *same* commit still flags (every future
+baseline bump would come from the new repository), while a flake owner
+swap with a matching `narHash` stays quiet — the narHash verifies the
+actual bytes.
+
 **Integrity removed, version didn't** ‼ — a pin that carried a content
 hash and now carries *none* is just as loud. Nothing verifies the
 artifact anymore, and a hash deleted — or swapped to a malformed value no

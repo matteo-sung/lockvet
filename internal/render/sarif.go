@@ -511,6 +511,9 @@ func integrityMessage(c diffx.Change, what, via string) string {
 	if c.Ecosystem == "Zig" {
 		return fmt.Sprintf("%s, but build.zig.zon now records a different hash for %s. Zig verifies this hash against the fetched archive, so the source this pin expects was replaced (a moved tag, a re-cut tarball, a hijacked mirror, or a hand-edited manifest). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
 	}
+	if c.Ecosystem == "vcpkg" {
+		return fmt.Sprintf("%s, but the pin for %s changed while its rendered version did not — a different full baseline commit hiding behind the same short sha (a look-alike commit). Every future version this registry resolves comes from that commit. Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
+	}
 	return fmt.Sprintf("%s, but the lockfile now records a different content hash for version %s. Registries never change a published artifact, so outside a registry migration the tarball this pin expects was replaced (registry-side tampering, a hijacked mirror, or a hand-edited lockfile). Find out why before merging.%s", what, strings.Join(c.IntegrityVersions, ", "), via)
 }
 
