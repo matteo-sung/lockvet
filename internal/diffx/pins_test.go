@@ -614,6 +614,26 @@ func TestZigLegacyHashSwapSameVersion(t *testing.T) {
 	}
 }
 
+// Sibling of the v0.6.8 Cargo/mix/deno width bugs, found by routine
+// fixture rotation: zigIntegrity width-gated the sha256 label to exactly
+// 68 chars, so a same-version swap from a well-formed multihash to a
+// MALFORMED-width one ("1220" + 65 hex here) relabeled the new side
+// zigpkg — no shared algorithm — and the cross-label migration quiet
+// path swallowed the tamper as "no changes".
+func TestZigMalformedWidthHashSwapSameVersion(t *testing.T) {
+	oldF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"12209cde192558f8b3dc098ac2330fc2a14fdd211c5433afd33085af75caa9183147"))
+	newF := parseFile(t, "build.zig.zon", sprintf(zigZonTmpl,
+		"1220deadbeefba62b1e90cff46bab53b8b1451edd07e7bd4bfa27984b244caff08e29"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "known_folders" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
 func TestZigModernHashSwapSameVersion(t *testing.T) {
 	// "known_folders" leads the 0.14+ hash: '_' and 13 chars — the shape
 	// generic label-splitting drops outright.

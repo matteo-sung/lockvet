@@ -117,6 +117,14 @@ func TestZigIntegrityLabels(t *testing.T) {
 		"known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70": "zigpkg:known_folders-0.0.0-Fy-PJsbKAACbDh9bBxR0MMThxZSS6A9RH4apWphNHY70",
 		// wrong-length hex is not a multihash: keep it comparable anyway
 		"deadbeef": "zigpkg:deadbeef",
+		// malformed-WIDTH multihash (65/63 hex after the prefix) must stay
+		// in the sha256 family: a well-formed → mangled swap under an
+		// unchanged version has to compare as disjoint sha256 sets and
+		// flag, not drift to zigpkg where the cross-label migration
+		// quiet path swallows it (the v0.6.19 sibling of the v0.6.8
+		// Cargo/mix/deno width bugs)
+		"1220deadbeefba62b1e90cff46bab53b8b1451edd07e7bd4bfa27984b244caff08e29": "sha256:deadbeefba62b1e90cff46bab53b8b1451edd07e7bd4bfa27984b244caff08e29",
+		"1220deadbeef": "sha256:deadbeef",
 	}
 	for in, want := range cases {
 		if got := zigIntegrity(in); got != want {

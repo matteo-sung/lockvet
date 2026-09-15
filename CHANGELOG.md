@@ -4,6 +4,26 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.19 — 2026-09-15
+
+- **A malformed-width Zig multihash stays comparable — the zig sibling
+  of v0.6.8's Cargo/mix/deno width bugs.** `zigIntegrity` labeled a
+  `.hash` multihash `sha256:` only at exactly the well-formed width
+  (`1220` + 64 hex): a same-version swap from a well-formed multihash
+  to a mangled-width one (65 or 63 hex — one character inserted or
+  dropped) relabeled the new side `zigpkg:`, the two sides then shared
+  no algorithm, and the legacy→0.14 shape-migration quiet path
+  swallowed the tamper as **no changes**. The label now accepts any
+  width of hex behind the `1220` prefix — a 0.14+ hash can never be
+  mistaken for it, since its `name-semver-digest` shape always carries
+  `-` — so the swap compares as disjoint sha256 sets and flags
+  `‼ REPINNED`, gated by `-fail-on integrity`. Found by routine
+  fixture rotation (a fat-fingered sed made the malformed fixture by
+  accident — sixth real bug the rotation has caught). Validated
+  against 200 real build.zig.zon history commits (zls + ghostty):
+  zero failures, zero new alarms; shape-migration and modern-hash
+  swap behaviors pinned by tests, 40s parser fuzz clean.
+
 ## v0.6.18 — 2026-09-13
 
 - **A vcpkg baseline's full commit is now comparable — the vcpkg sibling

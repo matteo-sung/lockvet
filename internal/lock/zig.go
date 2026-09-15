@@ -161,11 +161,21 @@ func zigHashVersion(h string) string {
 // shape this format exists to catch — compares as nothing at all. Two
 // distinct labels keep a legacy→0.14 shape migration an algo upgrade
 // (never flags) rather than a false repin.
+//
+// The multihash test deliberately accepts ANY width of hex after the
+// "1220" prefix, not just the well-formed 68 chars: a hand-mangled or
+// truncated multihash must stay inside the sha256 family so a
+// well-formed → malformed swap under an unchanged version compares as
+// disjoint sha256 sets and flags, instead of drifting to the zigpkg
+// label where the cross-label migration quiet path would swallow it
+// (same normalize-at-parser rule the Cargo/mix/deno widths got in
+// v0.6.8). A 0.14+ hash can never be mistaken for this: its
+// name-semver-digest shape always carries "-", which is not hex.
 func zigIntegrity(h string) string {
 	if h == "" {
 		return ""
 	}
-	if len(h) == 68 && strings.HasPrefix(h, "1220") && isHex(h[4:]) {
+	if len(h) > 4 && strings.HasPrefix(h, "1220") && isHex(h[4:]) {
 		return "sha256:" + h[4:] // multihash: 0x12 = sha2-256, 0x20 = 32 bytes
 	}
 	return "zigpkg:" + h
