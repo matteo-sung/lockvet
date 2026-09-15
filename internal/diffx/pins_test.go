@@ -186,6 +186,45 @@ func TestYarnClassicSRISwapFlagsRepinned(t *testing.T) {
 	}
 }
 
+const bunSha384Tmpl = `{
+  "lockfileVersion": 1,
+  "packages": {
+    "lodash": ["lodash@4.17.21", "", {}, "sha384-%s"]
+  }
+}`
+
+func TestBunSha384SwapFlagsRepinned(t *testing.T) {
+	// End-to-end regression for the capture-drop variant: pre-v0.6.20
+	// the bun.lock sniffer only recognized sha512-/sha256-/sha1-, so a
+	// sha384 SRI hash vanished on BOTH sides and this same-version swap
+	// rendered "no changes".
+	oldF := parseFile(t, "bun.lock", sprintf(bunSha384Tmpl, "AaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa"))
+	newF := parseFile(t, "bun.lock", sprintf(bunSha384Tmpl, "BbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBb"))
+	fd := Diff(oldF, newF)
+	if len(fd.Changes) != 1 {
+		t.Fatalf("want 1 repinned change, got %+v", fd.Changes)
+	}
+	if c := fd.Changes[0]; c.Kind != Repinned || !c.IntegrityChanged || c.Name != "lodash" {
+		t.Fatalf("bad change: %+v", c)
+	}
+}
+
+func TestBunSRIAlgoMigrationQuiet(t *testing.T) {
+	// sha512 → sha384 with no shared algo is an algo migration and must
+	// stay quiet, matching package-lock.json's verbatim capture.
+	const tmpl = `{
+  "lockfileVersion": 1,
+  "packages": {
+    "lodash": ["lodash@4.17.21", "", {}, "%s"]
+  }
+}`
+	oldF := parseFile(t, "bun.lock", sprintf(tmpl, "sha512-v2kDEe57lecTulqGUYIrk8oEwmzYhWdywEnRCUmvYr4IaiRwvA9nq3Vc0lTHFG93AAAAAAAAAAAAAAAAAAAAAA=="))
+	newF := parseFile(t, "bun.lock", sprintf(tmpl, "sha384-BbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBb"))
+	if fd := Diff(oldF, newF); len(fd.Changes) != 0 {
+		t.Fatalf("algo migration should be quiet, got %+v", fd.Changes)
+	}
+}
+
 func TestRepinnedRanksFirst(t *testing.T) {
 	if kindRank(Repinned) >= kindRank(Downgraded) {
 		t.Fatal("repinned should sort before downgrades")

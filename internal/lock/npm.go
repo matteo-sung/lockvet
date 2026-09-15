@@ -454,7 +454,13 @@ func parseBunLock(p string, data []byte) (*File, error) {
 				continue
 			}
 			switch {
-			case strings.HasPrefix(s, "sha512-") || strings.HasPrefix(s, "sha256-") || strings.HasPrefix(s, "sha1-"):
+			// Full SRI algo set (sha256/384/512) plus npm's legacy
+			// sha1. Gating on a subset (pre-v0.6.20 omitted sha384-)
+			// silently dropped the hash on both sides, so a
+			// same-version integrity swap compared as "no change" —
+			// the capture-drop variant of the zig/Cargo width class.
+			case strings.HasPrefix(s, "sha512-") || strings.HasPrefix(s, "sha384-") ||
+				strings.HasPrefix(s, "sha256-") || strings.HasPrefix(s, "sha1-"):
 				f.setPin(name, version, s, "")
 			case strings.Contains(s, "://"):
 				f.setPin(name, version, "", HostOf(s))

@@ -4,6 +4,30 @@ All notable changes to lockvet. Versions follow [semver](https://semver.org)
 with a 0.x major: minor bumps may consolidate, patch bumps add features and
 fixes.
 
+## v0.6.20 — 2026-09-15
+
+- **bun.lock now captures the full SRI algo set — the capture-drop
+  variant of the width-gate bug class.** The bun.lock integrity
+  sniffer recognized only `sha512-`/`sha256-`/`sha1-` prefixes; SRI
+  also defines `sha384`. A sha384 hash was silently dropped on *both*
+  sides of a diff, so a same-version integrity swap between two
+  sha384 values rendered **no changes** — every other npm-family
+  parser (package-lock verbatim JSON, pnpm's permissive regex, yarn's
+  verbatim capture) already handled it. The sniffer now accepts
+  `sha384-`, so the swap compares as disjoint sets within the shared
+  algo and flags `‼ REPINNED`, gated by `-fail-on integrity`; a
+  sha512→sha384 rewrite with no shared algo stays quiet as an algo
+  migration, matching package-lock behavior (before this fix it
+  noisily — and wrongly — flagged as "integrity removed"). Found by
+  the conditional-label audit promised in the v0.6.19 notes: this was
+  the only remaining value-shape gate that could suppress a
+  same-version tamper (mise's checksum validator and docker's digest
+  prefix check both fail *visible* — dropped-hash and vanished-row
+  respectively). Validated against 117 real bun.lock history commits
+  (elysia + opencode): zero failures, zero false alarms; both shapes
+  pinned by tests, 40s parser fuzz clean. Practical exposure today is
+  low — bun emits sha512 — this closes the shape before it can bite.
+
 ## v0.6.19 — 2026-09-15
 
 - **A malformed-width Zig multihash stays comparable — the zig sibling

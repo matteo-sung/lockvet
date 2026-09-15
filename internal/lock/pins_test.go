@@ -294,6 +294,22 @@ func TestBunPins(t *testing.T) {
 	wantPin(t, f, "corp-pkg", "1.0.0", "sha512-abc", "npm.corp.internal")
 }
 
+// bun.lock integrity sniffing must accept the FULL SRI algo set.
+// Pre-v0.6.20 the gate omitted sha384-, so a sha384 hash was dropped
+// on both sides and a same-version integrity swap compared as
+// "no change" — the capture-drop variant of the zig/Cargo width class.
+func TestBunPinsSha384(t *testing.T) {
+	f := mustParse(t, "bun.lock", `{
+  "lockfileVersion": 1,
+  "packages": {
+    "legacy-pkg": ["legacy-pkg@0.1.0", "", {}, "sha1-2jmj7l5rSw0yVb/vlWAYkK/YBwk="],
+    "mid-pkg": ["mid-pkg@2.0.0", "", {}, "sha384-Ab3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8Y"]
+  }
+}`)
+	wantPin(t, f, "legacy-pkg", "0.1.0", "sha1-2jmj7l5rSw0yVb/vlWAYkK/YBwk=", "")
+	wantPin(t, f, "mid-pkg", "2.0.0", "sha384-Ab3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8YAb3d5X8Y", "")
+}
+
 func TestComposerPins(t *testing.T) {
 	f := mustParse(t, "composer.lock", `{
   "packages": [
